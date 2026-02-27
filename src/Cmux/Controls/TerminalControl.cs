@@ -591,17 +591,63 @@ public class TerminalControl : FrameworkElement
             CommandSubmitted?.Invoke(command);
     }
 
+    private bool CopySelectionToClipboard()
+    {
+        if (_session == null || !_selection.HasSelection)
+            return false;
+
+        var text = _selection.GetSelectedText(_session.Buffer);
+        if (string.IsNullOrEmpty(text))
+            return false;
+
+        Clipboard.SetText(text);
+        _selection.ClearSelection();
+        return true;
+    }
+
     protected override void OnKeyDown(KeyEventArgs e)
     {
         if (_session == null) return;
 
-        // Don't intercept system shortcuts
-        if (Keyboard.Modifiers.HasFlag(ModifierKeys.Control) &&
-            (e.Key is Key.N or Key.T or Key.W or Key.B or Key.D or Key.I))
+        var modifiers = Keyboard.Modifiers;
+        bool ctrl = modifiers.HasFlag(ModifierKeys.Control);
+        bool shift = modifiers.HasFlag(ModifierKeys.Shift);
+
+        // Terminal shortcuts
+        if (ctrl && e.Key == Key.C)
+        {
+            if (!CopySelectionToClipboard())
+            {
+                // Forward Ctrl+C to shell as interrupt when no selection is active.
+                _inputLineBuffer.Clear();
+                EnsureLiveView();
+                _session.Write("\x03");
+            }
+
+            e.Handled = true;
+            return;
+        }
+
+        if ((ctrl && e.Key == Key.V) || (shift && e.Key == Key.Insert))
+        {
+            PasteFromClipboard();
+            e.Handled = true;
+            return;
+        }
+
+        if (ctrl && e.Key == Key.Insert)
+        {
+            _ = CopySelectionToClipboard();
+            e.Handled = true;
+            return;
+        }
+
+        // Don't intercept app-level shortcuts
+        if (ctrl && (e.Key is Key.N or Key.T or Key.W or Key.B or Key.D or Key.I))
             return;
 
         bool appCursor = _session.Buffer.ApplicationCursorKeys;
-        string? sequence = KeyToVtSequence(e.Key, Keyboard.Modifiers, appCursor);
+        string? sequence = KeyToVtSequence(e.Key, modifiers, appCursor);
         if (sequence != null)
         {
             if (e.Key == Key.Back)
