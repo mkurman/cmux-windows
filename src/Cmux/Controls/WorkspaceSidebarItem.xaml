@@ -3,17 +3,6 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="clr-namespace:Cmux.ViewModels">
 
-    <UserControl.Style>
-        <Style TargetType="UserControl">
-            <Setter Property="ToolTip" Value="{x:Null}" />
-            <Style.Triggers>
-                <DataTrigger Binding="{Binding DataContext.CompactSidebar, RelativeSource={RelativeSource AncestorType=Window}}" Value="True">
-                    <Setter Property="ToolTip" Value="{Binding Name}" />
-                </DataTrigger>
-            </Style.Triggers>
-        </Style>
-    </UserControl.Style>
-
     <Grid>
         <Grid.ContextMenu>
             <ContextMenu Background="#FF141420" BorderBrush="#FF2A2A3C" BorderThickness="1" Padding="4">
@@ -134,8 +123,7 @@
                                Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center" />
                 </Border>
 
-                <Grid Grid.Column="1" x:Name="NameHost"
-                      Visibility="{Binding DataContext.IsSidebarExpanded, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVisibility}}">
+                <Grid Grid.Column="1" x:Name="NameHost">
                     <TextBlock x:Name="NameDisplay" Text="{Binding Name}"
                                Foreground="{StaticResource ForegroundBrush}"
                                FontSize="13" FontWeight="SemiBold"

@@ -1,52 +1,72 @@
-## .NET
-bin/
-obj/
-.vs/
-*.user
-*.suo
-*.userprefs
-*.sln.docstates
-*.csproj.user
-[Dd]ebug/
-[Rr]elease/
-x64/
-x86/
-[Bb]uild/
-bld/
+# =========================
+# .NET / MSBuild
+# =========================
 [Bb]in/
 [Oo]bj/
-[Ll]og/
-[Ll]ogs/
+[Dd]ebug/
+[Dd]ebug*/
+[Rr]elease/
+[Rr]elease*/
+[Bb]uild/
+bld/
+out/
+artifacts/
+publish/
+x64/
+x86/
+
+# Test / coverage outputs
+TestResults/
+*.trx
+*.coverage
+*.coveragexml
+coverage/
 
 # NuGet
 *.nupkg
+*.snupkg
+packages/
 **/[Pp]ackages/*
 !**/[Pp]ackages/build/
+.nuget/
 *.nuget.props
 *.nuget.targets
 project.lock.json
 
-# Rider / VS
+# =========================
+# IDE / editor
+# =========================
+.vs/
 .idea/
+.vscode/
+
+*.suo
+*.user
+*.userprefs
+*.csproj.user
+*.sln.docstates
+*.sln.iml
 *.DotSettings.user
 _ReSharper*/
 *.[Rr]e[Ss]harper
-*.sln.iml
 
-# Build results
-[Dd]ebugPublic/
-[Rr]eleases/
-[Aa]rtifacts/
-publish/
-
-# Windows
+# =========================
+# OS / temporary
+# =========================
 Thumbs.db
 ehthumbs.db
 Desktop.ini
 $RECYCLE.BIN/
+.DS_Store
 
-# Misc
-*.swp
-*.bak
 *.tmp
+*.temp
+*.bak
 *.orig
+*.swp
+
+# Local scratch / logs
+.history/
+*.log
+[Ll]og/
+[Ll]ogs/

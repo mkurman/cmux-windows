@@ -159,7 +159,6 @@
                         <MenuItem Header="_Snippets" Click="Snippets_Click" />
                         <Separator />
                         <MenuItem Header="Toggle _Sidebar" Command="{Binding ToggleSidebarCommand}" InputGestureText="Ctrl+B" />
-                        <MenuItem Header="Toggle Compact Sidebar" Command="{Binding ToggleCompactSidebarCommand}" />
                     </MenuItem>
 
                     <MenuItem Header="_Help" Style="{StaticResource AppMenuTopItemStyle}" ItemContainerStyle="{StaticResource AppMenuSubItemStyle}">
@@ -202,8 +201,7 @@
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
 
-                                <StackPanel Grid.Row="0" Grid.Column="0" Orientation="Vertical"
-                                            Visibility="{Binding IsSidebarExpanded, Converter={StaticResource BoolToVisibility}}">
+                                <StackPanel Grid.Row="0" Grid.Column="0" Orientation="Vertical">
                                     <TextBlock Text="Workspaces" Foreground="{StaticResource ForegroundBrush}" FontSize="12" FontWeight="SemiBold" />
                                     <TextBlock Text="Manage sessions and environments" Foreground="{StaticResource ForegroundDimBrush}" FontSize="10" />
                                 </StackPanel>
@@ -221,10 +219,6 @@
                                             Width="24" Height="24" Click="MenuOpenLogs_Click">
                                         <TextBlock Text="&#xE7BA;" FontFamily="Segoe MDL2 Assets" FontSize="10" />
                                     </Button>
-                                    <Button Style="{StaticResource IconButton}" ToolTip="Toggle Compact Sidebar"
-                                            Width="24" Height="24" Command="{Binding ToggleCompactSidebarCommand}">
-                                        <TextBlock Text="&#xE8A0;" FontFamily="Segoe MDL2 Assets" FontSize="10" />
-                                    </Button>
                                 </StackPanel>
 
                                 <TextBox x:Name="WorkspaceFilterBox"
@@ -234,7 +228,6 @@
                                          BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
                                          CaretBrush="{StaticResource ForegroundBrush}" SelectionBrush="{StaticResource AccentBrush}"
                                          ToolTip="Filter workspaces by name, branch, or directory"
-                                         Visibility="{Binding IsSidebarExpanded, Converter={StaticResource BoolToVisibility}}"
                                          TextChanged="WorkspaceFilterBox_TextChanged" />
                             </Grid>
                         </Border>

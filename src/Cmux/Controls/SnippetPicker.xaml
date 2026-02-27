@@ -24,10 +24,12 @@
                         <Button Content="&#xE710;" FontFamily="Segoe MDL2 Assets" FontSize="12"
                                 HorizontalAlignment="Right" Padding="8" Background="Transparent"
                                 Foreground="#FF6B7280" Click="NewSnippet_Click" Cursor="Hand"
+                                Style="{StaticResource IconButton}"
                                 ToolTip="New snippet (Ctrl+N)" />
                         <Button Content="&#xE10A;" FontFamily="Segoe MDL2 Assets" FontSize="12"
                                 HorizontalAlignment="Right" Padding="8" Background="Transparent"
                                 Foreground="#FF6B7280" Click="Close_Click" Cursor="Hand"
+                                Style="{StaticResource IconButton}"
                                 ToolTip="Close" />
                     </StackPanel>
                 </Grid>
@@ -86,8 +88,10 @@
                     <StackPanel Grid.Row="4" Grid.Column="1" Orientation="Horizontal"
                                 HorizontalAlignment="Right" Margin="0,10,0,0">
                         <Button Content="Cancel" Padding="10,4" Margin="0,0,6,0"
+                                Style="{StaticResource CmuxButton}"
                                 Click="CancelNewSnippet_Click" />
                         <Button x:Name="SaveSnippetButton" Content="Save Snippet" Padding="10,4"
+                                Style="{StaticResource AccentButton}"
                                 Click="SaveNewSnippet_Click" />
                     </StackPanel>
                 </Grid>
