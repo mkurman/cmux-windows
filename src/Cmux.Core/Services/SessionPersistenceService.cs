@@ -55,7 +55,7 @@ public class SessionPersistenceService
         IReadOnlyList<Workspace> workspaces,
         int? selectedWorkspaceIndex,
         double windowX, double windowY, double windowWidth, double windowHeight,
-        bool isMaximized, double sidebarWidth, bool sidebarVisible)
+        bool isMaximized, double sidebarWidth, bool sidebarVisible, bool compactSidebar)
     {
         var state = new SessionState
         {
@@ -70,6 +70,7 @@ public class SessionPersistenceService
                 IsMaximized = isMaximized,
                 SidebarWidth = sidebarWidth,
                 SidebarVisible = sidebarVisible,
+                CompactSidebar = compactSidebar,
             },
         };
 
@@ -79,6 +80,8 @@ public class SessionPersistenceService
             {
                 Id = ws.Id,
                 Name = ws.Name,
+                IconGlyph = ws.IconGlyph,
+                AccentColor = ws.AccentColor,
                 WorkingDirectory = ws.WorkingDirectory,
                 SelectedSurfaceIndex = ws.Surfaces.IndexOf(ws.SelectedSurface!),
             };
@@ -90,6 +93,10 @@ public class SessionPersistenceService
                     Id = surface.Id,
                     Name = surface.Name,
                     FocusedPaneId = surface.FocusedPaneId,
+                    PaneCustomNames = new Dictionary<string, string>(surface.PaneCustomNames),
+                    PaneSnapshots = surface.PaneSnapshots.ToDictionary(
+                        kvp => kvp.Key,
+                        kvp => ClonePaneSnapshot(kvp.Value)),
                     RootNode = SerializeSplitNode(surface.RootSplitNode),
                 };
                 wsState.Surfaces.Add(surfState);
@@ -99,6 +106,27 @@ public class SessionPersistenceService
         }
 
         return state;
+    }
+
+    private static PaneStateSnapshot ClonePaneSnapshot(PaneStateSnapshot source)
+    {
+        return new PaneStateSnapshot
+        {
+            CapturedAt = source.CapturedAt,
+            WorkingDirectory = source.WorkingDirectory,
+            CommandHistory = source.CommandHistory.ToList(),
+            BufferSnapshot = source.BufferSnapshot == null
+                ? null
+                : new Cmux.Core.Terminal.TerminalBufferSnapshot
+                {
+                    Cols = source.BufferSnapshot.Cols,
+                    Rows = source.BufferSnapshot.Rows,
+                    CursorRow = source.BufferSnapshot.CursorRow,
+                    CursorCol = source.BufferSnapshot.CursorCol,
+                    ScrollbackLines = source.BufferSnapshot.ScrollbackLines.ToList(),
+                    ScreenLines = source.BufferSnapshot.ScreenLines.ToList(),
+                },
+        };
     }
 
     private static SplitNodeState SerializeSplitNode(SplitNode node)

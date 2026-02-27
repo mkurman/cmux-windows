@@ -25,6 +25,12 @@ public class WorkspaceState
     [JsonPropertyName("name")]
     public string Name { get; set; } = "";
 
+    [JsonPropertyName("iconGlyph")]
+    public string? IconGlyph { get; set; }
+
+    [JsonPropertyName("accentColor")]
+    public string? AccentColor { get; set; }
+
     [JsonPropertyName("workingDirectory")]
     public string? WorkingDirectory { get; set; }
 
@@ -48,6 +54,12 @@ public class SurfaceState
 
     [JsonPropertyName("focusedPaneId")]
     public string? FocusedPaneId { get; set; }
+
+    [JsonPropertyName("paneCustomNames")]
+    public Dictionary<string, string> PaneCustomNames { get; set; } = [];
+
+    [JsonPropertyName("paneSnapshots")]
+    public Dictionary<string, PaneStateSnapshot> PaneSnapshots { get; set; } = [];
 }
 
 public class SplitNodeState
@@ -96,4 +108,7 @@ public class WindowState
 
     [JsonPropertyName("sidebarVisible")]
     public bool SidebarVisible { get; set; } = true;
+
+    [JsonPropertyName("compactSidebar")]
+    public bool CompactSidebar { get; set; }
 }

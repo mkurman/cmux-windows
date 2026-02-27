@@ -6,69 +6,167 @@
         xmlns:controls="clr-namespace:Cmux.Controls"
         Title="cmux" Height="800" Width="1200"
         MinHeight="400" MinWidth="600"
-        WindowStyle="None" AllowsTransparency="True"
-        Background="Transparent"
+        WindowStyle="SingleBorderWindow" ResizeMode="CanResize"
+        Background="{StaticResource BackgroundBrush}"
         Loaded="OnLoaded" Closing="OnClosing"
         KeyDown="OnKeyDown">
+
+    <Window.Resources>
+        <SolidColorBrush x:Key="{x:Static SystemColors.MenuBrushKey}" Color="#FF141420" />
+        <SolidColorBrush x:Key="{x:Static SystemColors.MenuTextBrushKey}" Color="#FFE2E2E9" />
+        <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="#FF252547" />
+        <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" Color="#FFE2E2E9" />
+        <SolidColorBrush x:Key="{x:Static SystemColors.ControlBrushKey}" Color="#FF141420" />
+        <SolidColorBrush x:Key="{x:Static SystemColors.WindowBrushKey}" Color="#FF141420" />
+
+        <SolidColorBrush x:Key="{x:Static SystemColors.MenuBarBrushKey}" Color="#FF141420" />
+        <SolidColorBrush x:Key="{x:Static SystemColors.MenuHighlightBrushKey}" Color="#FF252547" />
+        <SolidColorBrush x:Key="{x:Static SystemColors.ControlLightBrushKey}" Color="#FF2A2A3C" />
+        <SolidColorBrush x:Key="{x:Static SystemColors.ControlLightLightBrushKey}" Color="#FF2A2A3C" />
+        <SolidColorBrush x:Key="{x:Static SystemColors.ControlDarkBrushKey}" Color="#FF2A2A3C" />
+        <SolidColorBrush x:Key="{x:Static SystemColors.ControlDarkDarkBrushKey}" Color="#FF2A2A3C" />
+
+        <Style x:Key="AppMenuStyle" TargetType="Menu">
+            <Setter Property="Background" Value="{StaticResource SidebarBackgroundBrush}" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Foreground" Value="{StaticResource ForegroundBrush}" />
+            <Setter Property="Padding" Value="4,2" />
+        </Style>
+
+        <Style x:Key="AppMenuTopItemStyle" TargetType="MenuItem">
+            <Setter Property="Foreground" Value="{StaticResource ForegroundBrush}" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Padding" Value="8,3" />
+            <Setter Property="Margin" Value="0,0,2,0" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="MenuItem">
+                        <Grid>
+                            <Border x:Name="TopItemBg" Background="Transparent" CornerRadius="4" Padding="{TemplateBinding Padding}">
+                                <ContentPresenter ContentSource="Header" RecognizesAccessKey="True" />
+                            </Border>
+                            <Popup x:Name="PART_Popup"
+                                   Placement="Bottom"
+                                   AllowsTransparency="True"
+                                   Focusable="False"
+                                   PopupAnimation="None"
+                                   IsOpen="{TemplateBinding IsSubmenuOpen}">
+                                <Border Background="#FF141420" BorderBrush="#FF2A2A3C" BorderThickness="1" Padding="4" SnapsToDevicePixels="True">
+                                    <StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Cycle" />
+                                </Border>
+                            </Popup>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsHighlighted" Value="True">
+                                <Setter TargetName="TopItemBg" Property="Background" Value="#FF1A1A2E" />
+                            </Trigger>
+                            <Trigger Property="IsSubmenuOpen" Value="True">
+                                <Setter TargetName="TopItemBg" Property="Background" Value="#FF1A1A2E" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="AppMenuSubItemStyle" TargetType="MenuItem">
+            <Setter Property="Foreground" Value="{StaticResource ForegroundBrush}" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Padding" Value="8,5" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="MenuItem">
+                        <Border x:Name="SubItemBg" Background="Transparent" Padding="{TemplateBinding Padding}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <ContentPresenter Grid.Column="0" ContentSource="Header" RecognizesAccessKey="True" />
+                                <TextBlock Grid.Column="1" Text="{TemplateBinding InputGestureText}" Margin="14,0,0,0"
+                                           Foreground="{StaticResource ForegroundDimBrush}" FontSize="11" />
+                            </Grid>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsHighlighted" Value="True">
+                                <Setter TargetName="SubItemBg" Property="Background" Value="#FF252547" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Foreground" Value="{StaticResource ForegroundDimBrush}" />
+                                <Setter TargetName="SubItemBg" Property="Opacity" Value="0.75" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="AppMenuSeparatorStyle" TargetType="Separator">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Separator">
+                        <Border Height="1" Margin="6,4" Background="#FF2A2A3C" />
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
 
     <Window.DataContext>
         <vm:MainViewModel />
     </Window.DataContext>
 
-    <!-- Window content with shadow -->
-    <Border Background="{StaticResource BackgroundBrush}" CornerRadius="8" Margin="8"
-            BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
-        <Border.Effect>
-            <DropShadowEffect BlurRadius="16" ShadowDepth="2" Color="#000000" Opacity="0.6" Direction="270" />
-        </Border.Effect>
+    <Border Background="{StaticResource BackgroundBrush}" CornerRadius="0" Margin="0"
+            BorderBrush="{StaticResource BorderBrush}" BorderThickness="0">
         <Grid>
             <Grid.RowDefinitions>
-                <RowDefinition Height="36" />
+                <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
 
-            <!-- Title bar -->
-            <Border Grid.Row="0" CornerRadius="8,8,0,0"
-                    Background="{StaticResource SidebarBackgroundBrush}"
-                    MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
+            <!-- Standard menu bar -->
+            <Border Grid.Row="0" Background="{StaticResource SidebarBackgroundBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1">
+                <Menu Style="{StaticResource AppMenuStyle}">
+                    <Menu.Resources>
+                        <Style TargetType="Separator" BasedOn="{StaticResource AppMenuSeparatorStyle}" />
+                    </Menu.Resources>
 
-                    <StackPanel Grid.Column="0" Orientation="Horizontal" Margin="14,0">
-                        <!-- App icon -->
-                        <TextBlock Text="&#xE756;" FontFamily="Segoe MDL2 Assets" FontSize="14"
-                                   Foreground="{StaticResource AccentBrush}"
-                                   VerticalAlignment="Center" Margin="0,0,8,0" />
-                        <TextBlock Text="cmux" Foreground="{StaticResource ForegroundBrush}"
-                                   VerticalAlignment="Center" FontWeight="SemiBold" FontSize="12"
-                                   Opacity="0.8" />
-                    </StackPanel>
+                    <MenuItem Header="_File" Style="{StaticResource AppMenuTopItemStyle}" ItemContainerStyle="{StaticResource AppMenuSubItemStyle}">
+                        <MenuItem Header="_New Workspace" Command="{Binding CreateNewWorkspaceCommand}" InputGestureText="Ctrl+N" />
+                        <MenuItem Header="New _Surface" Command="{Binding SelectedWorkspace.CreateNewSurfaceCommand}" InputGestureText="Ctrl+T" />
+                        <Separator />
+                        <MenuItem Header="Open Command _Logs" Click="MenuOpenLogs_Click" InputGestureText="Ctrl+Shift+L" />
+                        <MenuItem Header="Open Session _Vault" Click="MenuOpenSessionVault_Click" InputGestureText="Ctrl+Shift+V" />
+                        <Separator />
+                        <MenuItem Header="_Settings" Click="MenuOpenSettings_Click" InputGestureText="Ctrl+," />
+                        <Separator />
+                        <MenuItem Header="E_xit" Click="CloseButton_Click" />
+                    </MenuItem>
 
-                    <StackPanel Grid.Column="2" Orientation="Horizontal">
-                        <Button Content="&#xE949;" FontFamily="Segoe MDL2 Assets" FontSize="10"
-                                Click="MinimizeButton_Click" Style="{StaticResource CmuxButton}"
-                                Width="46" Height="36" Padding="0" />
-                        <Button Content="&#xE739;" FontFamily="Segoe MDL2 Assets" FontSize="10"
-                                Click="MaximizeButton_Click" Style="{StaticResource CmuxButton}"
-                                Width="46" Height="36" Padding="0" />
-                        <Button Content="&#xE106;" FontFamily="Segoe MDL2 Assets" FontSize="10"
-                                Click="CloseButton_Click" Width="46" Height="36" Padding="0">
-                            <Button.Style>
-                                <Style TargetType="Button" BasedOn="{StaticResource CmuxButton}">
-                                    <Style.Triggers>
-                                        <Trigger Property="IsMouseOver" Value="True">
-                                            <Setter Property="Background" Value="{StaticResource ErrorBrush}" />
-                                        </Trigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </Button.Style>
-                        </Button>
-                    </StackPanel>
-                </Grid>
+                    <MenuItem Header="_Window" Style="{StaticResource AppMenuTopItemStyle}" ItemContainerStyle="{StaticResource AppMenuSubItemStyle}">
+                        <MenuItem Header="Split _Right" Click="ToolbarSplitRight_Click" InputGestureText="Ctrl+D" />
+                        <MenuItem Header="Split _Down" Click="ToolbarSplitDown_Click" InputGestureText="Ctrl+Shift+D" />
+                        <MenuItem Header="_Zoom Pane" Click="ToolbarZoom_Click" InputGestureText="Ctrl+Shift+Z" />
+                        <MenuItem Header="_Equalize Panes" Click="ToolbarEqualize_Click" />
+                        <Separator />
+                        <MenuItem Header="_Search" Click="Search_Click" InputGestureText="Ctrl+Shift+F" />
+                        <MenuItem Header="Command _Palette" Click="CommandPalette_Click" InputGestureText="Ctrl+Shift+P" />
+                        <MenuItem Header="_Snippets" Click="Snippets_Click" />
+                        <Separator />
+                        <MenuItem Header="Toggle _Sidebar" Command="{Binding ToggleSidebarCommand}" InputGestureText="Ctrl+B" />
+                        <MenuItem Header="Toggle Compact Sidebar" Command="{Binding ToggleCompactSidebarCommand}" />
+                    </MenuItem>
+
+                    <MenuItem Header="_Help" Style="{StaticResource AppMenuTopItemStyle}" ItemContainerStyle="{StaticResource AppMenuSubItemStyle}">
+                        <MenuItem Header="Keyboard Shortcuts" Click="MenuOpenSettings_Click" />
+                        <MenuItem Header="About" Click="MenuAbout_Click" />
+                    </MenuItem>
+                </Menu>
             </Border>
 
             <!-- Main content -->
@@ -86,12 +184,63 @@
 
                     <Grid>
                         <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
                             <RowDefinition Height="*" />
                             <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
 
+                        <!-- Sidebar top actions -->
+                        <Border Grid.Row="0" BorderBrush="{StaticResource BorderBrush}"
+                                BorderThickness="0,0,0,1" Padding="8,8,8,6">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+
+                                <StackPanel Grid.Row="0" Grid.Column="0" Orientation="Vertical"
+                                            Visibility="{Binding IsSidebarExpanded, Converter={StaticResource BoolToVisibility}}">
+                                    <TextBlock Text="Workspaces" Foreground="{StaticResource ForegroundBrush}" FontSize="12" FontWeight="SemiBold" />
+                                    <TextBlock Text="Manage sessions and environments" Foreground="{StaticResource ForegroundDimBrush}" FontSize="10" />
+                                </StackPanel>
+
+                                <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                    <Button Style="{StaticResource IconButton}" ToolTip="New Workspace (Ctrl+N)"
+                                            Width="24" Height="24" Command="{Binding CreateNewWorkspaceCommand}">
+                                        <TextBlock Text="&#xE710;" FontFamily="Segoe MDL2 Assets" FontSize="10" />
+                                    </Button>
+                                    <Button Style="{StaticResource IconButton}" ToolTip="Session Vault (Ctrl+Shift+V)"
+                                            Width="24" Height="24" Click="MenuOpenSessionVault_Click">
+                                        <TextBlock Text="&#xE8D1;" FontFamily="Segoe MDL2 Assets" FontSize="10" />
+                                    </Button>
+                                    <Button Style="{StaticResource IconButton}" ToolTip="Command Logs (Ctrl+Shift+L)"
+                                            Width="24" Height="24" Click="MenuOpenLogs_Click">
+                                        <TextBlock Text="&#xE7BA;" FontFamily="Segoe MDL2 Assets" FontSize="10" />
+                                    </Button>
+                                    <Button Style="{StaticResource IconButton}" ToolTip="Toggle Compact Sidebar"
+                                            Width="24" Height="24" Command="{Binding ToggleCompactSidebarCommand}">
+                                        <TextBlock Text="&#xE8A0;" FontFamily="Segoe MDL2 Assets" FontSize="10" />
+                                    </Button>
+                                </StackPanel>
+
+                                <TextBox x:Name="WorkspaceFilterBox"
+                                         Grid.Row="1" Grid.ColumnSpan="2"
+                                         Margin="0,8,0,0" Padding="8,5"
+                                         Background="#FF141420" Foreground="{StaticResource ForegroundBrush}"
+                                         BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                         CaretBrush="{StaticResource ForegroundBrush}" SelectionBrush="{StaticResource AccentBrush}"
+                                         ToolTip="Filter workspaces by name, branch, or directory"
+                                         Visibility="{Binding IsSidebarExpanded, Converter={StaticResource BoolToVisibility}}"
+                                         TextChanged="WorkspaceFilterBox_TextChanged" />
+                            </Grid>
+                        </Border>
+
                         <!-- Workspace list -->
-                        <ListBox Grid.Row="0" ItemsSource="{Binding Workspaces}"
+                        <ListBox Grid.Row="1" ItemsSource="{Binding Workspaces}"
                                  SelectedItem="{Binding SelectedWorkspace}"
                                  Background="Transparent" BorderThickness="0"
                                  ScrollViewer.HorizontalScrollBarVisibility="Disabled"
@@ -150,7 +299,7 @@
                         </ListBox>
 
                         <!-- Sidebar footer -->
-                        <Border Grid.Row="1" BorderBrush="{StaticResource BorderBrush}"
+                        <Border Grid.Row="2" BorderBrush="{StaticResource BorderBrush}"
                                 BorderThickness="0,1,0,0" Padding="6,6">
                             <StackPanel>
                                 <Button Command="{Binding CreateNewWorkspaceCommand}"
@@ -198,27 +347,126 @@
                 <!-- Content area -->
                 <Grid Grid.Column="2">
                     <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" /> <!-- Surface tabs -->
+                        <RowDefinition Height="Auto" /> <!-- Toolbar -->
+                        <RowDefinition Height="*" />    <!-- Terminal content -->
+                        <RowDefinition Height="Auto" /> <!-- Status bar -->
                     </Grid.RowDefinitions>
 
                     <!-- Surface tabs -->
                     <controls:SurfaceTabBar Grid.Row="0"
                         DataContext="{Binding SelectedWorkspace}" />
 
+                    <!-- Toolbar -->
+                    <Border Grid.Row="1" Background="{StaticResource SidebarBackgroundBrush}"
+                            BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1"
+                            Padding="6,2">
+                        <StackPanel Orientation="Horizontal">
+                            <Button Style="{StaticResource IconButton}" ToolTip="Split Right (Ctrl+D)"
+                                    Click="ToolbarSplitRight_Click">
+                                <TextBlock Text="&#xE26B;" FontFamily="Segoe MDL2 Assets" FontSize="12" />
+                            </Button>
+                            <Button Style="{StaticResource IconButton}" ToolTip="Split Down (Ctrl+Shift+D)"
+                                    Click="ToolbarSplitDown_Click">
+                                <TextBlock Text="&#xE74B;" FontFamily="Segoe MDL2 Assets" FontSize="12" />
+                            </Button>
+                            <Rectangle Width="1" Height="16" Fill="{StaticResource BorderBrush}" Margin="4,0" />
+                            <Button Style="{StaticResource IconButton}" ToolTip="Layout: 2 Columns"
+                                    Click="ToolbarLayout2Col_Click">
+                                <TextBlock Text="&#xE8A1;" FontFamily="Segoe MDL2 Assets" FontSize="11" />
+                            </Button>
+                            <Button Style="{StaticResource IconButton}" ToolTip="Layout: Grid 2x2"
+                                    Click="ToolbarLayoutGrid_Click">
+                                <TextBlock Text="&#xE8A9;" FontFamily="Segoe MDL2 Assets" FontSize="11" />
+                            </Button>
+                            <Button Style="{StaticResource IconButton}" ToolTip="Layout: Main + Stack"
+                                    Click="ToolbarLayoutMainStack_Click">
+                                <TextBlock Text="&#xE89F;" FontFamily="Segoe MDL2 Assets" FontSize="11" />
+                            </Button>
+                            <Rectangle Width="1" Height="16" Fill="{StaticResource BorderBrush}" Margin="4,0" />
+                            <Button Style="{StaticResource IconButton}" ToolTip="Equalize Panes"
+                                    Click="ToolbarEqualize_Click">
+                                <TextBlock Text="&#xE9D5;" FontFamily="Segoe MDL2 Assets" FontSize="11" />
+                            </Button>
+                            <Button x:Name="ToolbarZoomButton" Style="{StaticResource IconButton}" ToolTip="Zoom Pane (Ctrl+Shift+Z)"
+                                    Click="ToolbarZoom_Click">
+                                <TextBlock x:Name="ToolbarZoomIcon" Text="&#xE740;" FontFamily="Segoe MDL2 Assets" FontSize="12" />
+                            </Button>
+                        </StackPanel>
+                    </Border>
+
                     <!-- Terminal content -->
-                    <ContentControl Grid.Row="1" x:Name="ContentArea">
-                        <controls:SplitPaneContainer
+                    <ContentControl Grid.Row="2" x:Name="ContentArea">
+                        <controls:SplitPaneContainer x:Name="SplitPaneContainerControl"
                             DataContext="{Binding SelectedWorkspace.SelectedSurface}" />
                     </ContentControl>
 
                     <!-- Notification panel overlay -->
-                    <controls:NotificationPanel Grid.Row="0" Grid.RowSpan="2"
+                    <controls:NotificationPanel Grid.Row="0" Grid.RowSpan="3"
                         HorizontalAlignment="Right"
                         Visibility="{Binding NotificationPanelVisible, Converter={StaticResource BoolToVisibility}}"
                         DataContext="{Binding}" />
+
+                    <!-- Search overlay -->
+                    <controls:SearchOverlay Grid.Row="0" Grid.RowSpan="3"
+                        x:Name="SearchOverlayControl"
+                        Visibility="Collapsed"
+                        VerticalAlignment="Top" HorizontalAlignment="Right"
+                        Margin="0,8,8,0" />
+
+                    <!-- Command palette overlay -->
+                    <controls:CommandPalette Grid.Row="0" Grid.RowSpan="3"
+                        x:Name="CommandPaletteControl"
+                        Visibility="Collapsed" />
+
+                    <!-- Snippet picker overlay -->
+                    <controls:SnippetPicker Grid.Row="0" Grid.RowSpan="3"
+                        x:Name="SnippetPickerControl"
+                        Visibility="Collapsed" />
+
+                    <!-- Status bar -->
+                    <Border Grid.Row="3" Background="{StaticResource SidebarBackgroundBrush}"
+                            BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0"
+                            Padding="10,3">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0" Orientation="Horizontal">
+                                <!-- Git branch -->
+                                <TextBlock Text="&#xE8AD;" FontFamily="Segoe MDL2 Assets" FontSize="10"
+                                           Foreground="{StaticResource ForegroundDimBrush}" VerticalAlignment="Center"
+                                           Margin="0,0,4,0" />
+                                <TextBlock Text="{Binding SelectedWorkspace.GitBranch, FallbackValue=''}" FontSize="11"
+                                           Foreground="{StaticResource AccentBrush}" VerticalAlignment="Center"
+                                           Margin="0,0,16,0" />
+                                <!-- Working directory -->
+                                <TextBlock Text="&#xE8B7;" FontFamily="Segoe MDL2 Assets" FontSize="10"
+                                           Foreground="{StaticResource ForegroundDimBrush}" VerticalAlignment="Center"
+                                           Margin="0,0,4,0" />
+                                <TextBlock Text="{Binding SelectedWorkspace.WorkingDirectory, FallbackValue=''}" FontSize="11"
+                                           Foreground="{StaticResource ForegroundDimBrush}" VerticalAlignment="Center"
+                                           TextTrimming="CharacterEllipsis" MaxWidth="300" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                <!-- Pane count -->
+                                <TextBlock Text="&#xE737;" FontFamily="Segoe MDL2 Assets" FontSize="10"
+                                           Foreground="{StaticResource ForegroundDimBrush}" VerticalAlignment="Center"
+                                           Margin="0,0,4,0" />
+                                <TextBlock x:Name="PaneCountText" Text="1 pane" FontSize="11"
+                                           Foreground="{StaticResource ForegroundDimBrush}" VerticalAlignment="Center"
+                                           Margin="0,0,12,0" />
+                                <!-- Shortcuts hint -->
+                                <TextBlock Text="Ctrl+Shift+P: Commands" FontSize="10"
+                                           Foreground="{StaticResource ForegroundDimBrush}" VerticalAlignment="Center"
+                                           Opacity="0.6" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
                 </Grid>
             </Grid>
+
         </Grid>
     </Border>
 </Window>

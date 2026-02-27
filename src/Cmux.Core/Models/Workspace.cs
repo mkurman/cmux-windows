@@ -6,6 +6,8 @@ public class Workspace
 {
     public string Id { get; set; } = Guid.NewGuid().ToString();
     public string Name { get; set; } = "Workspace";
+    public string IconGlyph { get; set; } = "\uE8A5";
+    public string AccentColor { get; set; } = "#FF818CF8";
     public ObservableCollection<Surface> Surfaces { get; set; } = [];
     public Surface? SelectedSurface { get; set; }
     public string? GitBranch { get; set; }

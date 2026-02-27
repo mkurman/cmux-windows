@@ -17,6 +17,9 @@ public static partial class UrlDetector
 
     public static string GetRowText(TerminalBuffer buffer, int row)
     {
+        if (row < 0 || row >= buffer.Rows)
+            return string.Empty;
+
         var chars = new char[buffer.Cols];
         for (int c = 0; c < buffer.Cols; c++)
         {

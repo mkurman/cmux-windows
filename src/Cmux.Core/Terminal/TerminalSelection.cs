@@ -163,4 +163,14 @@ public class TerminalSelection
         _end = new SelectionPoint(row, cols - 1);
         SelectionChanged?.Invoke();
     }
+
+    /// <summary>
+    /// Selects all content in the terminal buffer.
+    /// </summary>
+    public void SelectAll(int rows, int cols)
+    {
+        _start = new SelectionPoint(0, 0);
+        _end = new SelectionPoint(rows - 1, cols - 1);
+        SelectionChanged?.Invoke();
+    }
 }

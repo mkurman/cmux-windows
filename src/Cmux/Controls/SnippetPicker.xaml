@@ -1,0 +1,186 @@
+<UserControl x:Class="Cmux.Controls.SnippetPicker"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Width="560" MaxHeight="500"
+             HorizontalAlignment="Center" VerticalAlignment="Center">
+    <Border Background="#F2141414" CornerRadius="10" BorderBrush="#FF2A2A2A" BorderThickness="1">
+        <Border.Effect>
+            <DropShadowEffect BlurRadius="30" ShadowDepth="8" Color="#000000" Opacity="0.7" Direction="270" />
+        </Border.Effect>
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <!-- Header -->
+            <Border Grid.Row="0" Padding="16,12" BorderBrush="#FF2A2A2A" BorderThickness="0,0,0,1">
+                <Grid>
+                    <TextBlock Text="Snippets" FontSize="16" FontWeight="SemiBold"
+                               Foreground="{StaticResource ForegroundBrush}" />
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                        <Button Content="&#xE710;" FontFamily="Segoe MDL2 Assets" FontSize="12"
+                                HorizontalAlignment="Right" Padding="8" Background="Transparent"
+                                Foreground="#FF6B7280" Click="NewSnippet_Click" Cursor="Hand"
+                                ToolTip="New snippet (Ctrl+N)" />
+                        <Button Content="&#xE10A;" FontFamily="Segoe MDL2 Assets" FontSize="12"
+                                HorizontalAlignment="Right" Padding="8" Background="Transparent"
+                                Foreground="#FF6B7280" Click="Close_Click" Cursor="Hand"
+                                ToolTip="Close" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <!-- Search -->
+            <TextBox Grid.Row="1" x:Name="SearchBox" Margin="12,8"
+                     Background="#FF0F0F0F" Foreground="#FFE0E0E0" CaretBrush="#FF818CF8"
+                     BorderBrush="#FF2A2A2A" BorderThickness="1" Padding="8,6"
+                     TextChanged="SearchBox_TextChanged" KeyDown="SearchBox_KeyDown" />
+
+            <!-- Snippet editor -->
+            <Border Grid.Row="2" x:Name="NewSnippetPanel" Margin="12,0,12,8" Padding="10"
+                    Background="#FF12121A" BorderBrush="#FF2A2A3C" BorderThickness="1"
+                    CornerRadius="6" Visibility="Collapsed">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <TextBlock x:Name="EditorTitle" Grid.Row="0" Grid.ColumnSpan="2"
+                               Text="New snippet" Foreground="#FFE0E0E0" FontWeight="SemiBold"
+                               Margin="0,0,0,8" />
+
+                    <TextBlock Grid.Row="1" Grid.Column="0" Text="Name" Foreground="#FF6B7280"
+                               Margin="0,2,8,8" VerticalAlignment="Center" />
+                    <TextBox Grid.Row="1" Grid.Column="1" x:Name="NewSnippetName"
+                             Background="#FF0F0F0F" Foreground="#FFE0E0E0" CaretBrush="#FF818CF8"
+                             BorderBrush="#FF2A2A2A" BorderThickness="1" Padding="6,4" />
+
+                    <TextBlock Grid.Row="2" Grid.Column="0" Text="Category" Foreground="#FF6B7280"
+                               Margin="0,10,8,8" VerticalAlignment="Center" />
+                    <TextBox Grid.Row="2" Grid.Column="1" x:Name="NewSnippetCategory"
+                             Margin="0,8,0,0"
+                             Background="#FF0F0F0F" Foreground="#FFE0E0E0" CaretBrush="#FF818CF8"
+                             BorderBrush="#FF2A2A2A" BorderThickness="1" Padding="6,4"
+                             Text="Custom" />
+
+                    <TextBlock Grid.Row="3" Grid.Column="0" Text="Command" Foreground="#FF6B7280"
+                               Margin="0,10,8,8" VerticalAlignment="Top" />
+                    <TextBox Grid.Row="3" Grid.Column="1" x:Name="NewSnippetContent"
+                             Margin="0,8,0,0" MinHeight="64" MaxHeight="120"
+                             AcceptsReturn="True" TextWrapping="Wrap"
+                             VerticalScrollBarVisibility="Auto"
+                             Background="#FF0F0F0F" Foreground="#FFE0E0E0" CaretBrush="#FF818CF8"
+                             BorderBrush="#FF2A2A2A" BorderThickness="1" Padding="6,4" />
+
+                    <StackPanel Grid.Row="4" Grid.Column="1" Orientation="Horizontal"
+                                HorizontalAlignment="Right" Margin="0,10,0,0">
+                        <Button Content="Cancel" Padding="10,4" Margin="0,0,6,0"
+                                Click="CancelNewSnippet_Click" />
+                        <Button x:Name="SaveSnippetButton" Content="Save Snippet" Padding="10,4"
+                                Click="SaveNewSnippet_Click" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <!-- List -->
+            <ListBox Grid.Row="3" x:Name="SnippetsList" Margin="8,0,8,8"
+                     Background="Transparent" BorderThickness="0"
+                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                     MouseDoubleClick="SnippetsList_MouseDoubleClick"
+                     PreviewMouseLeftButtonUp="SnippetsList_PreviewMouseLeftButtonUp">
+                <ListBox.ItemContainerStyle>
+                    <Style TargetType="ListBoxItem">
+                        <Setter Property="Template">
+                            <Setter.Value>
+                                <ControlTemplate TargetType="ListBoxItem">
+                                    <Border x:Name="ItemBorder" Padding="10,6" CornerRadius="6" Margin="2,1"
+                                            Background="Transparent" Cursor="Hand">
+                                        <ContentPresenter />
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter TargetName="ItemBorder" Property="Background" Value="#FF1F1F1F" />
+                                        </Trigger>
+                                        <Trigger Property="IsSelected" Value="True">
+                                            <Setter TargetName="ItemBorder" Property="Background" Value="#FF1A1A2E" />
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Setter.Value>
+                        </Setter>
+                    </Style>
+                </ListBox.ItemContainerStyle>
+                <ListBox.ItemTemplate>
+                    <DataTemplate>
+                        <Grid Margin="4,2">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+
+                            <StackPanel>
+                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold"
+                                           Foreground="#FFE0E0E0" FontSize="13" />
+                                <TextBlock Text="{Binding Content}" FontSize="11"
+                                           Foreground="#FF6B7280" TextTrimming="CharacterEllipsis" />
+                            </StackPanel>
+
+                            <TextBlock Grid.Column="1" Text="{Binding Category}" FontSize="10"
+                                       Foreground="#FF6B7280" VerticalAlignment="Center" Margin="12,0,6,0" />
+
+                            <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                                <Button Width="24" Height="20" Padding="0" Background="Transparent"
+                                        BorderThickness="0" Cursor="Hand" Click="ToggleFavorite_Click"
+                                        ToolTip="Toggle favorite">
+                                    <Button.Style>
+                                        <Style TargetType="Button">
+                                            <Setter Property="Foreground" Value="#FF6B7280" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsFavorite}" Value="True">
+                                                    <Setter Property="Foreground" Value="#FFFBBF24" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                    <TextBlock Text="★" FontSize="11" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Button>
+
+                                <Button Width="24" Height="20" Padding="0" Background="Transparent"
+                                        BorderThickness="0" Cursor="Hand" Click="EditSnippet_Click"
+                                        Foreground="#FF6B7280" ToolTip="Edit snippet">
+                                    <TextBlock Text="&#xE70F;" FontFamily="Segoe MDL2 Assets" FontSize="10"
+                                               HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Button>
+
+                                <Button Width="24" Height="20" Padding="0" Background="Transparent"
+                                        BorderThickness="0" Cursor="Hand" Click="DeleteSnippet_Click"
+                                        Foreground="#FFEF4444" ToolTip="Delete snippet">
+                                    <TextBlock Text="&#xE74D;" FontFamily="Segoe MDL2 Assets" FontSize="10"
+                                               HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Button>
+                            </StackPanel>
+                        </Grid>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+
+            <!-- Empty state -->
+            <TextBlock x:Name="EmptyText" Grid.Row="3"
+                       Text="No snippets found" Foreground="#FF6B7280"
+                       FontSize="13" HorizontalAlignment="Center"
+                       Margin="0,20,0,20" Visibility="Collapsed" />
+        </Grid>
+    </Border>
+</UserControl>

@@ -15,6 +15,7 @@
             <conv:NullToCollapsedConverter x:Key="NullToCollapsed" />
             <conv:EqualityConverter x:Key="EqualityConverter" />
             <conv:InverseBoolConverter x:Key="InverseBool" />
+            <conv:HexToBrushConverter x:Key="HexToBrush" />
         </ResourceDictionary>
     </Application.Resources>
 </Application>

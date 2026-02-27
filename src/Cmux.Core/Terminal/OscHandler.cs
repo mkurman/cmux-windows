@@ -10,7 +10,7 @@ public class OscHandler
     public event Action<string>? TitleChanged;
     public event Action<string>? WorkingDirectoryChanged;
     public event Action<string, string?, string>? NotificationReceived; // title, subtitle, body
-    public event Action<char>? ShellPromptMarker;
+    public event Action<char, string?>? ShellPromptMarker;
 
     /// <summary>
     /// Processes an OSC string (without the ESC ] prefix and BEL/ST terminator).
@@ -65,7 +65,19 @@ public class OscHandler
 
             case 133: // Shell integration (prompt markers)
                 if (payload.Length > 0)
-                    ShellPromptMarker?.Invoke(payload[0]);
+                {
+                    var marker = payload[0];
+                    string? markerPayload = null;
+
+                    if (payload.Length > 1)
+                    {
+                        markerPayload = payload[1] == ';'
+                            ? payload[2..]
+                            : payload[1..];
+                    }
+
+                    ShellPromptMarker?.Invoke(marker, string.IsNullOrWhiteSpace(markerPayload) ? null : markerPayload);
+                }
                 break;
         }
     }

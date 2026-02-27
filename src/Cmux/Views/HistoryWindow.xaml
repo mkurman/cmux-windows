@@ -1,0 +1,100 @@
+<Window x:Class="Cmux.Views.HistoryWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Command History" Height="560" Width="920"
+        WindowStartupLocation="CenterOwner"
+        Background="{StaticResource BackgroundBrush}"
+        PreviewKeyDown="Window_PreviewKeyDown">
+
+    <Window.Resources>
+        <SolidColorBrush x:Key="{x:Static SystemColors.WindowBrushKey}" Color="#FF1A1A1A" />
+        <SolidColorBrush x:Key="{x:Static SystemColors.ControlBrushKey}" Color="#FF1A1A1A" />
+        <SolidColorBrush x:Key="{x:Static SystemColors.WindowTextBrushKey}" Color="#FFE2E2E9" />
+        <SolidColorBrush x:Key="{x:Static SystemColors.ControlTextBrushKey}" Color="#FFE2E2E9" />
+        <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="#FF252547" />
+        <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" Color="#FFE2E2E9" />
+
+        <Style x:Key="DarkListHeader" TargetType="GridViewColumnHeader">
+            <Setter Property="Background" Value="#FF1A1A2E" />
+            <Setter Property="Foreground" Value="{StaticResource ForegroundBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+            <Setter Property="BorderThickness" Value="0,0,1,1" />
+            <Setter Property="Padding" Value="8,6" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+
+        <Style x:Key="DarkListItem" TargetType="ListViewItem">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="{StaticResource ForegroundBrush}" />
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#1FFFFFFF" />
+                </Trigger>
+                <Trigger Property="IsSelected" Value="True">
+                    <Setter Property="Background" Value="#FF252547" />
+                    <Setter Property="Foreground" Value="{StaticResource ForegroundBrush}" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="ActionButton" TargetType="Button" BasedOn="{StaticResource CmuxButton}">
+            <Setter Property="Margin" Value="0,0,8,0" />
+            <Setter Property="Padding" Value="12,6" />
+        </Style>
+
+        <Style x:Key="PrimaryActionButton" TargetType="Button" BasedOn="{StaticResource AccentButton}">
+            <Setter Property="Margin" Value="0,0,8,0" />
+            <Setter Property="Padding" Value="12,6" />
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <DockPanel Grid.Row="0" Margin="0,0,0,8">
+            <TextBlock Text="Search" Foreground="{StaticResource ForegroundDimBrush}"
+                       VerticalAlignment="Center" Margin="0,0,8,0" />
+            <TextBox x:Name="SearchBox" Width="360" Padding="8,5"
+                     Background="#FF1A1A1A" Foreground="{StaticResource ForegroundBrush}"
+                     CaretBrush="{StaticResource ForegroundBrush}" SelectionBrush="{StaticResource AccentBrush}"
+                     BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                     TextChanged="SearchBox_TextChanged"
+                     PreviewKeyDown="SearchBox_PreviewKeyDown" />
+            <TextBlock Text="Enter = run, Shift+Enter = insert"
+                       Margin="12,0,0,0"
+                       VerticalAlignment="Center"
+                       Foreground="{StaticResource ForegroundDimBrush}"
+                       FontSize="12" />
+            <TextBlock x:Name="SummaryText" Margin="16,0,0,0" VerticalAlignment="Center"
+                       Foreground="{StaticResource ForegroundDimBrush}" />
+        </DockPanel>
+
+        <ListView Grid.Row="1" x:Name="EntriesList"
+                  Background="#FF141420" Foreground="{StaticResource ForegroundBrush}"
+                  BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                  ItemContainerStyle="{StaticResource DarkListItem}"
+                  MouseDoubleClick="EntriesList_MouseDoubleClick"
+                  PreviewKeyDown="EntriesList_PreviewKeyDown">
+            <ListView.Resources>
+                <Style TargetType="GridViewColumnHeader" BasedOn="{StaticResource DarkListHeader}" />
+            </ListView.Resources>
+            <ListView.View>
+                <GridView>
+                    <GridViewColumn Header="#" Width="56" DisplayMemberBinding="{Binding IndexLabel}" />
+                    <GridViewColumn Header="Command" Width="800" DisplayMemberBinding="{Binding Command}" />
+                </GridView>
+            </ListView.View>
+        </ListView>
+
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,8,0,0">
+            <Button Content="Copy" Style="{StaticResource ActionButton}" Click="Copy_Click" />
+            <Button Content="Insert" Style="{StaticResource ActionButton}" Click="Insert_Click" />
+            <Button Content="Run" Style="{StaticResource PrimaryActionButton}" Click="Run_Click" />
+            <Button Content="Close" Style="{StaticResource CmuxButton}" Padding="12,6" Click="Close_Click" />
+        </StackPanel>
+    </Grid>
+</Window>

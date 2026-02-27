@@ -513,6 +513,120 @@ public class TerminalBuffer
         RaiseContentChanged();
     }
 
+    public string ExportPlainText(int maxScrollbackLines = 20000)
+    {
+        var lines = new List<string>();
+
+        int scrollbackStart = Math.Max(0, _scrollback.Count - Math.Max(0, maxScrollbackLines));
+        for (int i = scrollbackStart; i < _scrollback.Count; i++)
+            lines.Add(LineToText(_scrollback[i], Cols));
+
+        for (int row = 0; row < Rows; row++)
+            lines.Add(LineToText(GetLine(row), Cols));
+
+        int lastNonEmpty = lines.FindLastIndex(line => !string.IsNullOrWhiteSpace(line));
+        if (lastNonEmpty < 0)
+            return string.Empty;
+
+        return string.Join(Environment.NewLine, lines.Take(lastNonEmpty + 1));
+    }
+
+    /// <summary>
+    /// Creates a plain-text snapshot of scrollback and visible rows.
+    /// Used for restoring terminal context across app restarts.
+    /// </summary>
+    public TerminalBufferSnapshot CreateSnapshot(int maxScrollbackLines = 3000)
+    {
+        var snapshot = new TerminalBufferSnapshot
+        {
+            Cols = Cols,
+            Rows = Rows,
+            CursorRow = CursorRow,
+            CursorCol = CursorCol,
+        };
+
+        int scrollbackStart = Math.Max(0, _scrollback.Count - Math.Max(0, maxScrollbackLines));
+        for (int i = scrollbackStart; i < _scrollback.Count; i++)
+            snapshot.ScrollbackLines.Add(LineToText(_scrollback[i], Cols));
+
+        for (int row = 0; row < Rows; row++)
+            snapshot.ScreenLines.Add(LineToText(GetLine(row), Cols));
+
+        return snapshot;
+    }
+
+    /// <summary>
+    /// Restores a previously captured plain-text snapshot.
+    /// </summary>
+    public void RestoreSnapshot(TerminalBufferSnapshot snapshot)
+    {
+        if (snapshot == null) return;
+
+        _scrollback.Clear();
+        foreach (var line in snapshot.ScrollbackLines)
+            _scrollback.Add(TextToLine(line, Cols));
+
+        Clear();
+
+        int rowCount = Math.Min(Rows, snapshot.ScreenLines.Count);
+        for (int row = 0; row < rowCount; row++)
+        {
+            var text = snapshot.ScreenLines[row];
+            int colCount = Math.Min(Cols, text.Length);
+            for (int col = 0; col < colCount; col++)
+            {
+                _cells[row, col] = new TerminalCell
+                {
+                    Character = text[col].ToString(),
+                    Attribute = TerminalAttribute.Default,
+                    IsDirty = true,
+                    Width = 1,
+                };
+            }
+        }
+
+        CursorRow = Math.Clamp(snapshot.CursorRow, 0, Rows - 1);
+        CursorCol = Math.Clamp(snapshot.CursorCol, 0, Cols - 1);
+        ResetScrollRegion();
+        MarkAllDirty();
+        RaiseContentChanged();
+    }
+
+    private static string LineToText(TerminalCell[] line, int cols)
+    {
+        var chars = new char[cols];
+        for (int i = 0; i < cols; i++)
+        {
+            var ch = i < line.Length ? line[i].Character : " ";
+            chars[i] = string.IsNullOrEmpty(ch) ? ' ' : ch[0];
+        }
+
+        return new string(chars).TrimEnd();
+    }
+
+    private static TerminalCell[] TextToLine(string? text, int cols)
+    {
+        var line = new TerminalCell[cols];
+        for (int i = 0; i < cols; i++)
+            line[i] = TerminalCell.Empty;
+
+        if (string.IsNullOrEmpty(text)) return line;
+
+        int len = Math.Min(cols, text.Length);
+        for (int i = 0; i < len; i++)
+        {
+            line[i] = new TerminalCell
+            {
+                Character = text[i].ToString(),
+                Attribute = TerminalAttribute.Default,
+                IsDirty = true,
+                Width = 1,
+            };
+        }
+
+        return line;
+    }
+
     /// <summary>
     /// Marks all cells as dirty (for full repaint).
     /// </summary>
@@ -534,4 +648,14 @@ public class TerminalBuffer
     }
 
     private void RaiseContentChanged() => ContentChanged?.Invoke();
+}
+
+public class TerminalBufferSnapshot
+{
+    public int Cols { get; set; }
+    public int Rows { get; set; }
+    public int CursorRow { get; set; }
+    public int CursorCol { get; set; }
+    public List<string> ScrollbackLines { get; set; } = [];
+    public List<string> ScreenLines { get; set; } = [];
 }

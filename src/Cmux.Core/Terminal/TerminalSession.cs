@@ -33,6 +33,7 @@ public sealed class TerminalSession : IDisposable
     public event Action<string>? TitleChanged;
     public event Action<string>? WorkingDirectoryChanged;
     public event Action<string, string?, string>? NotificationReceived;
+    public event Action<char, string?>? ShellPromptMarker;
     public event Action? Redraw;
     public event Action? BellReceived;
 
@@ -127,6 +128,11 @@ public sealed class TerminalSession : IDisposable
         {
             NotificationReceived?.Invoke(title, subtitle, body);
         };
+
+        _oscHandler.ShellPromptMarker += (marker, payload) =>
+        {
+            ShellPromptMarker?.Invoke(marker, payload);
+        };
     }
 
     /// <summary>
@@ -134,10 +140,20 @@ public sealed class TerminalSession : IDisposable
     /// </summary>
     public void Start(string? command = null, string? workingDirectory = null)
     {
+        var fallbackDirectory = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        if (string.IsNullOrWhiteSpace(fallbackDirectory))
+            fallbackDirectory = Environment.CurrentDirectory;
+
+        var effectiveWorkingDirectory = string.IsNullOrWhiteSpace(workingDirectory)
+            ? fallbackDirectory
+            : workingDirectory;
+
+        WorkingDirectory = effectiveWorkingDirectory;
+
         lock (_lock)
         {
             _console = PseudoConsole.Create((short)Buffer.Cols, (short)Buffer.Rows);
-            _process = new TerminalProcess(_console, command, workingDirectory);
+            _process = new TerminalProcess(_console, command, effectiveWorkingDirectory);
 
             _readStream = new FileStream(_console.ReadPipe, FileAccess.Read);
             _writeStream = new FileStream(_console.WritePipe, FileAccess.Write);
@@ -154,6 +170,9 @@ public sealed class TerminalSession : IDisposable
             };
             _readThread.Start();
         }
+
+        if (!string.IsNullOrWhiteSpace(WorkingDirectory))
+            WorkingDirectoryChanged?.Invoke(WorkingDirectory);
     }
 
     private void ReadLoop()
@@ -223,6 +242,26 @@ public sealed class TerminalSession : IDisposable
         {
             Buffer.Resize(cols, rows);
             _console?.Resize((short)cols, (short)rows);
+        }
+
+        Redraw?.Invoke();
+    }
+
+    public TerminalBufferSnapshot CreateBufferSnapshot(int maxScrollbackLines = 3000)
+    {
+        lock (_lock)
+        {
+            return Buffer.CreateSnapshot(maxScrollbackLines);
+        }
+    }
+
+    public void RestoreBufferSnapshot(TerminalBufferSnapshot snapshot)
+    {
+        if (_disposed) return;
+
+        lock (_lock)
+        {
+            Buffer.RestoreSnapshot(snapshot);
         }
 
         Redraw?.Invoke();

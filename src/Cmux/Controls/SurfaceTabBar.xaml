@@ -22,6 +22,30 @@
                     <Border x:Name="tabBorder" Padding="14,6" Cursor="Hand"
                             Margin="1,4,1,0" Background="Transparent"
                             MouseLeftButtonDown="Tab_Click">
+                        <Border.ContextMenu>
+                            <ContextMenu Tag="{Binding}" Background="#FF141420" BorderBrush="#FF2A2A3C" BorderThickness="1" Padding="4">
+                                <ContextMenu.Resources>
+                                    <Style TargetType="MenuItem">
+                                        <Setter Property="Foreground" Value="#FFE2E2E9" />
+                                        <Setter Property="Background" Value="Transparent" />
+                                        <Setter Property="Padding" Value="8,5" />
+                                        <Setter Property="FontSize" Value="12" />
+                                    </Style>
+                                    <Style TargetType="Separator">
+                                        <Setter Property="Background" Value="#FF2A2A3C" />
+                                        <Setter Property="Margin" Value="4,2" />
+                                    </Style>
+                                </ContextMenu.Resources>
+                                <MenuItem Header="Rename" Click="RenameTab_Click" />
+                                <MenuItem Header="Duplicate" Click="DuplicateTab_Click" />
+                                <Separator />
+                                <MenuItem Header="Split Right" InputGestureText="Ctrl+D" Click="SplitRight_Click" />
+                                <MenuItem Header="Split Down" InputGestureText="Ctrl+Shift+D" Click="SplitDown_Click" />
+                                <Separator />
+                                <MenuItem Header="Close" InputGestureText="Ctrl+W" Click="CloseThisTab_Click" />
+                                <MenuItem Header="Close Others" Click="CloseOtherTabs_Click" />
+                            </ContextMenu>
+                        </Border.ContextMenu>
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
@@ -81,5 +105,13 @@
                 Style="{StaticResource CmuxButton}"
                 Click="AddTab_Click"
                 Padding="8,0" Margin="2,2,4,2" Opacity="0.6" />
+
+        <!-- Inline rename overlay -->
+        <TextBox x:Name="TabRenameBox" Visibility="Collapsed"
+                 FontSize="12" Background="#FF1A1A2E" Foreground="{StaticResource ForegroundBrush}"
+                 BorderBrush="{StaticResource AccentBrush}" BorderThickness="1" Padding="4,2"
+                 VerticalAlignment="Center" HorizontalAlignment="Left"
+                 MinWidth="80" MaxWidth="200"
+                 LostFocus="TabRenameBox_LostFocus" KeyDown="TabRenameBox_KeyDown" />
     </Grid>
 </UserControl>

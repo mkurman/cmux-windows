@@ -24,6 +24,13 @@ public partial class MainViewModel : ObservableObject
     private double _sidebarWidth = 280;
 
     [ObservableProperty]
+    private bool _compactSidebar;
+
+    private double _sidebarWidthBeforeCompact = 280;
+
+    public bool IsSidebarExpanded => !CompactSidebar;
+
+    [ObservableProperty]
     private bool _notificationPanelVisible;
 
     [ObservableProperty]
@@ -73,6 +80,83 @@ public partial class MainViewModel : ObservableObject
         SelectedWorkspace = vm;
     }
 
+    public void DuplicateWorkspace(WorkspaceViewModel source)
+    {
+        var clone = new Workspace
+        {
+            Name = source.Name + " (copy)",
+            IconGlyph = source.IconGlyph,
+            AccentColor = source.AccentColor,
+            WorkingDirectory = source.WorkingDirectory,
+        };
+
+        var surfaceMap = new Dictionary<string, Surface>();
+
+        foreach (var sourceSurfaceVm in source.Surfaces)
+        {
+            var sourceSurface = sourceSurfaceVm.Surface;
+            var paneIdMap = new Dictionary<string, string>();
+            var clonedRoot = CloneSplitNode(sourceSurface.RootSplitNode, paneIdMap);
+
+            var clonedSurface = new Surface
+            {
+                Name = sourceSurface.Name,
+                RootSplitNode = clonedRoot,
+                FocusedPaneId = sourceSurface.FocusedPaneId != null && paneIdMap.TryGetValue(sourceSurface.FocusedPaneId, out var mappedFocused)
+                    ? mappedFocused
+                    : clonedRoot.GetLeaves().Select(l => l.PaneId).FirstOrDefault(),
+            };
+
+            foreach (var (oldPaneId, customName) in sourceSurface.PaneCustomNames)
+            {
+                if (paneIdMap.TryGetValue(oldPaneId, out var newPaneId))
+                    clonedSurface.PaneCustomNames[newPaneId] = customName;
+            }
+
+            foreach (var (oldPaneId, snapshot) in sourceSurface.PaneSnapshots)
+            {
+                if (!paneIdMap.TryGetValue(oldPaneId, out var newPaneId))
+                    continue;
+
+                clonedSurface.PaneSnapshots[newPaneId] = new PaneStateSnapshot
+                {
+                    CapturedAt = snapshot.CapturedAt,
+                    WorkingDirectory = snapshot.WorkingDirectory,
+                    CommandHistory = snapshot.CommandHistory.ToList(),
+                    BufferSnapshot = snapshot.BufferSnapshot == null
+                        ? null
+                        : new Cmux.Core.Terminal.TerminalBufferSnapshot
+                        {
+                            Cols = snapshot.BufferSnapshot.Cols,
+                            Rows = snapshot.BufferSnapshot.Rows,
+                            CursorRow = snapshot.BufferSnapshot.CursorRow,
+                            CursorCol = snapshot.BufferSnapshot.CursorCol,
+                            ScrollbackLines = snapshot.BufferSnapshot.ScrollbackLines.ToList(),
+                            ScreenLines = snapshot.BufferSnapshot.ScreenLines.ToList(),
+                        },
+                };
+            }
+
+            clone.Surfaces.Add(clonedSurface);
+            surfaceMap[sourceSurface.Id] = clonedSurface;
+        }
+
+        clone.SelectedSurface = source.SelectedSurface != null && surfaceMap.TryGetValue(source.SelectedSurface.Surface.Id, out var selected)
+            ? selected
+            : clone.Surfaces.FirstOrDefault();
+
+        if (clone.Surfaces.Count == 0)
+        {
+            var fallbackSurface = new Surface { Name = "Terminal 1" };
+            clone.Surfaces.Add(fallbackSurface);
+            clone.SelectedSurface = fallbackSurface;
+        }
+
+        var vm = new WorkspaceViewModel(clone, _notificationService);
+        Workspaces.Add(vm);
+        SelectedWorkspace = vm;
+    }
+
     [RelayCommand]
     public void CloseWorkspace(WorkspaceViewModel? workspace)
     {
@@ -80,6 +164,7 @@ public partial class MainViewModel : ObservableObject
         if (Workspaces.Count <= 1) return; // Keep at least one
 
         int index = Workspaces.IndexOf(workspace);
+        workspace.CaptureAllSurfaceTranscripts("workspace-close");
         workspace.Dispose();
         Workspaces.Remove(workspace);
 
@@ -118,7 +203,27 @@ public partial class MainViewModel : ObservableObject
     public void ToggleSidebar() => SidebarVisible = !SidebarVisible;
 
     [RelayCommand]
+    public void ToggleCompactSidebar() => CompactSidebar = !CompactSidebar;
+
+    [RelayCommand]
     public void ToggleNotificationPanel() => NotificationPanelVisible = !NotificationPanelVisible;
+
+    partial void OnCompactSidebarChanged(bool value)
+    {
+        if (value)
+        {
+            if (SidebarWidth > 120)
+                _sidebarWidthBeforeCompact = SidebarWidth;
+
+            SidebarWidth = 92;
+        }
+        else
+        {
+            SidebarWidth = Math.Max(220, _sidebarWidthBeforeCompact);
+        }
+
+        OnPropertyChanged(nameof(IsSidebarExpanded));
+    }
 
     [RelayCommand]
     public void JumpToLatestUnread()
@@ -161,12 +266,22 @@ public partial class MainViewModel : ObservableObject
 
     public void SaveSession(double windowX, double windowY, double windowWidth, double windowHeight, bool isMaximized)
     {
+        // Capture terminal transcripts and in-memory terminal context before serializing.
+        foreach (var workspace in Workspaces)
+        {
+            foreach (var surface in workspace.Surfaces)
+            {
+                surface.CaptureAllPaneTranscripts("session-close");
+                surface.CapturePaneSnapshotsForPersistence();
+            }
+        }
+
         var workspaces = Workspaces.Select(w => w.Workspace).ToList();
         var state = SessionPersistenceService.BuildState(
             workspaces,
             SelectedWorkspace != null ? Workspaces.IndexOf(SelectedWorkspace) : null,
             windowX, windowY, windowWidth, windowHeight,
-            isMaximized, SidebarWidth, SidebarVisible);
+            isMaximized, SidebarWidth, SidebarVisible, CompactSidebar);
         SessionPersistenceService.Save(state);
     }
 
@@ -178,6 +293,8 @@ public partial class MainViewModel : ObservableObject
             {
                 Id = wsState.Id,
                 Name = wsState.Name,
+                IconGlyph = string.IsNullOrWhiteSpace(wsState.IconGlyph) ? "\uE8A5" : wsState.IconGlyph,
+                AccentColor = string.IsNullOrWhiteSpace(wsState.AccentColor) ? "#FF818CF8" : wsState.AccentColor,
                 WorkingDirectory = wsState.WorkingDirectory,
             };
 
@@ -188,6 +305,26 @@ public partial class MainViewModel : ObservableObject
                     Id = surfState.Id,
                     Name = surfState.Name,
                     FocusedPaneId = surfState.FocusedPaneId,
+                    PaneCustomNames = new Dictionary<string, string>(surfState.PaneCustomNames),
+                    PaneSnapshots = surfState.PaneSnapshots.ToDictionary(
+                        kvp => kvp.Key,
+                        kvp => new PaneStateSnapshot
+                        {
+                            CapturedAt = kvp.Value.CapturedAt,
+                            WorkingDirectory = kvp.Value.WorkingDirectory,
+                            CommandHistory = kvp.Value.CommandHistory.ToList(),
+                            BufferSnapshot = kvp.Value.BufferSnapshot == null
+                                ? null
+                                : new Cmux.Core.Terminal.TerminalBufferSnapshot
+                                {
+                                    Cols = kvp.Value.BufferSnapshot.Cols,
+                                    Rows = kvp.Value.BufferSnapshot.Rows,
+                                    CursorRow = kvp.Value.BufferSnapshot.CursorRow,
+                                    CursorCol = kvp.Value.BufferSnapshot.CursorCol,
+                                    ScrollbackLines = kvp.Value.BufferSnapshot.ScrollbackLines.ToList(),
+                                    ScreenLines = kvp.Value.BufferSnapshot.ScreenLines.ToList(),
+                                },
+                        }),
                 };
 
                 if (surfState.RootNode != null)
@@ -228,7 +365,35 @@ public partial class MainViewModel : ObservableObject
         {
             SidebarWidth = session.Window.SidebarWidth;
             SidebarVisible = session.Window.SidebarVisible;
+            CompactSidebar = session.Window.CompactSidebar;
         }
+    }
+
+    private static SplitNode CloneSplitNode(SplitNode source, Dictionary<string, string> paneIdMap)
+    {
+        var clone = new SplitNode
+        {
+            IsLeaf = source.IsLeaf,
+            Direction = source.Direction,
+            SplitRatio = source.SplitRatio,
+        };
+
+        if (source.IsLeaf)
+        {
+            var oldPaneId = source.PaneId;
+            var newPaneId = Guid.NewGuid().ToString();
+            clone.PaneId = newPaneId;
+
+            if (!string.IsNullOrWhiteSpace(oldPaneId))
+                paneIdMap[oldPaneId] = newPaneId;
+        }
+        else
+        {
+            clone.First = source.First != null ? CloneSplitNode(source.First, paneIdMap) : null;
+            clone.Second = source.Second != null ? CloneSplitNode(source.Second, paneIdMap) : null;
+        }
+
+        return clone;
     }
 
     private async Task<string> HandlePipeCommand(string command, Dictionary<string, string> args)

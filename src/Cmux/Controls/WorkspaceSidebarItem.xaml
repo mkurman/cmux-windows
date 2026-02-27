@@ -3,7 +3,108 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="clr-namespace:Cmux.ViewModels">
 
+    <UserControl.Style>
+        <Style TargetType="UserControl">
+            <Setter Property="ToolTip" Value="{x:Null}" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding DataContext.CompactSidebar, RelativeSource={RelativeSource AncestorType=Window}}" Value="True">
+                    <Setter Property="ToolTip" Value="{Binding Name}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+    </UserControl.Style>
+
     <Grid>
+        <Grid.ContextMenu>
+            <ContextMenu Background="#FF141420" BorderBrush="#FF2A2A3C" BorderThickness="1" Padding="4">
+                <MenuItem Header="Rename" InputGestureText="F2" Click="Rename_Click">
+                    <MenuItem.Icon>
+                        <TextBlock Text="&#xE8AC;" FontFamily="Segoe MDL2 Assets" FontSize="12" />
+                    </MenuItem.Icon>
+                </MenuItem>
+                <MenuItem Header="Duplicate" Click="Duplicate_Click">
+                    <MenuItem.Icon>
+                        <TextBlock Text="&#xE8C8;" FontFamily="Segoe MDL2 Assets" FontSize="12" />
+                    </MenuItem.Icon>
+                </MenuItem>
+                <MenuItem Header="Set Workspace Icon" Click="SetIcon_Click">
+                    <MenuItem.Icon>
+                        <TextBlock Text="&#xE8A5;" FontFamily="Segoe MDL2 Assets" FontSize="12" />
+                    </MenuItem.Icon>
+                </MenuItem>
+                <Separator />
+                <MenuItem Header="Accent: Indigo" Click="SetColor_Click" Tag="#FF818CF8">
+                    <MenuItem.Icon>
+                        <TextBlock Text="●" Foreground="#FF818CF8" />
+                    </MenuItem.Icon>
+                </MenuItem>
+                <MenuItem Header="Accent: Green" Click="SetColor_Click" Tag="#FF10B981">
+                    <MenuItem.Icon>
+                        <TextBlock Text="●" Foreground="#FF10B981" />
+                    </MenuItem.Icon>
+                </MenuItem>
+                <MenuItem Header="Accent: Amber" Click="SetColor_Click" Tag="#FFF59E0B">
+                    <MenuItem.Icon>
+                        <TextBlock Text="●" Foreground="#FFF59E0B" />
+                    </MenuItem.Icon>
+                </MenuItem>
+                <MenuItem Header="Accent: Red" Click="SetColor_Click" Tag="#FFEF4444">
+                    <MenuItem.Icon>
+                        <TextBlock Text="●" Foreground="#FFEF4444" />
+                    </MenuItem.Icon>
+                </MenuItem>
+                <MenuItem Header="Accent: Cyan" Click="SetColor_Click" Tag="#FF06B6D4">
+                    <MenuItem.Icon>
+                        <TextBlock Text="●" Foreground="#FF06B6D4" />
+                    </MenuItem.Icon>
+                </MenuItem>
+                <MenuItem Header="Accent: Purple" Click="SetColor_Click" Tag="#FFA855F7">
+                    <MenuItem.Icon>
+                        <TextBlock Text="●" Foreground="#FFA855F7" />
+                    </MenuItem.Icon>
+                </MenuItem>
+                <MenuItem Header="Accent: Slate" Click="SetColor_Click" Tag="#FF64748B">
+                    <MenuItem.Icon>
+                        <TextBlock Text="●" Foreground="#FF64748B" />
+                    </MenuItem.Icon>
+                </MenuItem>
+                <MenuItem Header="Accent: Pink" Click="SetColor_Click" Tag="#FFEC4899">
+                    <MenuItem.Icon>
+                        <TextBlock Text="●" Foreground="#FFEC4899" />
+                    </MenuItem.Icon>
+                </MenuItem>
+                <MenuItem Header="Accent: Custom..." Click="SetCustomColor_Click">
+                    <MenuItem.Icon>
+                        <TextBlock Text="＋" Foreground="{StaticResource ForegroundBrush}" FontSize="12" FontWeight="Bold" />
+                    </MenuItem.Icon>
+                </MenuItem>
+                <Separator />
+                <MenuItem Header="New Surface" InputGestureText="Ctrl+T" Click="NewSurface_Click">
+                    <MenuItem.Icon>
+                        <TextBlock Text="&#xE710;" FontFamily="Segoe MDL2 Assets" FontSize="12" />
+                    </MenuItem.Icon>
+                </MenuItem>
+                <Separator />
+                <MenuItem Header="Move Up" Click="MoveUp_Click">
+                    <MenuItem.Icon>
+                        <TextBlock Text="&#xE74A;" FontFamily="Segoe MDL2 Assets" FontSize="12" />
+                    </MenuItem.Icon>
+                </MenuItem>
+                <MenuItem Header="Move Down" Click="MoveDown_Click">
+                    <MenuItem.Icon>
+                        <TextBlock Text="&#xE74B;" FontFamily="Segoe MDL2 Assets" FontSize="12" />
+                    </MenuItem.Icon>
+                </MenuItem>
+                <Separator />
+                <MenuItem Header="Close Workspace" InputGestureText="Ctrl+Shift+W" Click="Close_Click"
+                          Foreground="#FFEF4444">
+                    <MenuItem.Icon>
+                        <TextBlock Text="&#xE711;" FontFamily="Segoe MDL2 Assets" FontSize="12"
+                                   Foreground="#FFEF4444" />
+                    </MenuItem.Icon>
+                </MenuItem>
+            </ContextMenu>
+        </Grid.ContextMenu>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
@@ -12,6 +113,7 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
+
         <!-- Workspace name + notification badge -->
         <Grid Grid.Row="0">
             <Grid.ColumnDefinitions>
@@ -19,10 +121,35 @@
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
 
-            <TextBlock Grid.Column="0" Text="{Binding Name}"
-                       Foreground="{StaticResource ForegroundBrush}"
-                       FontSize="13" FontWeight="SemiBold"
-                       TextTrimming="CharacterEllipsis" />
+            <Grid Grid.Column="0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <Border Grid.Column="0" Width="16" Height="16" CornerRadius="4"
+                        Background="{Binding AccentColor, Converter={StaticResource HexToBrush}}"
+                        VerticalAlignment="Center" Margin="0,0,6,0">
+                    <TextBlock Text="{Binding IconGlyph}" FontFamily="{Binding IconFontFamily}" FontSize="10"
+                               Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                </Border>
+
+                <Grid Grid.Column="1" x:Name="NameHost"
+                      Visibility="{Binding DataContext.IsSidebarExpanded, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVisibility}}">
+                    <TextBlock x:Name="NameDisplay" Text="{Binding Name}"
+                               Foreground="{StaticResource ForegroundBrush}"
+                               FontSize="13" FontWeight="SemiBold"
+                               TextTrimming="CharacterEllipsis"
+                               MouseLeftButtonDown="NameDisplay_MouseLeftButtonDown" />
+                    <TextBox x:Name="NameEditor" Text="{Binding Name, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                             Foreground="{StaticResource ForegroundBrush}"
+                             Background="#FF1A1A2E" BorderBrush="{StaticResource AccentBrush}" BorderThickness="1"
+                             FontSize="13" FontWeight="SemiBold" Padding="2,0"
+                             Visibility="Collapsed"
+                             LostFocus="NameEditor_LostFocus"
+                             KeyDown="NameEditor_KeyDown" />
+                </Grid>
+            </Grid>
 
             <!-- Notification badge -->
             <Border Grid.Column="1" CornerRadius="8"
@@ -35,7 +162,7 @@
         </Grid>
 
         <!-- AI Agent badge (gradient pill) -->
-        <Border Grid.Row="1" CornerRadius="4" Padding="5,2" Margin="0,4,0,0"
+        <Border x:Name="AgentBadge" Grid.Row="1" CornerRadius="4" Padding="5,2" Margin="0,4,0,0"
                 HorizontalAlignment="Left"
                 Visibility="{Binding AgentLabel, Converter={StaticResource NullToCollapsed}}">
             <Border.Background>
@@ -54,7 +181,7 @@
         </Border>
 
         <!-- Git branch -->
-        <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,3,0,0"
+        <StackPanel x:Name="GitInfo" Grid.Row="2" Orientation="Horizontal" Margin="0,3,0,0"
                     Visibility="{Binding GitBranch, Converter={StaticResource NullToCollapsed}}">
             <TextBlock Text="&#xE8AD;" FontFamily="Segoe MDL2 Assets" FontSize="10"
                        Foreground="{StaticResource ForegroundDimBrush}" Margin="0,0,4,0"
@@ -65,14 +192,14 @@
         </StackPanel>
 
         <!-- Working directory -->
-        <TextBlock Grid.Row="3" Text="{Binding WorkingDirectory}"
+        <TextBlock x:Name="WorkingDirInfo" Grid.Row="3" Text="{Binding WorkingDirectory}"
                    Foreground="{StaticResource ForegroundDimBrush}"
                    FontSize="10" Margin="0,2,0,0"
                    TextTrimming="CharacterEllipsis"
                    Visibility="{Binding WorkingDirectory, Converter={StaticResource NullToCollapsed}}" />
 
         <!-- Latest notification text -->
-        <TextBlock Grid.Row="4" Text="{Binding LatestNotificationText}"
+        <TextBlock x:Name="LatestNotificationInfo" Grid.Row="4" Text="{Binding LatestNotificationText}"
                    Foreground="{StaticResource ForegroundDimBrush}"
                    FontSize="10" Margin="0,2,0,0"
                    TextTrimming="CharacterEllipsis" FontStyle="Italic"

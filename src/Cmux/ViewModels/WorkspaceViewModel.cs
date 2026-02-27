@@ -14,6 +14,12 @@ public partial class WorkspaceViewModel : ObservableObject, IDisposable
     private string _name;
 
     [ObservableProperty]
+    private string _iconGlyph;
+
+    [ObservableProperty]
+    private string _accentColor;
+
+    [ObservableProperty]
     private ObservableCollection<SurfaceViewModel> _surfaces = [];
 
     [ObservableProperty]
@@ -42,6 +48,8 @@ public partial class WorkspaceViewModel : ObservableObject, IDisposable
 
     public string AgentLabel => AgentDetector.GetLabel(DetectedAgent);
     public string AgentIcon => AgentDetector.GetIcon(DetectedAgent);
+    public string IconFontFamily => IsPrivateUseGlyph(IconGlyph) ? "Segoe MDL2 Assets" : "Segoe UI Emoji";
+
     private readonly NotificationService _notificationService;
     private System.Threading.Timer? _infoRefreshTimer;
 
@@ -49,6 +57,8 @@ public partial class WorkspaceViewModel : ObservableObject, IDisposable
     {
         Workspace = workspace;
         _name = workspace.Name;
+        _iconGlyph = workspace.IconGlyph;
+        _accentColor = workspace.AccentColor;
         _notificationService = notificationService;
 
         // Create surface VMs for existing surfaces
@@ -91,6 +101,7 @@ public partial class WorkspaceViewModel : ObservableObject, IDisposable
         if (Surfaces.Count <= 1) return; // Keep at least one
 
         int index = Surfaces.IndexOf(surface);
+        surface.CaptureAllPaneTranscripts("surface-close");
         surface.Dispose();
         Surfaces.Remove(surface);
         Workspace.Surfaces.Remove(surface.Surface);
@@ -171,6 +182,35 @@ public partial class WorkspaceViewModel : ObservableObject, IDisposable
     partial void OnNameChanged(string value)
     {
         Workspace.Name = value;
+    }
+
+    partial void OnIconGlyphChanged(string value)
+    {
+        Workspace.IconGlyph = value;
+        OnPropertyChanged(nameof(IconFontFamily));
+    }
+
+    partial void OnAccentColorChanged(string value)
+    {
+        Workspace.AccentColor = value;
+    }
+
+    private static bool IsPrivateUseGlyph(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return false;
+
+        int codePoint = char.ConvertToUtf32(value, 0);
+        return codePoint is >= 0xE000 and <= 0xF8FF;
+    }
+
+    public int CaptureAllSurfaceTranscripts(string reason)
+    {
+        int captured = 0;
+        foreach (var surface in Surfaces)
+            captured += surface.CaptureAllPaneTranscripts(reason);
+
+        return captured;
     }
 
     public void Dispose()

@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Globalization;
+using System.Text;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -29,6 +30,8 @@ public class TerminalControl : FrameworkElement
     private int _rows;
     private bool _mouseDown;
     private int _scrollOffset; // Negative = scrolled into history, 0 = at bottom
+    private string _cursorStyle = "bar";
+    private bool _cursorBlink = true;
 
     // Cursor blink timer
     private System.Windows.Threading.DispatcherTimer? _cursorTimer;
@@ -43,9 +46,28 @@ public class TerminalControl : FrameworkElement
     // Search highlights
     private List<(int row, int col, int length)> _searchMatches = [];
     private int _currentSearchMatch = -1;
+    private readonly StringBuilder _inputLineBuffer = new();
 
     /// <summary>Fired when the pane wants focus.</summary>
     public event Action? FocusRequested;
+    public event Action<string>? CommandSubmitted;
+    public event Action? ClearRequested;
+    public event Action<SplitDirection>? SplitRequested;
+    public event Action? ZoomRequested;
+    public event Action? ClosePaneRequested;
+    public event Action? SearchRequested;
+
+    /// <summary>Clears all event handlers (called before re-attaching to visual tree).</summary>
+    public void ClearEventHandlers()
+    {
+        FocusRequested = null;
+        CommandSubmitted = null;
+        ClearRequested = null;
+        SplitRequested = null;
+        ZoomRequested = null;
+        ClosePaneRequested = null;
+        SearchRequested = null;
+    }
 
     /// <summary>Whether this pane has notification state (blue ring).</summary>
     public static readonly DependencyProperty HasNotificationProperty =
@@ -69,6 +91,9 @@ public class TerminalControl : FrameworkElement
         set => SetValue(IsPaneFocusedProperty, value);
     }
 
+    /// <summary>Whether the parent surface is currently zoomed.</summary>
+    public bool IsSurfaceZoomed { get; set; }
+
     public TerminalControl()
     {
         _theme = GhosttyConfigReader.ReadConfig();
@@ -78,11 +103,16 @@ public class TerminalControl : FrameworkElement
 
         _fontSize = _theme.FontSize;
         _typeface = new Typeface(new FontFamily(_theme.FontFamily), FontStyles.Normal, FontWeights.Normal, FontStretches.Normal);
+
+        var settings = SettingsService.Current;
+        _cursorStyle = settings.CursorStyle;
+        _cursorBlink = settings.CursorBlink;
+
         CalculateCellSize();
 
         Focusable = true;
         ClipToBounds = true;
-        Cursor = Cursors.IBeam;
+        Cursor = Cursors.Arrow;
 
         _selection.SelectionChanged += () => Dispatcher.Invoke(Render);
 
@@ -93,7 +123,15 @@ public class TerminalControl : FrameworkElement
         };
         _cursorTimer.Tick += (_, _) =>
         {
-            _cursorVisible = !_cursorVisible;
+            if (!_cursorBlink)
+            {
+                _cursorVisible = true;
+            }
+            else
+            {
+                _cursorVisible = !_cursorVisible;
+            }
+
             Render();
         };
         _cursorTimer.Start();
@@ -108,6 +146,7 @@ public class TerminalControl : FrameworkElement
         }
 
         _session = session;
+        _inputLineBuffer.Clear();
         _session.Redraw += OnRedraw;
         _session.BellReceived += OnBell;
         CalculateTerminalSize();
@@ -265,7 +304,7 @@ public class TerminalControl : FrameworkElement
                     else
                         cell = TerminalCell.Empty;
                 }
-                else if (bufferRow >= 0 && bufferRow < buffer.Rows)
+                else if (bufferRow >= 0 && bufferRow < buffer.Rows && c < buffer.Cols)
                 {
                     cell = buffer.CellAt(bufferRow, c);
                 }
@@ -370,27 +409,27 @@ public class TerminalControl : FrameworkElement
         }
 
         // Cursor (only when viewing live buffer)
-        if (!isScrolledBack && buffer.CursorVisible && _cursorVisible && IsPaneFocused)
+        if (!isScrolledBack && buffer.CursorVisible && IsPaneFocused && (_cursorVisible || !_cursorBlink))
         {
             double cx = buffer.CursorCol * _cellWidth;
             double cy = buffer.CursorRow * _cellHeight;
             var cursorColor = _theme.CursorColor.HasValue
                 ? ToWpfColor(_theme.CursorColor.Value)
                 : ToWpfColor(_theme.Foreground);
-            var cursorBrush = new SolidColorBrush(Color.FromArgb(180, cursorColor.R, cursorColor.G, cursorColor.B));
-            // Bar cursor (thin vertical line) when focused
-            dc.DrawRectangle(cursorBrush, null, new Rect(cx, cy, 2, _cellHeight));
-        }
-        else if (!isScrolledBack && buffer.CursorVisible && IsPaneFocused)
-        {
-            // Hollow block when not blinking visible
-            double cx = buffer.CursorCol * _cellWidth;
-            double cy = buffer.CursorRow * _cellHeight;
-            var cursorColor = _theme.CursorColor.HasValue
-                ? ToWpfColor(_theme.CursorColor.Value)
-                : ToWpfColor(_theme.Foreground);
-            var cursorPen = new Pen(new SolidColorBrush(Color.FromArgb(120, cursorColor.R, cursorColor.G, cursorColor.B)), 1);
-            dc.DrawRectangle(null, cursorPen, new Rect(cx, cy, _cellWidth, _cellHeight));
+            var cursorBrush = new SolidColorBrush(Color.FromArgb(200, cursorColor.R, cursorColor.G, cursorColor.B));
+
+            switch ((_cursorStyle ?? "bar").ToLowerInvariant())
+            {
+                case "block":
+                    dc.DrawRectangle(cursorBrush, null, new Rect(cx, cy, _cellWidth, _cellHeight));
+                    break;
+                case "underline":
+                    dc.DrawRectangle(cursorBrush, null, new Rect(cx, cy + _cellHeight - 2, _cellWidth, 2));
+                    break;
+                default:
+                    dc.DrawRectangle(cursorBrush, null, new Rect(cx, cy, 2, _cellHeight));
+                    break;
+            }
         }
 
         // Scrollback indicator
@@ -450,6 +489,47 @@ public class TerminalControl : FrameworkElement
 
     // --- Keyboard input ---
 
+    private void TrackInputText(string text)
+    {
+        if (string.IsNullOrEmpty(text))
+            return;
+
+        foreach (var ch in text)
+        {
+            switch (ch)
+            {
+                case '\b':
+                    if (_inputLineBuffer.Length > 0)
+                        _inputLineBuffer.Length--;
+                    break;
+
+                case '\r':
+                case '\n':
+                    SubmitBufferedCommand();
+                    break;
+
+                default:
+                    if (!char.IsControl(ch))
+                    {
+                        _inputLineBuffer.Append(ch);
+
+                        if (_inputLineBuffer.Length > 4096)
+                            _inputLineBuffer.Remove(0, _inputLineBuffer.Length - 4096);
+                    }
+                    break;
+            }
+        }
+    }
+
+    private void SubmitBufferedCommand()
+    {
+        var command = _inputLineBuffer.ToString().Trim();
+        _inputLineBuffer.Clear();
+
+        if (!string.IsNullOrWhiteSpace(command))
+            CommandSubmitted?.Invoke(command);
+    }
+
     protected override void OnKeyDown(KeyEventArgs e)
     {
         if (_session == null) return;
@@ -463,6 +543,11 @@ public class TerminalControl : FrameworkElement
         string? sequence = KeyToVtSequence(e.Key, Keyboard.Modifiers, appCursor);
         if (sequence != null)
         {
+            if (e.Key == Key.Back)
+                TrackInputText("\b");
+            else if (e.Key == Key.Enter)
+                SubmitBufferedCommand();
+
             _session.Write(sequence);
             e.Handled = true;
         }
@@ -492,6 +577,7 @@ public class TerminalControl : FrameworkElement
             return;
         }
 
+        TrackInputText(e.Text);
         _session.Write(e.Text);
         _selection.ClearSelection();
     }
@@ -500,6 +586,8 @@ public class TerminalControl : FrameworkElement
     {
         if (_session == null || !Clipboard.ContainsText()) return;
         var text = Clipboard.GetText();
+        TrackInputText(text);
+
         if (_session.Buffer.BracketedPasteMode)
             _session.Write("\x1b[200~" + text + "\x1b[201~");
         else
@@ -514,9 +602,11 @@ public class TerminalControl : FrameworkElement
         Focus();
         FocusRequested?.Invoke();
 
+        if (_cols <= 0 || _rows <= 0) return;
+
         var pos = e.GetPosition(this);
-        int col = (int)(pos.X / _cellWidth);
-        int row = (int)(pos.Y / _cellHeight);
+        int col = Math.Clamp((int)(pos.X / _cellWidth), 0, _cols - 1);
+        int row = Math.Clamp((int)(pos.Y / _cellHeight), 0, _rows - 1);
 
         // Ctrl+Click for URL opening
         if (Keyboard.Modifiers.HasFlag(ModifierKeys.Control) && _hoveredUrl.HasValue)
@@ -562,6 +652,8 @@ public class TerminalControl : FrameworkElement
     {
         base.OnMouseMove(e);
 
+        if (_cols <= 0 || _rows <= 0) return;
+
         var pos = e.GetPosition(this);
         int col = Math.Clamp((int)(pos.X / _cellWidth), 0, _cols - 1);
         int row = Math.Clamp((int)(pos.Y / _cellHeight), 0, _rows - 1);
@@ -580,13 +672,13 @@ public class TerminalControl : FrameworkElement
                     break;
                 }
             }
-            Cursor = _hoveredUrl.HasValue ? Cursors.Hand : Cursors.IBeam;
+            Cursor = _hoveredUrl.HasValue ? Cursors.Hand : Cursors.Arrow;
             Render(); // Redraw for URL underline
         }
         else if (_hoveredUrl.HasValue)
         {
             _hoveredUrl = null;
-            Cursor = Cursors.IBeam;
+            Cursor = Cursors.Arrow;
             Render();
         }
 
@@ -617,7 +709,7 @@ public class TerminalControl : FrameworkElement
     {
         base.OnMouseLeftButtonUp(e);
 
-        if (IsMouseTrackingActive && _mouseDown)
+        if (IsMouseTrackingActive && _mouseDown && _cols > 0 && _rows > 0)
         {
             var pos = e.GetPosition(this);
             int col = Math.Clamp((int)(pos.X / _cellWidth), 0, _cols - 1);
@@ -638,6 +730,8 @@ public class TerminalControl : FrameworkElement
 
         if (IsMouseTrackingActive)
         {
+            if (_cols <= 0 || _rows <= 0) return;
+
             var pos = e.GetPosition(this);
             int col = Math.Clamp((int)(pos.X / _cellWidth), 0, _cols - 1);
             int row = Math.Clamp((int)(pos.Y / _cellHeight), 0, _rows - 1);
@@ -645,8 +739,131 @@ public class TerminalControl : FrameworkElement
             return;
         }
 
-        // Right-click paste
-        PasteFromClipboard();
+        var menu = new ContextMenu
+        {
+            Background = new SolidColorBrush(Color.FromRgb(0x14, 0x14, 0x20)),
+            BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x3C)),
+            BorderThickness = new Thickness(1),
+            Padding = new Thickness(4),
+        };
+
+        var menuItemStyle = new Style(typeof(MenuItem));
+        menuItemStyle.Setters.Add(new Setter(Control.ForegroundProperty, new SolidColorBrush(Color.FromRgb(0xE2, 0xE2, 0xE9))));
+        menuItemStyle.Setters.Add(new Setter(Control.BackgroundProperty, Brushes.Transparent));
+        menuItemStyle.Setters.Add(new Setter(Control.PaddingProperty, new Thickness(8, 5, 8, 5)));
+        menuItemStyle.Setters.Add(new Setter(Control.FontSizeProperty, 12.0));
+
+        var separatorStyle = new Style(typeof(Separator));
+        separatorStyle.Setters.Add(new Setter(Control.BackgroundProperty, new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x3C))));
+        separatorStyle.Setters.Add(new Setter(FrameworkElement.MarginProperty, new Thickness(4, 2, 4, 2)));
+
+        menu.Resources.Add(typeof(MenuItem), menuItemStyle);
+        menu.Resources.Add(typeof(Separator), separatorStyle);
+
+        // Copy
+        var copyItem = new MenuItem { Header = "Copy", InputGestureText = "Ctrl+C" };
+        copyItem.Icon = MakeIcon("\uE8C8");
+        copyItem.IsEnabled = _selection.HasSelection;
+        copyItem.Click += (_, _) =>
+        {
+            if (_session != null)
+            {
+                var text = _selection.GetSelectedText(_session.Buffer);
+                if (!string.IsNullOrEmpty(text)) Clipboard.SetText(text);
+                _selection.ClearSelection();
+            }
+        };
+        menu.Items.Add(copyItem);
+
+        // Paste
+        var pasteItem = new MenuItem { Header = "Paste", InputGestureText = "Ctrl+V" };
+        pasteItem.Icon = MakeIcon("\uE77F");
+        pasteItem.IsEnabled = Clipboard.ContainsText();
+        pasteItem.Click += (_, _) => PasteFromClipboard();
+        menu.Items.Add(pasteItem);
+
+        // Select All
+        var selectAllItem = new MenuItem { Header = "Select All" };
+        selectAllItem.Icon = MakeIcon("\uE8B3");
+        selectAllItem.Click += (_, _) =>
+        {
+            if (_session != null)
+                _selection.SelectAll(_session.Buffer.Rows, _session.Buffer.Cols);
+        };
+        menu.Items.Add(selectAllItem);
+
+        menu.Items.Add(new Separator());
+
+        // Split Right
+        var splitRight = new MenuItem { Header = "Split Right", InputGestureText = "Ctrl+D" };
+        splitRight.Icon = MakeIcon("\uE745");
+        splitRight.Click += (_, _) => SplitRequested?.Invoke(SplitDirection.Vertical);
+        menu.Items.Add(splitRight);
+
+        // Split Down
+        var splitDown = new MenuItem { Header = "Split Down", InputGestureText = "Ctrl+Shift+D" };
+        splitDown.Icon = MakeIcon("\uE74B");
+        splitDown.Click += (_, _) => SplitRequested?.Invoke(SplitDirection.Horizontal);
+        menu.Items.Add(splitDown);
+
+        menu.Items.Add(new Separator());
+
+        // Zoom
+        var isZoomed = IsSurfaceZoomed;
+        var zoom = new MenuItem
+        {
+            Header = isZoomed ? "Unzoom Pane" : "Zoom Pane",
+            InputGestureText = "Ctrl+Shift+Z",
+            IsCheckable = true,
+            IsChecked = isZoomed,
+        };
+        zoom.Icon = MakeIcon(isZoomed ? "\uE73F" : "\uE740");
+        zoom.Click += (_, _) => ZoomRequested?.Invoke();
+        menu.Items.Add(zoom);
+
+        // Close Pane
+        var closePane = new MenuItem { Header = "Close Pane" };
+        closePane.Icon = MakeIcon("\uE711");
+        closePane.Foreground = new SolidColorBrush(Color.FromRgb(0xEF, 0x44, 0x44));
+        closePane.Click += (_, _) => ClosePaneRequested?.Invoke();
+        menu.Items.Add(closePane);
+
+        menu.Items.Add(new Separator());
+
+        // Clear Terminal
+        var clear = new MenuItem { Header = "Clear Terminal" };
+        clear.Icon = MakeIcon("\uE894");
+        clear.Click += (_, _) =>
+        {
+            ClearRequested?.Invoke();
+            ClearTerminalView();
+        };
+        menu.Items.Add(clear);
+
+        // Search
+        var search = new MenuItem { Header = "Search", InputGestureText = "Ctrl+Shift+F" };
+        search.Icon = MakeIcon("\uE721");
+        search.Click += (_, _) => SearchRequested?.Invoke();
+        menu.Items.Add(search);
+
+        menu.IsOpen = true;
+        e.Handled = true;
+    }
+
+    private static TextBlock MakeIcon(string glyph) =>
+        new() { Text = glyph, FontFamily = new FontFamily("Segoe MDL2 Assets"), FontSize = 12 };
+
+    private void ClearTerminalView()
+    {
+        if (_session == null) return;
+
+        _session.Buffer.EraseInDisplay(3);
+        _session.Buffer.MoveCursorTo(0, 0);
+        _scrollOffset = 0;
+        Render();
+
+        // Ask shell to repaint prompt where supported.
+        _session.Write("\x0c");
     }
 
     protected override void OnMouseWheel(MouseWheelEventArgs e)
@@ -657,6 +874,8 @@ public class TerminalControl : FrameworkElement
         // Mouse wheel reporting
         if (IsMouseTrackingActive)
         {
+            if (_cols <= 0 || _rows <= 0) return;
+
             var pos = e.GetPosition(this);
             int col = Math.Clamp((int)(pos.X / _cellWidth), 0, _cols - 1);
             int row = Math.Clamp((int)(pos.Y / _cellHeight), 0, _rows - 1);
@@ -737,6 +956,37 @@ public class TerminalControl : FrameworkElement
         Render();
     }
 
+    public void UpdateSettings(TerminalTheme theme, string fontFamily, int fontSize)
+    {
+        // Convert TerminalTheme to GhosttyTheme
+        var ghosttyTheme = new GhosttyTheme
+        {
+            Background = theme.Background,
+            Foreground = theme.Foreground,
+            Palette = theme.Palette,
+            SelectionBackground = theme.SelectionBg,
+            CursorColor = theme.CursorColor,
+            FontFamily = fontFamily,
+            FontSize = fontSize
+        };
+        UpdateSettings(ghosttyTheme, fontFamily, fontSize);
+    }
+
+    public void UpdateSettings(GhosttyTheme theme, string fontFamily, int fontSize)
+    {
+        _theme = theme;
+        _fontSize = fontSize;
+
+        var settings = SettingsService.Current;
+        _cursorStyle = settings.CursorStyle;
+        _cursorBlink = settings.CursorBlink;
+
+        _typeface = new Typeface(new FontFamily(fontFamily), FontStyles.Normal, FontWeights.Normal, FontStretches.Normal);
+        CalculateCellSize();
+        CalculateTerminalSize();
+        Render();
+    }
+
     private static void OnHasNotificationChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
         ((TerminalControl)d).Render();
@@ -748,7 +998,8 @@ public class TerminalControl : FrameworkElement
         if ((bool)e.NewValue)
         {
             ctrl._cursorVisible = true;
-            ctrl._cursorTimer?.Start();
+            if (ctrl._cursorBlink)
+                ctrl._cursorTimer?.Start();
         }
         ctrl.Render();
     }

@@ -1,0 +1,149 @@
+<Window x:Class="Cmux.Views.SessionVaultWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Session Vault" Height="700" Width="1280"
+        WindowStartupLocation="CenterOwner"
+        Background="{StaticResource BackgroundBrush}">
+
+    <Window.Resources>
+        <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="#FF252547" />
+        <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" Color="#FFE2E2E9" />
+        <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightBrushKey}" Color="#FF252547" />
+        <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightTextBrushKey}" Color="#FFE2E2E9" />
+
+        <Style x:Key="VaultListItem" TargetType="ListViewItem">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="{StaticResource ForegroundBrush}" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="Padding" Value="6,4" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListViewItem">
+                        <Border x:Name="RowBg" Background="{TemplateBinding Background}" Padding="{TemplateBinding Padding}">
+                            <GridViewRowPresenter Content="{TemplateBinding Content}"
+                                                 Columns="{Binding RelativeSource={RelativeSource AncestorType=ListView}, Path=View.Columns}" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="RowBg" Property="Background" Value="#1FFFFFFF" />
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="RowBg" Property="Background" Value="#FF252547" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.6" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="VaultHeader" TargetType="GridViewColumnHeader">
+            <Setter Property="Background" Value="#FF1A1A2E" />
+            <Setter Property="Foreground" Value="{StaticResource ForegroundBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+            <Setter Property="BorderThickness" Value="0,0,1,1" />
+            <Setter Property="Padding" Value="8,6" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="GridViewColumnHeader">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Left" VerticalAlignment="Center" RecognizesAccessKey="True" />
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <DockPanel Grid.Row="0" Margin="0,0,0,8">
+            <TextBlock Text="Search" Foreground="{StaticResource ForegroundDimBrush}"
+                       VerticalAlignment="Center" Margin="0,0,8,0" />
+            <TextBox x:Name="SearchBox" Width="320" Padding="8,5"
+                     Background="#FF1A1A1A" Foreground="{StaticResource ForegroundBrush}"
+                     BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                     CaretBrush="{StaticResource ForegroundBrush}" SelectionBrush="{StaticResource AccentBrush}"
+                     TextChanged="SearchBox_TextChanged" />
+            <TextBlock x:Name="SummaryText" Margin="16,0,0,0" VerticalAlignment="Center"
+                       Foreground="{StaticResource ForegroundDimBrush}" />
+            <Button Content="Refresh" Style="{StaticResource CmuxButton}" Margin="8,0,0,0" Padding="10,4" Click="Refresh_Click" />
+            <Button Content="Open Folder" Style="{StaticResource CmuxButton}" Margin="8,0,0,0" Padding="10,4" Click="OpenFolder_Click" />
+        </DockPanel>
+
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="420" />
+                <ColumnDefinition Width="8" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <Border Grid.Column="0" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Background="#FF141420">
+                <ListView x:Name="EntriesList" ItemContainerStyle="{StaticResource VaultListItem}"
+                          Background="#FF141420" Foreground="{StaticResource ForegroundBrush}" BorderThickness="0"
+                          MouseDoubleClick="EntriesList_MouseDoubleClick"
+                          SelectionChanged="EntriesList_SelectionChanged">
+                    <ListView.Resources>
+                        <Style TargetType="GridViewColumnHeader" BasedOn="{StaticResource VaultHeader}" />
+                    </ListView.Resources>
+                    <ListView.View>
+                        <GridView>
+                            <GridViewColumn Header="Time" Width="120" DisplayMemberBinding="{Binding CapturedAtLocal}" />
+                            <GridViewColumn Header="Workspace" Width="150" DisplayMemberBinding="{Binding WorkspaceDisplay}" />
+                            <GridViewColumn Header="Surface" Width="120" DisplayMemberBinding="{Binding SurfaceDisplay}" />
+                        </GridView>
+                    </ListView.View>
+                </ListView>
+            </Border>
+
+            <GridSplitter Grid.Column="1" Width="8" HorizontalAlignment="Stretch"
+                          Background="{StaticResource DividerBrush}" ShowsPreview="False" />
+
+            <Grid Grid.Column="2">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <Border Grid.Row="0" Background="#FF141420" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Padding="10,8" Margin="0,0,0,8">
+                    <StackPanel>
+                        <TextBlock x:Name="MetaTitleText" Text="Select a capture" FontWeight="SemiBold" Foreground="{StaticResource ForegroundBrush}" />
+                        <TextBlock x:Name="MetaInfoText" Foreground="{StaticResource ForegroundDimBrush}" FontSize="12" Margin="0,4,0,0" />
+                    </StackPanel>
+                </Border>
+
+                <Border Grid.Row="1" BorderBrush="#FF2A2A3C" BorderThickness="1" Background="#FF0F0F0F" CornerRadius="4">
+                    <TextBox x:Name="TranscriptText"
+                             IsReadOnly="True"
+                             TextWrapping="NoWrap"
+                             AcceptsReturn="True"
+                             HorizontalScrollBarVisibility="Auto"
+                             VerticalScrollBarVisibility="Auto"
+                             Background="#FF0F0F0F"
+                             Foreground="#FFE2E2E9"
+                             BorderThickness="0"
+                             Padding="12"
+                             FontFamily="Cascadia Code"
+                             FontSize="13" />
+                </Border>
+            </Grid>
+        </Grid>
+
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,8,0,0">
+            <Button Content="Copy All" Style="{StaticResource CmuxButton}" Margin="0,0,8,0" Padding="12,6" Click="CopyAll_Click" />
+            <Button Content="Open File" Style="{StaticResource CmuxButton}" Margin="0,0,8,0" Padding="12,6" Click="OpenFile_Click" />
+            <Button Content="Close" Style="{StaticResource AccentButton}" Padding="12,6" Click="Close_Click" />
+        </StackPanel>
+    </Grid>
+</Window>

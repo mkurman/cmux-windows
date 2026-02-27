@@ -335,4 +335,77 @@
         </Setter>
     </Style>
 
+    <!-- Dark Context Menu -->
+    <Style TargetType="ContextMenu">
+        <Setter Property="Background" Value="{StaticResource SurfaceBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Padding" Value="2" />
+        <Setter Property="HasDropShadow" Value="True" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ContextMenu">
+                    <Border Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="8" Padding="{TemplateBinding Padding}">
+                        <Border.Effect>
+                            <DropShadowEffect BlurRadius="20" ShadowDepth="4" Color="#000000" Opacity="0.5" Direction="270" />
+                        </Border.Effect>
+                        <StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Cycle" />
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style TargetType="MenuItem">
+        <Setter Property="Foreground" Value="{StaticResource ForegroundBrush}" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Padding" Value="10,6" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="MenuItem">
+                    <Border x:Name="border" Background="{TemplateBinding Background}"
+                            CornerRadius="4" Padding="{TemplateBinding Padding}" Margin="2,1">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="20" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="{TemplateBinding Icon}" FontFamily="Segoe MDL2 Assets"
+                                       FontSize="12" Foreground="{StaticResource ForegroundDimBrush}"
+                                       VerticalAlignment="Center" />
+                            <ContentPresenter Grid.Column="1" ContentSource="Header" VerticalAlignment="Center"
+                                              RecognizesAccessKey="True" />
+                            <TextBlock Grid.Column="2" Text="{TemplateBinding InputGestureText}"
+                                       Foreground="{StaticResource ForegroundDimBrush}" FontSize="11"
+                                       VerticalAlignment="Center" Margin="16,0,0,0" />
+                        </Grid>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsHighlighted" Value="True">
+                            <Setter TargetName="border" Property="Background" Value="#FF1A1A2E" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.4" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style TargetType="Separator">
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Separator">
+                    <Border Height="1" Background="{StaticResource BorderBrush}" Margin="6,3" />
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
 </ResourceDictionary>

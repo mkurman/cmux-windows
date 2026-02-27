@@ -285,7 +285,7 @@ public class OscHandlerTests
     {
         var handler = new OscHandler();
         char? marker = null;
-        handler.ShellPromptMarker += m => marker = m;
+        handler.ShellPromptMarker += (m, payload) => marker = m;
 
         handler.Handle("133;A");
 
