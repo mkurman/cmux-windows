@@ -4,7 +4,7 @@
         xmlns:vm="clr-namespace:Cmux.ViewModels"
         xmlns:views="clr-namespace:Cmux.Views"
         xmlns:controls="clr-namespace:Cmux.Controls"
-        Title="cmux" Height="800" Width="1200"
+        Title="cmux windows" Height="800" Width="1200"
         MinHeight="400" MinWidth="600"
         WindowStyle="SingleBorderWindow" ResizeMode="CanResize"
         Background="{StaticResource BackgroundBrush}"

@@ -83,7 +83,7 @@ dotnet publish src/Cmux/Cmux.csproj -c Release -r win-x64 --self-contained false
 ```
 
 Output:
-- `publish/cmux-win-x64/cmux.exe`
+- `publish/cmux-win-x64/cmuxw.exe`
 
 Use this when target machines already have .NET runtime installed.
 
@@ -94,7 +94,7 @@ dotnet publish src/Cmux/Cmux.csproj -c Release -r win-x64 --self-contained true 
 ```
 
 Output:
-- `publish/cmux-win-x64-sc/cmux.exe`
+- `publish/cmux-win-x64-sc/cmuxw.exe`
 
 ### 3) Single-file self-contained `.exe` (portable artifact)
 
@@ -103,7 +103,7 @@ dotnet publish src/Cmux/Cmux.csproj -c Release -r win-x64 --self-contained true 
 ```
 
 Output:
-- `publish/cmux-win-x64-single/cmux.exe`
+- `publish/cmux-win-x64-single/cmuxw.exe`
 
 > Note: WebView2-backed features may require WebView2 Runtime depending on target system state.
 
@@ -119,7 +119,7 @@ Add `publish/cmux-cli` to `PATH` to use `cmux` globally.
 
 ## First 5 minutes (how to use)
 
-1. Launch `cmux.exe`
+1. Launch `cmuxw.exe`
 2. `Ctrl+N` to create a workspace for your repo
 3. `Ctrl+T` to create additional surfaces (tabs)
 4. Split panes with `Ctrl+D` / `Ctrl+Shift+D`
