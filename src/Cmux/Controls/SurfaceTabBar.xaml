@@ -1,0 +1,58 @@
+<UserControl x:Class="Cmux.Controls.SurfaceTabBar"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:Cmux.ViewModels"
+             Height="30" Background="{StaticResource SurfaceTabBackgroundBrush}">
+
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="Auto" />
+        </Grid.ColumnDefinitions>
+
+        <!-- Tab list -->
+        <ItemsControl Grid.Column="0" ItemsSource="{Binding Surfaces}">
+            <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <StackPanel Orientation="Horizontal" />
+                </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+                <DataTemplate DataType="{x:Type vm:SurfaceViewModel}">
+                    <Border x:Name="tabBorder" Padding="12,4" Cursor="Hand"
+                            CornerRadius="4,4,0,0" Margin="1,2,1,0"
+                            Background="Transparent"
+                            MouseLeftButtonDown="Tab_Click">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="{Binding Name}" FontSize="12"
+                                       Foreground="{StaticResource ForegroundBrush}" />
+                            <Button Content="&#xE10A;" FontFamily="Segoe MDL2 Assets"
+                                    FontSize="8" Margin="6,0,0,0" Padding="2"
+                                    Style="{StaticResource CmuxButton}"
+                                    Click="CloseTab_Click" Tag="{Binding}" />
+                        </StackPanel>
+                    </Border>
+                    <DataTemplate.Triggers>
+                        <DataTrigger Value="True">
+                            <DataTrigger.Binding>
+                                <MultiBinding Converter="{StaticResource EqualityConverter}">
+                                    <Binding />
+                                    <Binding RelativeSource="{RelativeSource AncestorType=UserControl}"
+                                             Path="DataContext.SelectedSurface" />
+                                </MultiBinding>
+                            </DataTrigger.Binding>
+                            <Setter TargetName="tabBorder" Property="Background"
+                                    Value="{StaticResource SurfaceTabSelectedBrush}" />
+                        </DataTrigger>
+                    </DataTemplate.Triggers>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
+        <!-- Add surface button -->
+        <Button Grid.Column="1" Content="+" FontSize="14"
+                Style="{StaticResource CmuxButton}"
+                Click="AddTab_Click"
+                Padding="8,0" Margin="2,2,4,2" />
+    </Grid>
+</UserControl>

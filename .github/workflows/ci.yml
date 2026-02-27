@@ -1,0 +1,62 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        configuration: [Debug, Release]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build --no-restore --configuration ${{ matrix.configuration }}
+
+      - name: Test
+        run: dotnet test --no-build --configuration ${{ matrix.configuration }} --verbosity normal
+
+  publish:
+    runs-on: windows-latest
+    needs: build
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Publish WPF App
+        run: dotnet publish src/Cmux/Cmux.csproj -c Release -r win-x64 --self-contained -o publish/app
+
+      - name: Publish CLI
+        run: dotnet publish src/Cmux.Cli/Cmux.Cli.csproj -c Release -r win-x64 --self-contained -o publish/cli
+
+      - name: Upload App Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cmux-windows-x64
+          path: publish/app/
+
+      - name: Upload CLI Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cmux-cli-windows-x64
+          path: publish/cli/

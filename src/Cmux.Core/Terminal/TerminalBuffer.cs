@@ -1,0 +1,461 @@
+namespace Cmux.Core.Terminal;
+
+/// <summary>
+/// Manages the terminal cell grid, cursor state, scrollback buffer,
+/// and scroll regions. This is the core data structure that the VT parser
+/// operates on and the renderer reads from.
+/// </summary>
+public class TerminalBuffer
+{
+    private TerminalCell[,] _cells;
+    private readonly List<TerminalCell[]> _scrollback = [];
+    private readonly int _maxScrollback;
+
+    public int Cols { get; private set; }
+    public int Rows { get; private set; }
+    public int CursorRow { get; set; }
+    public int CursorCol { get; set; }
+    public bool CursorVisible { get; set; } = true;
+
+    // Scroll region (inclusive, 0-based)
+    public int ScrollTop { get; private set; }
+    public int ScrollBottom { get; private set; }
+
+    // Saved cursor state
+    private int _savedCursorRow;
+    private int _savedCursorCol;
+    private TerminalAttribute _savedAttribute;
+
+    // Current writing attribute
+    public TerminalAttribute CurrentAttribute { get; set; } = TerminalAttribute.Default;
+
+    // Mode flags
+    public bool OriginMode { get; set; }
+    public bool AutoWrapMode { get; set; } = true;
+    public bool InsertMode { get; set; }
+    private bool _wrapPending;
+
+    public int ScrollbackCount => _scrollback.Count;
+    public int TotalLines => Rows + _scrollback.Count;
+
+    public event Action? ContentChanged;
+
+    public TerminalBuffer(int cols, int rows, int maxScrollback = 10_000)
+    {
+        Cols = cols;
+        Rows = rows;
+        _maxScrollback = maxScrollback;
+        ScrollTop = 0;
+        ScrollBottom = rows - 1;
+        _cells = new TerminalCell[rows, cols];
+        Clear();
+    }
+
+    public void Clear()
+    {
+        for (int r = 0; r < Rows; r++)
+            for (int c = 0; c < Cols; c++)
+                _cells[r, c] = TerminalCell.Empty;
+    }
+
+    public ref TerminalCell CellAt(int row, int col) => ref _cells[row, col];
+
+    public TerminalCell[] GetLine(int row)
+    {
+        var line = new TerminalCell[Cols];
+        for (int c = 0; c < Cols; c++)
+            line[c] = _cells[row, c];
+        return line;
+    }
+
+    public TerminalCell[]? GetScrollbackLine(int index)
+    {
+        if (index < 0 || index >= _scrollback.Count) return null;
+        return _scrollback[index];
+    }
+
+    public void SetChar(int row, int col, string ch, TerminalAttribute attr)
+    {
+        if (row < 0 || row >= Rows || col < 0 || col >= Cols) return;
+        _cells[row, col] = new TerminalCell
+        {
+            Character = ch,
+            Attribute = attr,
+            IsDirty = true,
+            Width = 1,
+        };
+    }
+
+    /// <summary>
+    /// Writes a character at the current cursor position and advances the cursor.
+    /// Handles auto-wrap and insert mode.
+    /// </summary>
+    public void WriteChar(char c)
+    {
+        if (_wrapPending && AutoWrapMode)
+        {
+            CarriageReturn();
+            LineFeed();
+            _wrapPending = false;
+        }
+
+        if (InsertMode)
+        {
+            // Shift characters right
+            for (int col = Cols - 1; col > CursorCol; col--)
+                _cells[CursorRow, col] = _cells[CursorRow, col - 1];
+        }
+
+        if (CursorRow >= 0 && CursorRow < Rows && CursorCol >= 0 && CursorCol < Cols)
+        {
+            _cells[CursorRow, CursorCol] = new TerminalCell
+            {
+                Character = c.ToString(),
+                Attribute = CurrentAttribute,
+                IsDirty = true,
+                Width = 1,
+            };
+        }
+
+        if (CursorCol + 1 >= Cols)
+        {
+            _wrapPending = true;
+        }
+        else
+        {
+            CursorCol++;
+        }
+    }
+
+    public void WriteString(string text)
+    {
+        foreach (var c in text)
+            WriteChar(c);
+    }
+
+    public void CarriageReturn()
+    {
+        CursorCol = 0;
+        _wrapPending = false;
+    }
+
+    public void LineFeed()
+    {
+        _wrapPending = false;
+        if (CursorRow == ScrollBottom)
+        {
+            ScrollUp(1);
+        }
+        else if (CursorRow < Rows - 1)
+        {
+            CursorRow++;
+        }
+    }
+
+    public void ReverseLineFeed()
+    {
+        if (CursorRow == ScrollTop)
+        {
+            ScrollDown(1);
+        }
+        else if (CursorRow > 0)
+        {
+            CursorRow--;
+        }
+    }
+
+    public void NewLine()
+    {
+        CarriageReturn();
+        LineFeed();
+    }
+
+    /// <summary>
+    /// Scrolls the scroll region up by the given number of lines.
+    /// Lines scrolled out of the top go to scrollback if the scroll region is the full screen.
+    /// </summary>
+    public void ScrollUp(int lines = 1)
+    {
+        for (int n = 0; n < lines; n++)
+        {
+            // If the scroll region starts at line 0, push to scrollback
+            if (ScrollTop == 0)
+            {
+                var scrolledLine = new TerminalCell[Cols];
+                for (int c = 0; c < Cols; c++)
+                    scrolledLine[c] = _cells[0, c];
+
+                _scrollback.Add(scrolledLine);
+                while (_scrollback.Count > _maxScrollback)
+                    _scrollback.RemoveAt(0);
+            }
+
+            // Shift lines up within the scroll region
+            for (int r = ScrollTop; r < ScrollBottom; r++)
+                for (int c = 0; c < Cols; c++)
+                    _cells[r, c] = _cells[r + 1, c];
+
+            // Clear the bottom line
+            for (int c = 0; c < Cols; c++)
+                _cells[ScrollBottom, c] = TerminalCell.Empty;
+        }
+
+        RaiseContentChanged();
+    }
+
+    /// <summary>
+    /// Scrolls the scroll region down by the given number of lines.
+    /// </summary>
+    public void ScrollDown(int lines = 1)
+    {
+        for (int n = 0; n < lines; n++)
+        {
+            for (int r = ScrollBottom; r > ScrollTop; r--)
+                for (int c = 0; c < Cols; c++)
+                    _cells[r, c] = _cells[r - 1, c];
+
+            for (int c = 0; c < Cols; c++)
+                _cells[ScrollTop, c] = TerminalCell.Empty;
+        }
+
+        RaiseContentChanged();
+    }
+
+    /// <summary>
+    /// Erases parts of the display.
+    /// 0 = cursor to end, 1 = start to cursor, 2 = all, 3 = all + scrollback
+    /// </summary>
+    public void EraseInDisplay(int mode)
+    {
+        switch (mode)
+        {
+            case 0: // Cursor to end
+                for (int c = CursorCol; c < Cols; c++)
+                    _cells[CursorRow, c] = TerminalCell.Empty;
+                for (int r = CursorRow + 1; r < Rows; r++)
+                    for (int c = 0; c < Cols; c++)
+                        _cells[r, c] = TerminalCell.Empty;
+                break;
+            case 1: // Start to cursor
+                for (int r = 0; r < CursorRow; r++)
+                    for (int c = 0; c < Cols; c++)
+                        _cells[r, c] = TerminalCell.Empty;
+                for (int c = 0; c <= CursorCol; c++)
+                    _cells[CursorRow, c] = TerminalCell.Empty;
+                break;
+            case 2: // All
+                Clear();
+                break;
+            case 3: // All + scrollback
+                Clear();
+                _scrollback.Clear();
+                break;
+        }
+
+        RaiseContentChanged();
+    }
+
+    /// <summary>
+    /// Erases parts of the current line.
+    /// 0 = cursor to end, 1 = start to cursor, 2 = entire line
+    /// </summary>
+    public void EraseInLine(int mode)
+    {
+        switch (mode)
+        {
+            case 0:
+                for (int c = CursorCol; c < Cols; c++)
+                    _cells[CursorRow, c] = TerminalCell.Empty;
+                break;
+            case 1:
+                for (int c = 0; c <= CursorCol; c++)
+                    _cells[CursorRow, c] = TerminalCell.Empty;
+                break;
+            case 2:
+                for (int c = 0; c < Cols; c++)
+                    _cells[CursorRow, c] = TerminalCell.Empty;
+                break;
+        }
+
+        RaiseContentChanged();
+    }
+
+    public void EraseChars(int count)
+    {
+        for (int i = 0; i < count && CursorCol + i < Cols; i++)
+            _cells[CursorRow, CursorCol + i] = TerminalCell.Empty;
+        RaiseContentChanged();
+    }
+
+    public void InsertLines(int count)
+    {
+        int savedBottom = ScrollBottom;
+        ScrollBottom = Rows - 1;
+        for (int n = 0; n < count; n++)
+        {
+            for (int r = ScrollBottom; r > CursorRow; r--)
+                for (int c = 0; c < Cols; c++)
+                    _cells[r, c] = _cells[r - 1, c];
+            for (int c = 0; c < Cols; c++)
+                _cells[CursorRow, c] = TerminalCell.Empty;
+        }
+        ScrollBottom = savedBottom;
+        RaiseContentChanged();
+    }
+
+    public void DeleteLines(int count)
+    {
+        for (int n = 0; n < count; n++)
+        {
+            for (int r = CursorRow; r < ScrollBottom; r++)
+                for (int c = 0; c < Cols; c++)
+                    _cells[r, c] = _cells[r + 1, c];
+            for (int c = 0; c < Cols; c++)
+                _cells[ScrollBottom, c] = TerminalCell.Empty;
+        }
+        RaiseContentChanged();
+    }
+
+    public void InsertChars(int count)
+    {
+        for (int n = 0; n < count; n++)
+        {
+            for (int c = Cols - 1; c > CursorCol; c--)
+                _cells[CursorRow, c] = _cells[CursorRow, c - 1];
+            _cells[CursorRow, CursorCol] = TerminalCell.Empty;
+        }
+        RaiseContentChanged();
+    }
+
+    public void DeleteChars(int count)
+    {
+        for (int n = 0; n < count; n++)
+        {
+            for (int c = CursorCol; c < Cols - 1; c++)
+                _cells[CursorRow, c] = _cells[CursorRow, c + 1];
+            _cells[CursorRow, Cols - 1] = TerminalCell.Empty;
+        }
+        RaiseContentChanged();
+    }
+
+    public void SetScrollRegion(int top, int bottom)
+    {
+        ScrollTop = Math.Max(0, Math.Min(top, Rows - 1));
+        ScrollBottom = Math.Max(0, Math.Min(bottom, Rows - 1));
+        if (ScrollTop > ScrollBottom)
+            (ScrollTop, ScrollBottom) = (ScrollBottom, ScrollTop);
+    }
+
+    public void ResetScrollRegion()
+    {
+        ScrollTop = 0;
+        ScrollBottom = Rows - 1;
+    }
+
+    public void SaveCursor()
+    {
+        _savedCursorRow = CursorRow;
+        _savedCursorCol = CursorCol;
+        _savedAttribute = CurrentAttribute;
+    }
+
+    public void RestoreCursor()
+    {
+        CursorRow = _savedCursorRow;
+        CursorCol = _savedCursorCol;
+        CurrentAttribute = _savedAttribute;
+    }
+
+    public void MoveCursorTo(int row, int col)
+    {
+        CursorRow = Math.Clamp(row, 0, Rows - 1);
+        CursorCol = Math.Clamp(col, 0, Cols - 1);
+        _wrapPending = false;
+    }
+
+    public void MoveCursorUp(int count = 1)
+    {
+        CursorRow = Math.Max(ScrollTop, CursorRow - count);
+        _wrapPending = false;
+    }
+
+    public void MoveCursorDown(int count = 1)
+    {
+        CursorRow = Math.Min(ScrollBottom, CursorRow + count);
+        _wrapPending = false;
+    }
+
+    public void MoveCursorForward(int count = 1)
+    {
+        CursorCol = Math.Min(Cols - 1, CursorCol + count);
+        _wrapPending = false;
+    }
+
+    public void MoveCursorBackward(int count = 1)
+    {
+        CursorCol = Math.Max(0, CursorCol - count);
+        _wrapPending = false;
+    }
+
+    public void Tab()
+    {
+        int nextTab = ((CursorCol / 8) + 1) * 8;
+        CursorCol = Math.Min(nextTab, Cols - 1);
+    }
+
+    public void Backspace()
+    {
+        if (CursorCol > 0)
+            CursorCol--;
+        _wrapPending = false;
+    }
+
+    /// <summary>
+    /// Resizes the buffer, preserving content as much as possible.
+    /// </summary>
+    public void Resize(int newCols, int newRows)
+    {
+        var newCells = new TerminalCell[newRows, newCols];
+        for (int r = 0; r < newRows; r++)
+            for (int c = 0; c < newCols; c++)
+                newCells[r, c] = TerminalCell.Empty;
+
+        int copyRows = Math.Min(Rows, newRows);
+        int copyCols = Math.Min(Cols, newCols);
+        for (int r = 0; r < copyRows; r++)
+            for (int c = 0; c < copyCols; c++)
+                newCells[r, c] = _cells[r, c];
+
+        _cells = newCells;
+        Cols = newCols;
+        Rows = newRows;
+        ScrollTop = 0;
+        ScrollBottom = newRows - 1;
+        CursorRow = Math.Min(CursorRow, newRows - 1);
+        CursorCol = Math.Min(CursorCol, newCols - 1);
+
+        RaiseContentChanged();
+    }
+
+    /// <summary>
+    /// Marks all cells as dirty (for full repaint).
+    /// </summary>
+    public void MarkAllDirty()
+    {
+        for (int r = 0; r < Rows; r++)
+            for (int c = 0; c < Cols; c++)
+                _cells[r, c].IsDirty = true;
+    }
+
+    /// <summary>
+    /// Clears dirty flags on all cells.
+    /// </summary>
+    public void ClearDirty()
+    {
+        for (int r = 0; r < Rows; r++)
+            for (int c = 0; c < Cols; c++)
+                _cells[r, c].IsDirty = false;
+    }
+
+    private void RaiseContentChanged() => ContentChanged?.Invoke();
+}

@@ -1,0 +1,86 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- cmux Dark Theme - matches Ghostty/cmux default dark look -->
+
+    <!-- Base colors -->
+    <Color x:Key="BackgroundColor">#FF1E1E1E</Color>
+    <Color x:Key="SidebarBackgroundColor">#FF181818</Color>
+    <Color x:Key="SidebarItemHoverColor">#FF2A2A2A</Color>
+    <Color x:Key="SidebarItemSelectedColor">#FF333333</Color>
+    <Color x:Key="ForegroundColor">#FFCCCCCC</Color>
+    <Color x:Key="ForegroundDimColor">#FF808080</Color>
+    <Color x:Key="AccentColor">#FF569CD6</Color>
+    <Color x:Key="NotificationColor">#FF3B82F6</Color>
+    <Color x:Key="BorderColor">#FF3C3C3C</Color>
+    <Color x:Key="SurfaceTabBackgroundColor">#FF252525</Color>
+    <Color x:Key="SurfaceTabSelectedColor">#FF1E1E1E</Color>
+    <Color x:Key="DividerColor">#FF444444</Color>
+    <Color x:Key="ErrorColor">#FFF44747</Color>
+    <Color x:Key="SuccessColor">#FF4EC9B0</Color>
+    <Color x:Key="WarningColor">#FFD7BA7D</Color>
+
+    <!-- Brushes -->
+    <SolidColorBrush x:Key="BackgroundBrush" Color="{StaticResource BackgroundColor}" />
+    <SolidColorBrush x:Key="SidebarBackgroundBrush" Color="{StaticResource SidebarBackgroundColor}" />
+    <SolidColorBrush x:Key="SidebarItemHoverBrush" Color="{StaticResource SidebarItemHoverColor}" />
+    <SolidColorBrush x:Key="SidebarItemSelectedBrush" Color="{StaticResource SidebarItemSelectedColor}" />
+    <SolidColorBrush x:Key="ForegroundBrush" Color="{StaticResource ForegroundColor}" />
+    <SolidColorBrush x:Key="ForegroundDimBrush" Color="{StaticResource ForegroundDimColor}" />
+    <SolidColorBrush x:Key="AccentBrush" Color="{StaticResource AccentColor}" />
+    <SolidColorBrush x:Key="NotificationBrush" Color="{StaticResource NotificationColor}" />
+    <SolidColorBrush x:Key="BorderBrush" Color="{StaticResource BorderColor}" />
+    <SolidColorBrush x:Key="SurfaceTabBackgroundBrush" Color="{StaticResource SurfaceTabBackgroundColor}" />
+    <SolidColorBrush x:Key="SurfaceTabSelectedBrush" Color="{StaticResource SurfaceTabSelectedColor}" />
+    <SolidColorBrush x:Key="DividerBrush" Color="{StaticResource DividerColor}" />
+    <SolidColorBrush x:Key="ErrorBrush" Color="{StaticResource ErrorColor}" />
+    <SolidColorBrush x:Key="SuccessBrush" Color="{StaticResource SuccessColor}" />
+    <SolidColorBrush x:Key="WarningBrush" Color="{StaticResource WarningColor}" />
+
+    <!-- Font sizes -->
+    <system:Double x:Key="FontSizeSmall" xmlns:system="clr-namespace:System;assembly=mscorlib">11</system:Double>
+    <system:Double x:Key="FontSizeNormal" xmlns:system="clr-namespace:System;assembly=mscorlib">13</system:Double>
+    <system:Double x:Key="FontSizeLarge" xmlns:system="clr-namespace:System;assembly=mscorlib">15</system:Double>
+
+    <!-- Scrollbar style (thin, dark) -->
+    <Style x:Key="DarkScrollBarThumb" TargetType="Thumb">
+        <Setter Property="OverridesDefaultStyle" Value="True" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Thumb">
+                    <Border Background="#FF555555" CornerRadius="3" Margin="1" />
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Button style -->
+    <Style x:Key="CmuxButton" TargetType="Button">
+        <Setter Property="Background" Value="{StaticResource SidebarItemHoverBrush}" />
+        <Setter Property="Foreground" Value="{StaticResource ForegroundBrush}" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Padding" Value="12,6" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="border"
+                            Background="{TemplateBinding Background}"
+                            CornerRadius="4"
+                            Padding="{TemplateBinding Padding}">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="border" Property="Background" Value="{StaticResource SidebarItemSelectedBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="border" Property="Background" Value="{StaticResource AccentBrush}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+</ResourceDictionary>
