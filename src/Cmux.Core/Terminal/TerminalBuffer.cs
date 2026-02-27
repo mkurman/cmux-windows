@@ -36,6 +36,14 @@ public class TerminalBuffer
     public bool ApplicationCursorKeys { get; set; }
     public bool BracketedPasteMode { get; set; }
     public bool IsAlternateScreen { get; private set; }
+
+    // Mouse tracking modes
+    public bool MouseTrackingNormal { get; set; }    // Mode 1000: button events
+    public bool MouseTrackingButton { get; set; }    // Mode 1002: button + motion while pressed
+    public bool MouseTrackingAny { get; set; }       // Mode 1003: all motion
+    public bool MouseSgrExtended { get; set; }       // Mode 1006: SGR extended coordinates
+    public bool MouseEnabled => MouseTrackingNormal || MouseTrackingButton || MouseTrackingAny;
+
     private bool _wrapPending;
 
     // Alternate screen buffer state

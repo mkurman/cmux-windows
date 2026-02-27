@@ -47,32 +47,40 @@ public static class PortScanner
     private static HashSet<int> GetProcessTree(int rootPid)
     {
         var tree = new HashSet<int> { rootPid };
-
         try
         {
-            // Use WMI via Process to get child processes
-            var processes = Process.GetProcesses();
-            var children = new Dictionary<int, List<int>>();
-
-            foreach (var p in processes)
+            // Build parent->children map using WMI
+            using var searcher = new System.Management.ManagementObjectSearcher(
+                "SELECT ProcessId, ParentProcessId FROM Win32_Process");
+            var parentMap = new Dictionary<int, List<int>>();
+            foreach (var obj in searcher.Get())
             {
-                try
+                int pid = Convert.ToInt32(obj["ProcessId"]);
+                int ppid = Convert.ToInt32(obj["ParentProcessId"]);
+                if (!parentMap.ContainsKey(ppid))
+                    parentMap[ppid] = [];
+                parentMap[ppid].Add(pid);
+            }
+            // BFS to find all descendants
+            var queue = new Queue<int>();
+            queue.Enqueue(rootPid);
+            while (queue.Count > 0)
+            {
+                int current = queue.Dequeue();
+                if (parentMap.TryGetValue(current, out var children))
                 {
-                    // For each process, we can't easily get parent PID without WMI/P/Invoke
-                    // So we use a simpler approach: trust the process group
-                    children.TryAdd(p.Id, []);
-                }
-                catch
-                {
-                    // Skip inaccessible processes
+                    foreach (var child in children)
+                    {
+                        if (tree.Add(child))
+                            queue.Enqueue(child);
+                    }
                 }
             }
         }
         catch
         {
-            // Best effort
+            // Best effort — WMI may not be available
         }
-
         return tree;
     }
 

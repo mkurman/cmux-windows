@@ -43,7 +43,9 @@ public class SplitPaneContainer : ContentControl
 
     private void OnSurfacePropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
-        if (e.PropertyName is nameof(SurfaceViewModel.RootNode) or nameof(SurfaceViewModel.FocusedPaneId))
+        if (e.PropertyName is nameof(SurfaceViewModel.RootNode)
+            or nameof(SurfaceViewModel.FocusedPaneId)
+            or nameof(SurfaceViewModel.IsZoomed))
         {
             Dispatcher.BeginInvoke(Rebuild);
         }
@@ -52,6 +54,18 @@ public class SplitPaneContainer : ContentControl
     private void Rebuild()
     {
         if (_surface == null) return;
+
+        // Zoom mode: show only the focused pane full-size
+        if (_surface.IsZoomed && _surface.FocusedPaneId != null)
+        {
+            var focusedNode = _surface.RootNode.FindNode(_surface.FocusedPaneId);
+            if (focusedNode != null)
+            {
+                Content = BuildLeaf(focusedNode);
+                return;
+            }
+        }
+
         Content = BuildNode(_surface.RootNode);
     }
 

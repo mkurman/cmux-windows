@@ -9,6 +9,7 @@
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
         <!-- Workspace name + notification badge -->
@@ -33,8 +34,27 @@
             </Border>
         </Grid>
 
+        <!-- AI Agent badge (gradient pill) -->
+        <Border Grid.Row="1" CornerRadius="4" Padding="5,2" Margin="0,4,0,0"
+                HorizontalAlignment="Left"
+                Visibility="{Binding AgentLabel, Converter={StaticResource NullToCollapsed}}">
+            <Border.Background>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                    <GradientStop Color="#FF6C5CE7" Offset="0" />
+                    <GradientStop Color="#FFA855F7" Offset="1" />
+                </LinearGradientBrush>
+            </Border.Background>
+            <StackPanel Orientation="Horizontal">
+                <TextBlock Text="{Binding AgentIcon}" FontFamily="Segoe MDL2 Assets"
+                           FontSize="9" Foreground="White" Margin="0,0,4,0"
+                           VerticalAlignment="Center" />
+                <TextBlock Text="{Binding AgentLabel}" FontSize="10"
+                           Foreground="White" FontWeight="SemiBold" />
+            </StackPanel>
+        </Border>
+
         <!-- Git branch -->
-        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,3,0,0"
+        <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,3,0,0"
                     Visibility="{Binding GitBranch, Converter={StaticResource NullToCollapsed}}">
             <TextBlock Text="&#xE8AD;" FontFamily="Segoe MDL2 Assets" FontSize="10"
                        Foreground="{StaticResource ForegroundDimBrush}" Margin="0,0,4,0"
@@ -45,14 +65,14 @@
         </StackPanel>
 
         <!-- Working directory -->
-        <TextBlock Grid.Row="2" Text="{Binding WorkingDirectory}"
+        <TextBlock Grid.Row="3" Text="{Binding WorkingDirectory}"
                    Foreground="{StaticResource ForegroundDimBrush}"
                    FontSize="10" Margin="0,2,0,0"
                    TextTrimming="CharacterEllipsis"
                    Visibility="{Binding WorkingDirectory, Converter={StaticResource NullToCollapsed}}" />
 
         <!-- Latest notification text -->
-        <TextBlock Grid.Row="3" Text="{Binding LatestNotificationText}"
+        <TextBlock Grid.Row="4" Text="{Binding LatestNotificationText}"
                    Foreground="{StaticResource ForegroundDimBrush}"
                    FontSize="10" Margin="0,2,0,0"
                    TextTrimming="CharacterEllipsis" FontStyle="Italic"

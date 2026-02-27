@@ -6,8 +6,8 @@
         xmlns:controls="clr-namespace:Cmux.Controls"
         Title="cmux" Height="800" Width="1200"
         MinHeight="400" MinWidth="600"
-        WindowStyle="None" AllowsTransparency="False"
-        Background="{StaticResource BackgroundBrush}"
+        WindowStyle="None" AllowsTransparency="True"
+        Background="Transparent"
         Loaded="OnLoaded" Closing="OnClosing"
         KeyDown="OnKeyDown">
 
@@ -15,173 +15,210 @@
         <vm:MainViewModel />
     </Window.DataContext>
 
-    <Grid>
-        <!-- Custom title bar row -->
-        <Grid.RowDefinitions>
-            <RowDefinition Height="32" />
-            <RowDefinition Height="*" />
-        </Grid.RowDefinitions>
+    <!-- Window content with shadow -->
+    <Border Background="{StaticResource BackgroundBrush}" CornerRadius="8" Margin="8"
+            BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+        <Border.Effect>
+            <DropShadowEffect BlurRadius="16" ShadowDepth="2" Color="#000000" Opacity="0.6" Direction="270" />
+        </Border.Effect>
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="36" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
 
-        <!-- Title bar -->
-        <Grid Grid.Row="0" Background="{StaticResource SidebarBackgroundBrush}" MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="Auto" />
-            </Grid.ColumnDefinitions>
+            <!-- Title bar -->
+            <Border Grid.Row="0" CornerRadius="8,8,0,0"
+                    Background="{StaticResource SidebarBackgroundBrush}"
+                    MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
 
-            <StackPanel Grid.Column="0" Orientation="Horizontal" Margin="8,0">
-                <TextBlock Text="cmux" Foreground="{StaticResource ForegroundBrush}"
-                           VerticalAlignment="Center" FontWeight="SemiBold" FontSize="12" />
-            </StackPanel>
+                    <StackPanel Grid.Column="0" Orientation="Horizontal" Margin="14,0">
+                        <!-- App icon -->
+                        <TextBlock Text="&#xE756;" FontFamily="Segoe MDL2 Assets" FontSize="14"
+                                   Foreground="{StaticResource AccentBrush}"
+                                   VerticalAlignment="Center" Margin="0,0,8,0" />
+                        <TextBlock Text="cmux" Foreground="{StaticResource ForegroundBrush}"
+                                   VerticalAlignment="Center" FontWeight="SemiBold" FontSize="12"
+                                   Opacity="0.8" />
+                    </StackPanel>
 
-            <StackPanel Grid.Column="2" Orientation="Horizontal">
-                <Button Content="&#xE949;" FontFamily="Segoe MDL2 Assets" FontSize="10"
-                        Click="MinimizeButton_Click" Style="{StaticResource CmuxButton}"
-                        Width="46" Height="32" Padding="0" />
-                <Button Content="&#xE739;" FontFamily="Segoe MDL2 Assets" FontSize="10"
-                        Click="MaximizeButton_Click" Style="{StaticResource CmuxButton}"
-                        Width="46" Height="32" Padding="0" />
-                <Button Content="&#xE106;" FontFamily="Segoe MDL2 Assets" FontSize="10"
-                        Click="CloseButton_Click" Width="46" Height="32" Padding="0">
-                    <Button.Style>
-                        <Style TargetType="Button" BasedOn="{StaticResource CmuxButton}">
-                            <Style.Triggers>
-                                <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter Property="Background" Value="{StaticResource ErrorBrush}" />
-                                </Trigger>
-                            </Style.Triggers>
-                        </Style>
-                    </Button.Style>
-                </Button>
-            </StackPanel>
-        </Grid>
+                    <StackPanel Grid.Column="2" Orientation="Horizontal">
+                        <Button Content="&#xE949;" FontFamily="Segoe MDL2 Assets" FontSize="10"
+                                Click="MinimizeButton_Click" Style="{StaticResource CmuxButton}"
+                                Width="46" Height="36" Padding="0" />
+                        <Button Content="&#xE739;" FontFamily="Segoe MDL2 Assets" FontSize="10"
+                                Click="MaximizeButton_Click" Style="{StaticResource CmuxButton}"
+                                Width="46" Height="36" Padding="0" />
+                        <Button Content="&#xE106;" FontFamily="Segoe MDL2 Assets" FontSize="10"
+                                Click="CloseButton_Click" Width="46" Height="36" Padding="0">
+                            <Button.Style>
+                                <Style TargetType="Button" BasedOn="{StaticResource CmuxButton}">
+                                    <Style.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter Property="Background" Value="{StaticResource ErrorBrush}" />
+                                        </Trigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                        </Button>
+                    </StackPanel>
+                </Grid>
+            </Border>
 
-        <!-- Main content area -->
-        <Grid Grid.Row="1">
-            <Grid.ColumnDefinitions>
+            <!-- Main content -->
+            <Grid Grid.Row="1">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="{Binding SidebarWidth, Mode=TwoWay}"
+                                      MinWidth="200" MaxWidth="500" />
+                    <ColumnDefinition Width="1" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
                 <!-- Sidebar -->
-                <ColumnDefinition Width="{Binding SidebarWidth, Mode=TwoWay}"
-                                  MinWidth="200" MaxWidth="500" />
-                <!-- Splitter -->
-                <ColumnDefinition Width="1" />
-                <!-- Content -->
-                <ColumnDefinition Width="*" />
-            </Grid.ColumnDefinitions>
+                <Border Grid.Column="0" Background="{StaticResource SidebarBackgroundBrush}"
+                        Visibility="{Binding SidebarVisible, Converter={StaticResource BoolToVisibility}}">
 
-            <!-- Sidebar -->
-            <Grid Grid.Column="0" Background="{StaticResource SidebarBackgroundBrush}"
-                  Visibility="{Binding SidebarVisible, Converter={StaticResource BoolToVisibility}}">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
 
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="*" />
-                    <RowDefinition Height="Auto" />
-                </Grid.RowDefinitions>
+                        <!-- Workspace list -->
+                        <ListBox Grid.Row="0" ItemsSource="{Binding Workspaces}"
+                                 SelectedItem="{Binding SelectedWorkspace}"
+                                 Background="Transparent" BorderThickness="0"
+                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                 AllowDrop="True" Padding="4,4,4,0"
+                                 x:Name="WorkspaceList">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate DataType="{x:Type vm:WorkspaceViewModel}">
+                                    <controls:WorkspaceSidebarItem />
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                            <ListBox.ItemContainerStyle>
+                                <Style TargetType="ListBoxItem">
+                                    <Setter Property="Background" Value="Transparent" />
+                                    <Setter Property="Padding" Value="0" />
+                                    <Setter Property="Margin" Value="0,1" />
+                                    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                                    <Setter Property="Template">
+                                        <Setter.Value>
+                                            <ControlTemplate TargetType="ListBoxItem">
+                                                <Grid>
+                                                    <!-- Active indicator bar (left edge) -->
+                                                    <Rectangle x:Name="activeBar" Width="3" HorizontalAlignment="Left"
+                                                               RadiusX="1.5" RadiusY="1.5" Opacity="0"
+                                                               Margin="0,4">
+                                                        <Rectangle.Fill>
+                                                            <LinearGradientBrush StartPoint="0.5,0" EndPoint="0.5,1">
+                                                                <GradientStop Color="#FF6366F1" Offset="0" />
+                                                                <GradientStop Color="#FFA78BFA" Offset="1" />
+                                                            </LinearGradientBrush>
+                                                        </Rectangle.Fill>
+                                                    </Rectangle>
+                                                    <Border x:Name="border" Background="{TemplateBinding Background}"
+                                                            CornerRadius="8" Padding="10,8" Margin="6,0,2,0">
+                                                        <ContentPresenter />
+                                                    </Border>
+                                                </Grid>
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter TargetName="border" Property="Background"
+                                                                Value="{StaticResource SidebarItemHoverBrush}" />
+                                                    </Trigger>
+                                                    <Trigger Property="IsSelected" Value="True">
+                                                        <Setter TargetName="border" Property="Background"
+                                                                Value="{StaticResource SidebarItemSelectedBrush}" />
+                                                        <Setter TargetName="activeBar" Property="Opacity" Value="1" />
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </Setter.Value>
+                                    </Setter>
+                                    <EventSetter Event="PreviewMouseLeftButtonDown" Handler="WorkspaceItem_PreviewMouseDown" />
+                                    <EventSetter Event="PreviewMouseMove" Handler="WorkspaceItem_PreviewMouseMove" />
+                                    <EventSetter Event="Drop" Handler="WorkspaceItem_Drop" />
+                                </Style>
+                            </ListBox.ItemContainerStyle>
+                        </ListBox>
 
-                <!-- Workspace list -->
-                <ListBox Grid.Row="0" ItemsSource="{Binding Workspaces}"
-                         SelectedItem="{Binding SelectedWorkspace}"
-                         Background="Transparent" BorderThickness="0"
-                         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                         AllowDrop="True"
-                         x:Name="WorkspaceList">
-                    <ListBox.ItemTemplate>
-                        <DataTemplate DataType="{x:Type vm:WorkspaceViewModel}">
-                            <controls:WorkspaceSidebarItem />
-                        </DataTemplate>
-                    </ListBox.ItemTemplate>
-                    <ListBox.ItemContainerStyle>
-                        <Style TargetType="ListBoxItem">
-                            <Setter Property="Background" Value="Transparent" />
-                            <Setter Property="Padding" Value="0" />
-                            <Setter Property="Margin" Value="4,2" />
-                            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-                            <Setter Property="Template">
-                                <Setter.Value>
-                                    <ControlTemplate TargetType="ListBoxItem">
-                                        <Border x:Name="border" Background="{TemplateBinding Background}"
-                                                CornerRadius="6" Padding="8,6">
-                                            <ContentPresenter />
+                        <!-- Sidebar footer -->
+                        <Border Grid.Row="1" BorderBrush="{StaticResource BorderBrush}"
+                                BorderThickness="0,1,0,0" Padding="6,6">
+                            <StackPanel>
+                                <Button Command="{Binding CreateNewWorkspaceCommand}"
+                                        Style="{StaticResource CmuxButton}"
+                                        HorizontalAlignment="Stretch" Margin="0,1">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="&#xE710;" FontFamily="Segoe MDL2 Assets" FontSize="12"
+                                                   Margin="0,0,8,0" Opacity="0.6" />
+                                        <TextBlock Text="New Workspace" FontSize="12" />
+                                    </StackPanel>
+                                </Button>
+
+                                <Button Command="{Binding ToggleNotificationPanelCommand}"
+                                        Style="{StaticResource CmuxButton}"
+                                        HorizontalAlignment="Stretch" Margin="0,1">
+                                    <Grid>
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="&#xEA8F;" FontFamily="Segoe MDL2 Assets" FontSize="12"
+                                                       Margin="0,0,8,0" Opacity="0.6" />
+                                            <TextBlock Text="Notifications" FontSize="12" />
+                                        </StackPanel>
+                                        <Border CornerRadius="10"
+                                                Padding="6,2" HorizontalAlignment="Right"
+                                                Visibility="{Binding TotalUnreadCount, Converter={StaticResource IntToVisibility}}">
+                                            <Border.Background>
+                                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                                    <GradientStop Color="#FF6366F1" Offset="0" />
+                                                    <GradientStop Color="#FFA78BFA" Offset="1" />
+                                                </LinearGradientBrush>
+                                            </Border.Background>
+                                            <TextBlock Text="{Binding TotalUnreadCount}" FontSize="10"
+                                                       Foreground="White" FontWeight="SemiBold" />
                                         </Border>
-                                        <ControlTemplate.Triggers>
-                                            <Trigger Property="IsMouseOver" Value="True">
-                                                <Setter TargetName="border" Property="Background"
-                                                        Value="{StaticResource SidebarItemHoverBrush}" />
-                                            </Trigger>
-                                            <Trigger Property="IsSelected" Value="True">
-                                                <Setter TargetName="border" Property="Background"
-                                                        Value="{StaticResource SidebarItemSelectedBrush}" />
-                                            </Trigger>
-                                        </ControlTemplate.Triggers>
-                                    </ControlTemplate>
-                                </Setter.Value>
-                            </Setter>
-                            <EventSetter Event="PreviewMouseLeftButtonDown" Handler="WorkspaceItem_PreviewMouseDown" />
-                            <EventSetter Event="PreviewMouseMove" Handler="WorkspaceItem_PreviewMouseMove" />
-                            <EventSetter Event="Drop" Handler="WorkspaceItem_Drop" />
-                        </Style>
-                    </ListBox.ItemContainerStyle>
-                </ListBox>
-
-                <!-- Sidebar footer: new workspace + notifications -->
-                <StackPanel Grid.Row="1" Margin="4,4">
-                    <Button Command="{Binding CreateNewWorkspaceCommand}"
-                            Style="{StaticResource CmuxButton}"
-                            HorizontalAlignment="Stretch" Margin="0,2">
-                        <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="+" FontSize="14" Margin="0,0,6,0" />
-                            <TextBlock Text="New Workspace" />
-                        </StackPanel>
-                    </Button>
-
-                    <Button Command="{Binding ToggleNotificationPanelCommand}"
-                            Style="{StaticResource CmuxButton}"
-                            HorizontalAlignment="Stretch" Margin="0,2">
-                        <Grid>
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="&#xEA8F;" FontFamily="Segoe MDL2 Assets" FontSize="14" Margin="0,0,6,0" />
-                                <TextBlock Text="Notifications" />
+                                    </Grid>
+                                </Button>
                             </StackPanel>
-                            <Border Background="{StaticResource NotificationBrush}" CornerRadius="8"
-                                    Padding="6,1" HorizontalAlignment="Right"
-                                    Visibility="{Binding TotalUnreadCount, Converter={StaticResource IntToVisibility}}">
-                                <TextBlock Text="{Binding TotalUnreadCount}" FontSize="10"
-                                           Foreground="White" />
-                            </Border>
-                        </Grid>
-                    </Button>
-                </StackPanel>
-            </Grid>
+                        </Border>
+                    </Grid>
+                </Border>
 
-            <!-- Vertical divider -->
-            <GridSplitter Grid.Column="1" Width="1" Background="{StaticResource BorderBrush}"
-                          HorizontalAlignment="Stretch" />
+                <!-- Vertical divider -->
+                <GridSplitter Grid.Column="1" Width="1" Background="{StaticResource BorderBrush}"
+                              HorizontalAlignment="Stretch" />
 
-            <!-- Content area -->
-            <Grid Grid.Column="2">
-                <Grid.RowDefinitions>
+                <!-- Content area -->
+                <Grid Grid.Column="2">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+
                     <!-- Surface tabs -->
-                    <RowDefinition Height="Auto" />
+                    <controls:SurfaceTabBar Grid.Row="0"
+                        DataContext="{Binding SelectedWorkspace}" />
+
                     <!-- Terminal content -->
-                    <RowDefinition Height="*" />
-                </Grid.RowDefinitions>
+                    <ContentControl Grid.Row="1" x:Name="ContentArea">
+                        <controls:SplitPaneContainer
+                            DataContext="{Binding SelectedWorkspace.SelectedSurface}" />
+                    </ContentControl>
 
-                <!-- Horizontal surface tabs -->
-                <controls:SurfaceTabBar Grid.Row="0"
-                    DataContext="{Binding SelectedWorkspace}" />
-
-                <!-- Terminal split pane content -->
-                <ContentControl Grid.Row="1" x:Name="ContentArea">
-                    <controls:SplitPaneContainer
-                        DataContext="{Binding SelectedWorkspace.SelectedSurface}" />
-                </ContentControl>
-
-                <!-- Notification panel overlay -->
-                <controls:NotificationPanel Grid.Row="0" Grid.RowSpan="2"
-                    HorizontalAlignment="Right"
-                    Visibility="{Binding NotificationPanelVisible, Converter={StaticResource BoolToVisibility}}"
-                    DataContext="{Binding}" />
+                    <!-- Notification panel overlay -->
+                    <controls:NotificationPanel Grid.Row="0" Grid.RowSpan="2"
+                        HorizontalAlignment="Right"
+                        Visibility="{Binding NotificationPanelVisible, Converter={StaticResource BoolToVisibility}}"
+                        DataContext="{Binding}" />
+                </Grid>
             </Grid>
         </Grid>
-    </Grid>
+    </Border>
 </Window>

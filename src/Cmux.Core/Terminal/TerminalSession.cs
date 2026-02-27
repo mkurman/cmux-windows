@@ -25,6 +25,7 @@ public sealed class TerminalSession : IDisposable
     public string? Title { get; private set; }
     public string? WorkingDirectory { get; private set; }
     public bool IsRunning => _process != null && !_process.HasExited;
+    public int? ProcessId => _process?.ProcessId;
 
     // Events
     public event Action? OutputReceived;
@@ -33,6 +34,7 @@ public sealed class TerminalSession : IDisposable
     public event Action<string>? WorkingDirectoryChanged;
     public event Action<string, string?, string>? NotificationReceived;
     public event Action? Redraw;
+    public event Action? BellReceived;
 
     public TerminalSession(string paneId, int cols = 120, int rows = 30)
     {
@@ -52,6 +54,7 @@ public sealed class TerminalSession : IDisposable
             switch (b)
             {
                 case 0x07: // BEL
+                    BellReceived?.Invoke();
                     break;
                 case 0x08: // BS (Backspace)
                     Buffer.Backspace();
@@ -491,6 +494,18 @@ public sealed class TerminalSession : IDisposable
                         break;
                     case 2004: // Bracketed paste mode
                         Buffer.BracketedPasteMode = set;
+                        break;
+                    case 1000: // Normal mouse tracking
+                        Buffer.MouseTrackingNormal = set;
+                        break;
+                    case 1002: // Button-event mouse tracking
+                        Buffer.MouseTrackingButton = set;
+                        break;
+                    case 1003: // Any-event mouse tracking
+                        Buffer.MouseTrackingAny = set;
+                        break;
+                    case 1006: // SGR extended mouse reporting
+                        Buffer.MouseSgrExtended = set;
                         break;
                 }
             }

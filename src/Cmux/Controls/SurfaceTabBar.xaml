@@ -2,7 +2,7 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="clr-namespace:Cmux.ViewModels"
-             Height="30" Background="{StaticResource SurfaceTabBackgroundBrush}">
+             Height="34" Background="{StaticResource SurfaceTabBackgroundBrush}">
 
     <Grid>
         <Grid.ColumnDefinitions>
@@ -19,20 +19,39 @@
             </ItemsControl.ItemsPanel>
             <ItemsControl.ItemTemplate>
                 <DataTemplate DataType="{x:Type vm:SurfaceViewModel}">
-                    <Border x:Name="tabBorder" Padding="12,4" Cursor="Hand"
-                            CornerRadius="4,4,0,0" Margin="1,2,1,0"
-                            Background="Transparent"
+                    <Border x:Name="tabBorder" Padding="14,6" Cursor="Hand"
+                            Margin="1,4,1,0" Background="Transparent"
                             MouseLeftButtonDown="Tab_Click">
-                        <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="{Binding Name}" FontSize="12"
-                                       Foreground="{StaticResource ForegroundBrush}" />
-                            <Button Content="&#xE10A;" FontFamily="Segoe MDL2 Assets"
-                                    FontSize="8" Margin="6,0,0,0" Padding="2"
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="{Binding Name}" FontSize="12"
+                                       Foreground="{StaticResource ForegroundDimBrush}"
+                                       x:Name="tabText" />
+                            <Button Grid.Column="1" Content="&#xE10A;" FontFamily="Segoe MDL2 Assets"
+                                    FontSize="8" Margin="8,0,0,0" Padding="2"
+                                    Opacity="0" x:Name="closeBtn"
                                     Style="{StaticResource CmuxButton}"
                                     Click="CloseTab_Click" Tag="{Binding}" />
-                        </StackPanel>
+
+                            <!-- Active tab bottom accent line -->
+                            <Rectangle x:Name="activeIndicator" Grid.ColumnSpan="2"
+                                       Height="2" VerticalAlignment="Bottom" Margin="0,0,0,-6"
+                                       RadiusX="1" RadiusY="1" Opacity="0">
+                                <Rectangle.Fill>
+                                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                        <GradientStop Color="#FF6366F1" Offset="0" />
+                                        <GradientStop Color="#FF818CF8" Offset="0.5" />
+                                        <GradientStop Color="#FFA78BFA" Offset="1" />
+                                    </LinearGradientBrush>
+                                </Rectangle.Fill>
+                            </Rectangle>
+                        </Grid>
                     </Border>
                     <DataTemplate.Triggers>
+                        <!-- Selected tab styling -->
                         <DataTrigger Value="True">
                             <DataTrigger.Binding>
                                 <MultiBinding Converter="{StaticResource EqualityConverter}">
@@ -43,16 +62,24 @@
                             </DataTrigger.Binding>
                             <Setter TargetName="tabBorder" Property="Background"
                                     Value="{StaticResource SurfaceTabSelectedBrush}" />
+                            <Setter TargetName="tabText" Property="Foreground"
+                                    Value="{StaticResource ForegroundBrush}" />
+                            <Setter TargetName="tabText" Property="FontWeight" Value="SemiBold" />
+                            <Setter TargetName="activeIndicator" Property="Opacity" Value="1" />
                         </DataTrigger>
+                        <!-- Show close button on hover -->
+                        <Trigger SourceName="tabBorder" Property="IsMouseOver" Value="True">
+                            <Setter TargetName="closeBtn" Property="Opacity" Value="0.7" />
+                        </Trigger>
                     </DataTemplate.Triggers>
                 </DataTemplate>
             </ItemsControl.ItemTemplate>
         </ItemsControl>
 
         <!-- Add surface button -->
-        <Button Grid.Column="1" Content="+" FontSize="14"
+        <Button Grid.Column="1" Content="&#xE710;" FontFamily="Segoe MDL2 Assets" FontSize="12"
                 Style="{StaticResource CmuxButton}"
                 Click="AddTab_Click"
-                Padding="8,0" Margin="2,2,4,2" />
+                Padding="8,0" Margin="2,2,4,2" Opacity="0.6" />
     </Grid>
 </UserControl>

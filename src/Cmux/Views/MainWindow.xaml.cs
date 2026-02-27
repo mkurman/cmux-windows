@@ -118,6 +118,10 @@ public partial class MainWindow : Window
                     ViewModel.SelectedWorkspace?.PreviousSurface();
                     e.Handled = true;
                     return;
+                case Key.Z: // Zoom toggle (Ctrl+Shift+Z)
+                    ViewModel.SelectedWorkspace?.SelectedSurface?.ToggleZoom();
+                    e.Handled = true;
+                    return;
             }
         }
 

@@ -23,7 +23,21 @@ public partial class SurfaceViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     private string? _focusedPaneId;
 
+    [ObservableProperty]
+    private bool _isZoomed;
+
     public event Action<string>? WorkingDirectoryChanged;
+
+    /// <summary>Gets the shell process PID from the focused pane session.</summary>
+    public int? ShellPid
+    {
+        get
+        {
+            if (FocusedPaneId == null) return null;
+            var session = GetSession(FocusedPaneId);
+            return session?.ProcessId;
+        }
+    }
 
     public SurfaceViewModel(Surface surface, string workspaceId, NotificationService notificationService)
     {
@@ -166,6 +180,9 @@ public partial class SurfaceViewModel : ObservableObject, IDisposable
             FocusPane(prev.PaneId);
     }
 
+
+    [RelayCommand]
+    public void ToggleZoom() => IsZoomed = !IsZoomed;
     partial void OnFocusedPaneIdChanged(string? value)
     {
         Surface.FocusedPaneId = value;

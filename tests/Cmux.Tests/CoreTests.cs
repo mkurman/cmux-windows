@@ -577,3 +577,70 @@ public class TerminalModeTests
         buffer.BracketedPasteMode.Should().BeTrue();
     }
 }
+
+public class UrlDetectorTests
+{
+    [Fact]
+    public void FindUrls_DetectsHttps()
+    {
+        var urls = UrlDetector.FindUrls("Visit https://example.com/path for info");
+        urls.Should().HaveCount(1);
+        urls[0].url.Should().Be("https://example.com/path");
+        urls[0].startCol.Should().Be(6);
+    }
+
+    [Fact]
+    public void FindUrls_DetectsMultipleUrls()
+    {
+        var urls = UrlDetector.FindUrls("Go to http://a.com and https://b.io/x");
+        urls.Should().HaveCount(2);
+    }
+
+    [Fact]
+    public void FindUrls_NoUrlsReturnsEmpty()
+    {
+        var urls = UrlDetector.FindUrls("No urls here just text");
+        urls.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void GetRowText_ExtractsBufferRow()
+    {
+        var buffer = new TerminalBuffer(10, 1);
+        buffer.WriteChar('H');
+        buffer.WriteChar('i');
+        var text = UrlDetector.GetRowText(buffer, 0);
+        text.Should().StartWith("Hi");
+        text.Should().HaveLength(10);
+    }
+}
+
+public class MouseModeTests
+{
+    [Fact]
+    public void MouseTrackingModes_DefaultToFalse()
+    {
+        var buffer = new TerminalBuffer(80, 24);
+        buffer.MouseTrackingNormal.Should().BeFalse();
+        buffer.MouseTrackingButton.Should().BeFalse();
+        buffer.MouseTrackingAny.Should().BeFalse();
+        buffer.MouseSgrExtended.Should().BeFalse();
+        buffer.MouseEnabled.Should().BeFalse();
+    }
+
+    [Fact]
+    public void MouseEnabled_TrueWhenAnyTrackingSet()
+    {
+        var buffer = new TerminalBuffer(80, 24);
+        buffer.MouseTrackingNormal = true;
+        buffer.MouseEnabled.Should().BeTrue();
+    }
+
+    [Fact]
+    public void MouseEnabled_TrueWhenButtonTrackingSet()
+    {
+        var buffer = new TerminalBuffer(80, 24);
+        buffer.MouseTrackingButton = true;
+        buffer.MouseEnabled.Should().BeTrue();
+    }
+}

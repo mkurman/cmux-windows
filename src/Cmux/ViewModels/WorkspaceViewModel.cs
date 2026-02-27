@@ -37,6 +37,11 @@ public partial class WorkspaceViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     private bool _hasNotification;
 
+    [ObservableProperty]
+    private AgentType _detectedAgent;
+
+    public string AgentLabel => AgentDetector.GetLabel(DetectedAgent);
+    public string AgentIcon => AgentDetector.GetIcon(DetectedAgent);
     private readonly NotificationService _notificationService;
     private System.Threading.Timer? _infoRefreshTimer;
 
@@ -136,6 +141,19 @@ public partial class WorkspaceViewModel : ObservableObject, IDisposable
                 {
                     GitBranch = branch;
                     Workspace.GitBranch = branch;
+                }
+            }
+
+            // AI agent detection
+            var activeSurface = SelectedSurface;
+            if (activeSurface?.ShellPid is int pid and > 0)
+            {
+                var agent = AgentDetector.DetectFromProcessId(pid);
+                if (agent != DetectedAgent)
+                {
+                    DetectedAgent = agent;
+                    OnPropertyChanged(nameof(AgentLabel));
+                    OnPropertyChanged(nameof(AgentIcon));
                 }
             }
         }

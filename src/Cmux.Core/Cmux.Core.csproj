@@ -5,4 +5,8 @@
     <RootNamespace>Cmux.Core</RootNamespace>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.Management" Version="9.0.3" />
+  </ItemGroup>
 </Project>

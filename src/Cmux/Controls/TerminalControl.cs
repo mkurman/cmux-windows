@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
@@ -12,6 +13,7 @@ namespace Cmux.Controls;
 /// <summary>
 /// WPF control that renders a TerminalBuffer and handles keyboard/mouse input.
 /// Uses DrawingVisual for efficient rendering of the terminal cell grid.
+/// Features: scrollback, URL detection, search highlights, mouse reporting, visual bell.
 /// </summary>
 public class TerminalControl : FrameworkElement
 {
@@ -31,6 +33,16 @@ public class TerminalControl : FrameworkElement
     // Cursor blink timer
     private System.Windows.Threading.DispatcherTimer? _cursorTimer;
     private bool _cursorVisible = true;
+
+    // Visual bell
+    private DateTime _bellFlashUntil;
+
+    // URL detection
+    private (int row, int startCol, int endCol, string url)? _hoveredUrl;
+
+    // Search highlights
+    private List<(int row, int col, int length)> _searchMatches = [];
+    private int _currentSearchMatch = -1;
 
     /// <summary>Fired when the pane wants focus.</summary>
     public event Action? FocusRequested;
@@ -92,10 +104,12 @@ public class TerminalControl : FrameworkElement
         if (_session != null)
         {
             _session.Redraw -= OnRedraw;
+            _session.BellReceived -= OnBell;
         }
 
         _session = session;
         _session.Redraw += OnRedraw;
+        _session.BellReceived += OnBell;
         CalculateTerminalSize();
         Render();
     }
@@ -105,6 +119,38 @@ public class TerminalControl : FrameworkElement
         _scrollOffset = 0; // Auto-scroll to bottom on new output
         Dispatcher.BeginInvoke(Render);
     }
+
+    private void OnBell()
+    {
+        _bellFlashUntil = DateTime.UtcNow.AddMilliseconds(150);
+        Dispatcher.BeginInvoke(() =>
+        {
+            Render();
+            // Schedule cleanup render after flash expires
+            Dispatcher.BeginInvoke(() =>
+            {
+                if (DateTime.UtcNow >= _bellFlashUntil) Render();
+            }, System.Windows.Threading.DispatcherPriority.Background);
+        });
+    }
+
+    // --- Search support ---
+
+    public void SetSearchHighlights(List<(int row, int col, int length)> matches, int currentIndex)
+    {
+        _searchMatches = matches;
+        _currentSearchMatch = currentIndex;
+        Render();
+    }
+
+    public void ClearSearchHighlights()
+    {
+        _searchMatches = [];
+        _currentSearchMatch = -1;
+        Render();
+    }
+
+    // --- Layout ---
 
     private void CalculateCellSize()
     {
@@ -143,49 +189,103 @@ public class TerminalControl : FrameworkElement
         Render();
     }
 
+    // --- Rendering ---
+
     private void Render()
     {
         if (_session == null) return;
 
         var buffer = _session.Buffer;
         using var dc = _visual.RenderOpen();
+        var dpi = VisualTreeHelper.GetDpi(this).PixelsPerDip;
 
         // Background
         var bgColor = ToWpfColor(_theme.Background);
         dc.DrawRectangle(new SolidColorBrush(bgColor), null, new Rect(0, 0, ActualWidth, ActualHeight));
 
-        // Notification ring (blue border glow)
+        // Visual bell flash
+        if (DateTime.UtcNow < _bellFlashUntil)
+        {
+            dc.DrawRectangle(new SolidColorBrush(Color.FromArgb(25, 255, 255, 255)), null,
+                new Rect(0, 0, ActualWidth, ActualHeight));
+        }
+
+        // Notification ring
         if (HasNotification)
         {
-            var notifColor = Color.FromArgb(180, 0x3B, 0x82, 0xF6);
-            var pen = new Pen(new SolidColorBrush(notifColor), 2);
-            dc.DrawRectangle(null, pen, new Rect(1, 1, ActualWidth - 2, ActualHeight - 2));
+            var notifPen = new Pen(new SolidColorBrush(Color.FromArgb(180, 0x63, 0x66, 0xF1)), 2);
+            dc.DrawRoundedRectangle(null, notifPen, new Rect(1, 1, ActualWidth - 2, ActualHeight - 2), 4, 4);
         }
 
         // Focused pane indicator
         if (IsPaneFocused)
         {
-            var focusColor = Color.FromArgb(60, 0x56, 0x9C, 0xD6);
-            var pen = new Pen(new SolidColorBrush(focusColor), 1);
-            dc.DrawRectangle(null, pen, new Rect(0, 0, ActualWidth, ActualHeight));
+            var focusPen = new Pen(new SolidColorBrush(Color.FromArgb(50, 0x81, 0x8C, 0xF8)), 1);
+            dc.DrawRectangle(null, focusPen, new Rect(0, 0, ActualWidth, ActualHeight));
         }
 
-        var dpi = VisualTreeHelper.GetDpi(this).PixelsPerDip;
+        // Calculate scrollback offset
+        int scrollbackCount = buffer.ScrollbackCount;
+        bool isScrolledBack = _scrollOffset < 0;
+        int viewStartLine = scrollbackCount + _scrollOffset; // index into virtual line space
 
-        // Render cells
-        for (int r = 0; r < buffer.Rows && r < _rows; r++)
+        // Build search match set for fast lookup
+        var searchMatchSet = new HashSet<(int row, int col)>();
+        var currentMatchSet = new HashSet<(int row, int col)>();
+        foreach (var (mRow, mCol, mLen) in _searchMatches)
         {
-            for (int c = 0; c < buffer.Cols && c < _cols; c++)
+            for (int i = 0; i < mLen; i++)
+                searchMatchSet.Add((mRow, mCol + i));
+        }
+        if (_currentSearchMatch >= 0 && _currentSearchMatch < _searchMatches.Count)
+        {
+            var (cmRow, cmCol, cmLen) = _searchMatches[_currentSearchMatch];
+            for (int i = 0; i < cmLen; i++)
+                currentMatchSet.Add((cmRow, cmCol + i));
+        }
+
+        // Render visible rows
+        for (int visRow = 0; visRow < _rows; visRow++)
+        {
+            int virtualLine = viewStartLine + visRow;
+            bool isScrollback = virtualLine < scrollbackCount;
+            int bufferRow = virtualLine - scrollbackCount;
+
+            TerminalCell[]? scrollbackLine = null;
+            if (isScrollback)
+                scrollbackLine = buffer.GetScrollbackLine(virtualLine);
+
+            for (int c = 0; c < _cols; c++)
             {
-                var cell = buffer.CellAt(r, c);
+                TerminalCell cell;
+                if (isScrollback)
+                {
+                    if (scrollbackLine != null && c < scrollbackLine.Length)
+                        cell = scrollbackLine[c];
+                    else
+                        cell = TerminalCell.Empty;
+                }
+                else if (bufferRow >= 0 && bufferRow < buffer.Rows)
+                {
+                    cell = buffer.CellAt(bufferRow, c);
+                }
+                else
+                {
+                    cell = TerminalCell.Empty;
+                }
+
                 double x = c * _cellWidth;
-                double y = r * _cellHeight;
+                double y = visRow * _cellHeight;
 
                 var attr = cell.Attribute;
-                bool isSelected = _selection.IsSelected(r, c);
+                bool isSelected = _selection.IsSelected(visRow, c);
                 bool isInverse = attr.Flags.HasFlag(CellFlags.Inverse) != isSelected;
 
-                // Cell background
+                // Search highlights
+                bool isSearchMatch = searchMatchSet.Contains((visRow, c));
+                bool isCurrentMatch = currentMatchSet.Contains((visRow, c));
+
+                // Cell colors
                 TerminalColor cellBg, cellFg;
                 if (isInverse)
                 {
@@ -201,10 +301,31 @@ public class TerminalControl : FrameworkElement
                 if (isSelected && _theme.SelectionBackground.HasValue)
                     cellBg = _theme.SelectionBackground.Value;
 
+                // Draw cell background
                 if (!cellBg.IsDefault)
                 {
-                    var bgBrush = new SolidColorBrush(ToWpfColor(cellBg));
-                    dc.DrawRectangle(bgBrush, null, new Rect(x, y, _cellWidth, _cellHeight));
+                    dc.DrawRectangle(new SolidColorBrush(ToWpfColor(cellBg)), null,
+                        new Rect(x, y, _cellWidth, _cellHeight));
+                }
+
+                // Search match highlight (behind text)
+                if (isCurrentMatch)
+                {
+                    dc.DrawRectangle(new SolidColorBrush(Color.FromArgb(180, 0xFB, 0x92, 0x3C)), null,
+                        new Rect(x, y, _cellWidth, _cellHeight));
+                }
+                else if (isSearchMatch)
+                {
+                    dc.DrawRectangle(new SolidColorBrush(Color.FromArgb(100, 0xFB, 0xBF, 0x24)), null,
+                        new Rect(x, y, _cellWidth, _cellHeight));
+                }
+
+                // URL hover highlight
+                if (_hoveredUrl is { } url && visRow == url.row && c >= url.startCol && c <= url.endCol)
+                {
+                    // Blue underline for hovered URL
+                    var urlPen = new Pen(new SolidColorBrush(Color.FromRgb(0x81, 0x8C, 0xF8)), 1);
+                    dc.DrawLine(urlPen, new Point(x, y + _cellHeight - 1), new Point(x + _cellWidth, y + _cellHeight - 1));
                 }
 
                 // Cell character
@@ -212,7 +333,6 @@ public class TerminalControl : FrameworkElement
                 {
                     var fgColor = cellFg.IsDefault ? ToWpfColor(_theme.Foreground) : ToWpfColor(cellFg);
 
-                    // Bold / Dim
                     var weight = attr.Flags.HasFlag(CellFlags.Bold) ? FontWeights.Bold : FontWeights.Normal;
                     var style = attr.Flags.HasFlag(CellFlags.Italic) ? FontStyles.Italic : FontStyles.Normal;
                     var tf = new Typeface(new FontFamily(_theme.FontFamily), style, weight, FontStretches.Normal);
@@ -249,8 +369,8 @@ public class TerminalControl : FrameworkElement
             }
         }
 
-        // Cursor
-        if (buffer.CursorVisible && _cursorVisible && IsPaneFocused)
+        // Cursor (only when viewing live buffer)
+        if (!isScrolledBack && buffer.CursorVisible && _cursorVisible && IsPaneFocused)
         {
             double cx = buffer.CursorCol * _cellWidth;
             double cy = buffer.CursorRow * _cellHeight;
@@ -258,12 +378,75 @@ public class TerminalControl : FrameworkElement
                 ? ToWpfColor(_theme.CursorColor.Value)
                 : ToWpfColor(_theme.Foreground);
             var cursorBrush = new SolidColorBrush(Color.FromArgb(180, cursorColor.R, cursorColor.G, cursorColor.B));
-            dc.DrawRectangle(cursorBrush, null, new Rect(cx, cy, _cellWidth, _cellHeight));
+            // Bar cursor (thin vertical line) when focused
+            dc.DrawRectangle(cursorBrush, null, new Rect(cx, cy, 2, _cellHeight));
+        }
+        else if (!isScrolledBack && buffer.CursorVisible && IsPaneFocused)
+        {
+            // Hollow block when not blinking visible
+            double cx = buffer.CursorCol * _cellWidth;
+            double cy = buffer.CursorRow * _cellHeight;
+            var cursorColor = _theme.CursorColor.HasValue
+                ? ToWpfColor(_theme.CursorColor.Value)
+                : ToWpfColor(_theme.Foreground);
+            var cursorPen = new Pen(new SolidColorBrush(Color.FromArgb(120, cursorColor.R, cursorColor.G, cursorColor.B)), 1);
+            dc.DrawRectangle(null, cursorPen, new Rect(cx, cy, _cellWidth, _cellHeight));
+        }
+
+        // Scrollback indicator
+        if (isScrolledBack)
+        {
+            int linesBack = -_scrollOffset;
+            string indicator = $"[{linesBack}/{scrollbackCount}]";
+            var indicatorText = new FormattedText(
+                indicator,
+                CultureInfo.CurrentCulture,
+                FlowDirection.LeftToRight,
+                _typeface,
+                10,
+                new SolidColorBrush(Color.FromArgb(160, 0x81, 0x8C, 0xF8)),
+                dpi);
+            // Background pill for indicator
+            double iw = indicatorText.WidthIncludingTrailingWhitespace + 12;
+            double ih = indicatorText.Height + 4;
+            double ix = ActualWidth - iw - 8;
+            dc.DrawRoundedRectangle(
+                new SolidColorBrush(Color.FromArgb(200, 0x14, 0x14, 0x14)), null,
+                new Rect(ix, 6, iw, ih), 4, 4);
+            dc.DrawText(indicatorText, new Point(ix + 6, 8));
         }
     }
 
     private static Color ToWpfColor(TerminalColor c) =>
         c.IsDefault ? Colors.Transparent : Color.FromRgb(c.R, c.G, c.B);
+
+    // --- Mouse reporting ---
+
+    private bool IsMouseTrackingActive =>
+        _session?.Buffer.MouseEnabled == true;
+
+    private void SendMouseReport(int button, int col, int row, bool press)
+    {
+        if (_session == null) return;
+        var buf = _session.Buffer;
+        if (!buf.MouseEnabled) return;
+
+        col = Math.Clamp(col, 0, buf.Cols - 1);
+        row = Math.Clamp(row, 0, buf.Rows - 1);
+
+        if (buf.MouseSgrExtended)
+        {
+            char suffix = press ? 'M' : 'm';
+            _session.Write($"\x1b[<{button};{col + 1};{row + 1}{suffix}");
+        }
+        else if (press)
+        {
+            char cb = (char)(button + 32);
+            char cx = (char)(col + 33);
+            char cy = (char)(row + 33);
+            _session.Write($"\x1b[M{cb}{cx}{cy}");
+        }
+    }
 
     // --- Keyboard input ---
 
@@ -305,19 +488,22 @@ public class TerminalControl : FrameworkElement
         // Handle Ctrl+V (paste)
         if (Keyboard.Modifiers.HasFlag(ModifierKeys.Control) && e.Text == "\x16")
         {
-            if (Clipboard.ContainsText())
-            {
-                var text = Clipboard.GetText();
-                if (_session.Buffer.BracketedPasteMode)
-                    _session.Write("\x1b[200~" + text + "\x1b[201~");
-                else
-                    _session.Write(text);
-            }
+            PasteFromClipboard();
             return;
         }
 
         _session.Write(e.Text);
         _selection.ClearSelection();
+    }
+
+    private void PasteFromClipboard()
+    {
+        if (_session == null || !Clipboard.ContainsText()) return;
+        var text = Clipboard.GetText();
+        if (_session.Buffer.BracketedPasteMode)
+            _session.Write("\x1b[200~" + text + "\x1b[201~");
+        else
+            _session.Write(text);
     }
 
     // --- Mouse input ---
@@ -331,6 +517,28 @@ public class TerminalControl : FrameworkElement
         var pos = e.GetPosition(this);
         int col = (int)(pos.X / _cellWidth);
         int row = (int)(pos.Y / _cellHeight);
+
+        // Ctrl+Click for URL opening
+        if (Keyboard.Modifiers.HasFlag(ModifierKeys.Control) && _hoveredUrl.HasValue)
+        {
+            try
+            {
+                Process.Start(new ProcessStartInfo(_hoveredUrl.Value.url) { UseShellExecute = true });
+            }
+            catch { }
+            e.Handled = true;
+            return;
+        }
+
+        // Mouse reporting (bypass selection when app requests mouse)
+        if (IsMouseTrackingActive)
+        {
+            SendMouseReport(0, col, row, true);
+            _mouseDown = true;
+            CaptureMouse();
+            e.Handled = true;
+            return;
+        }
 
         if (e.ClickCount == 2 && _session != null)
         {
@@ -353,17 +561,70 @@ public class TerminalControl : FrameworkElement
     protected override void OnMouseMove(MouseEventArgs e)
     {
         base.OnMouseMove(e);
-        if (!_mouseDown) return;
 
         var pos = e.GetPosition(this);
         int col = Math.Clamp((int)(pos.X / _cellWidth), 0, _cols - 1);
         int row = Math.Clamp((int)(pos.Y / _cellHeight), 0, _rows - 1);
-        _selection.ExtendSelection(row, col);
+
+        // URL detection (Ctrl held)
+        if (Keyboard.Modifiers.HasFlag(ModifierKeys.Control) && _session != null && row < _session.Buffer.Rows)
+        {
+            var lineText = UrlDetector.GetRowText(_session.Buffer, row);
+            var urls = UrlDetector.FindUrls(lineText);
+            _hoveredUrl = null;
+            foreach (var (startCol, endCol, url) in urls)
+            {
+                if (col >= startCol && col <= endCol)
+                {
+                    _hoveredUrl = (row, startCol, endCol, url);
+                    break;
+                }
+            }
+            Cursor = _hoveredUrl.HasValue ? Cursors.Hand : Cursors.IBeam;
+            Render(); // Redraw for URL underline
+        }
+        else if (_hoveredUrl.HasValue)
+        {
+            _hoveredUrl = null;
+            Cursor = Cursors.IBeam;
+            Render();
+        }
+
+        // Mouse reporting (motion events)
+        if (IsMouseTrackingActive && _mouseDown)
+        {
+            var buf = _session!.Buffer;
+            if (buf.MouseTrackingButton || buf.MouseTrackingAny)
+            {
+                SendMouseReport(32, col, row, true); // 32 = motion flag
+            }
+            return;
+        }
+        if (IsMouseTrackingActive && _session!.Buffer.MouseTrackingAny)
+        {
+            SendMouseReport(35, col, row, true); // 35 = no-button motion
+            return;
+        }
+
+        // Selection drag
+        if (_mouseDown && !IsMouseTrackingActive)
+        {
+            _selection.ExtendSelection(row, col);
+        }
     }
 
     protected override void OnMouseLeftButtonUp(MouseButtonEventArgs e)
     {
         base.OnMouseLeftButtonUp(e);
+
+        if (IsMouseTrackingActive && _mouseDown)
+        {
+            var pos = e.GetPosition(this);
+            int col = Math.Clamp((int)(pos.X / _cellWidth), 0, _cols - 1);
+            int row = Math.Clamp((int)(pos.Y / _cellHeight), 0, _rows - 1);
+            SendMouseReport(0, col, row, false);
+        }
+
         if (_mouseDown)
         {
             _mouseDown = false;
@@ -375,15 +636,17 @@ public class TerminalControl : FrameworkElement
     {
         base.OnMouseRightButtonDown(e);
 
-        // Right-click paste (common terminal behavior)
-        if (Clipboard.ContainsText() && _session != null)
+        if (IsMouseTrackingActive)
         {
-            var text = Clipboard.GetText();
-            if (_session.Buffer.BracketedPasteMode)
-                _session.Write("\x1b[200~" + text + "\x1b[201~");
-            else
-                _session.Write(text);
+            var pos = e.GetPosition(this);
+            int col = Math.Clamp((int)(pos.X / _cellWidth), 0, _cols - 1);
+            int row = Math.Clamp((int)(pos.Y / _cellHeight), 0, _rows - 1);
+            SendMouseReport(2, col, row, true);
+            return;
         }
+
+        // Right-click paste
+        PasteFromClipboard();
     }
 
     protected override void OnMouseWheel(MouseWheelEventArgs e)
@@ -391,7 +654,20 @@ public class TerminalControl : FrameworkElement
         base.OnMouseWheel(e);
         if (_session == null) return;
 
-        int lines = e.Delta > 0 ? -3 : 3; // Negative = scroll up (into history)
+        // Mouse wheel reporting
+        if (IsMouseTrackingActive)
+        {
+            var pos = e.GetPosition(this);
+            int col = Math.Clamp((int)(pos.X / _cellWidth), 0, _cols - 1);
+            int row = Math.Clamp((int)(pos.Y / _cellHeight), 0, _rows - 1);
+            int button = e.Delta > 0 ? 64 : 65; // 64 = scroll up, 65 = scroll down
+            SendMouseReport(button, col, row, true);
+            e.Handled = true;
+            return;
+        }
+
+        // Scrollback navigation
+        int lines = e.Delta > 0 ? -3 : 3;
         _scrollOffset = Math.Clamp(_scrollOffset + lines, -_session.Buffer.ScrollbackCount, 0);
         Render();
         e.Handled = true;
@@ -404,7 +680,6 @@ public class TerminalControl : FrameworkElement
 
     private static string? KeyToVtSequence(Key key, ModifierKeys modifiers, bool appCursor)
     {
-        // Application cursor keys mode sends ESC O instead of ESC [
         if (appCursor)
         {
             var appSeq = key switch
