@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Globalization;
 using System.Text;
+using System.Threading;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -30,6 +31,9 @@ public class TerminalControl : FrameworkElement
     private int _rows;
     private bool _mouseDown;
     private int _scrollOffset; // Negative = scrolled into history, 0 = at bottom
+    private bool _followOutput = true;
+    private int _lastScrollbackCount;
+    private int _renderQueued;
     private string _cursorStyle = "bar";
     private bool _cursorBlink = true;
 
@@ -114,7 +118,7 @@ public class TerminalControl : FrameworkElement
         ClipToBounds = true;
         Cursor = Cursors.Arrow;
 
-        _selection.SelectionChanged += () => Dispatcher.Invoke(Render);
+        _selection.SelectionChanged += () => RequestRender(System.Windows.Threading.DispatcherPriority.Render);
 
         // Cursor blink
         _cursorTimer = new System.Windows.Threading.DispatcherTimer
@@ -132,7 +136,7 @@ public class TerminalControl : FrameworkElement
                 _cursorVisible = !_cursorVisible;
             }
 
-            Render();
+            RequestRender();
         };
         _cursorTimer.Start();
     }
@@ -147,6 +151,9 @@ public class TerminalControl : FrameworkElement
 
         _session = session;
         _inputLineBuffer.Clear();
+        _scrollOffset = 0;
+        _followOutput = true;
+        _lastScrollbackCount = _session.Buffer.ScrollbackCount;
         _session.Redraw += OnRedraw;
         _session.BellReceived += OnBell;
         CalculateTerminalSize();
@@ -155,22 +162,47 @@ public class TerminalControl : FrameworkElement
 
     private void OnRedraw()
     {
-        _scrollOffset = 0; // Auto-scroll to bottom on new output
-        Dispatcher.BeginInvoke(Render);
+        if (_session == null)
+            return;
+
+        var currentScrollback = _session.Buffer.ScrollbackCount;
+        var scrollbackDelta = currentScrollback - _lastScrollbackCount;
+
+        if (_followOutput || _scrollOffset == 0)
+        {
+            // Live mode: always stick to bottom.
+            _scrollOffset = 0;
+            _followOutput = true;
+        }
+        else if (_scrollOffset < 0 && scrollbackDelta > 0)
+        {
+            // Freeze viewport while output is streaming.
+            _scrollOffset -= scrollbackDelta;
+        }
+
+        _scrollOffset = Math.Clamp(_scrollOffset, -currentScrollback, 0);
+        if (_scrollOffset == 0)
+            _followOutput = true;
+
+        _lastScrollbackCount = currentScrollback;
+        RequestRender();
     }
 
     private void OnBell()
     {
         _bellFlashUntil = DateTime.UtcNow.AddMilliseconds(150);
-        Dispatcher.BeginInvoke(() =>
+        RequestRender(System.Windows.Threading.DispatcherPriority.Render);
+
+        var timer = new System.Windows.Threading.DispatcherTimer
         {
-            Render();
-            // Schedule cleanup render after flash expires
-            Dispatcher.BeginInvoke(() =>
-            {
-                if (DateTime.UtcNow >= _bellFlashUntil) Render();
-            }, System.Windows.Threading.DispatcherPriority.Background);
-        });
+            Interval = TimeSpan.FromMilliseconds(170),
+        };
+        timer.Tick += (_, _) =>
+        {
+            timer.Stop();
+            RequestRender();
+        };
+        timer.Start();
     }
 
     // --- Search support ---
@@ -179,14 +211,29 @@ public class TerminalControl : FrameworkElement
     {
         _searchMatches = matches;
         _currentSearchMatch = currentIndex;
-        Render();
+        RequestRender(System.Windows.Threading.DispatcherPriority.Render);
     }
 
     public void ClearSearchHighlights()
     {
         _searchMatches = [];
         _currentSearchMatch = -1;
-        Render();
+        RequestRender(System.Windows.Threading.DispatcherPriority.Render);
+    }
+
+    private void RequestRender(System.Windows.Threading.DispatcherPriority priority = System.Windows.Threading.DispatcherPriority.Background)
+    {
+        if (Dispatcher.HasShutdownStarted || Dispatcher.HasShutdownFinished)
+            return;
+
+        if (Interlocked.Exchange(ref _renderQueued, 1) == 1)
+            return;
+
+        Dispatcher.BeginInvoke(() =>
+        {
+            Interlocked.Exchange(ref _renderQueued, 0);
+            Render();
+        }, priority);
     }
 
     // --- Layout ---
@@ -225,7 +272,7 @@ public class TerminalControl : FrameworkElement
     {
         base.OnRenderSizeChanged(sizeInfo);
         CalculateTerminalSize();
-        Render();
+        RequestRender(System.Windows.Threading.DispatcherPriority.Render);
     }
 
     // --- Rendering ---
@@ -489,6 +536,20 @@ public class TerminalControl : FrameworkElement
 
     // --- Keyboard input ---
 
+    private void EnsureLiveView()
+    {
+        if (_session == null)
+            return;
+
+        if (_scrollOffset == 0 && _followOutput)
+            return;
+
+        _scrollOffset = 0;
+        _followOutput = true;
+        _lastScrollbackCount = _session.Buffer.ScrollbackCount;
+        RequestRender(System.Windows.Threading.DispatcherPriority.Render);
+    }
+
     private void TrackInputText(string text)
     {
         if (string.IsNullOrEmpty(text))
@@ -548,6 +609,7 @@ public class TerminalControl : FrameworkElement
             else if (e.Key == Key.Enter)
                 SubmitBufferedCommand();
 
+            EnsureLiveView();
             _session.Write(sequence);
             e.Handled = true;
         }
@@ -577,6 +639,7 @@ public class TerminalControl : FrameworkElement
             return;
         }
 
+        EnsureLiveView();
         TrackInputText(e.Text);
         _session.Write(e.Text);
         _selection.ClearSelection();
@@ -585,6 +648,8 @@ public class TerminalControl : FrameworkElement
     private void PasteFromClipboard()
     {
         if (_session == null || !Clipboard.ContainsText()) return;
+
+        EnsureLiveView();
         var text = Clipboard.GetText();
         TrackInputText(text);
 
@@ -673,13 +738,13 @@ public class TerminalControl : FrameworkElement
                 }
             }
             Cursor = _hoveredUrl.HasValue ? Cursors.Hand : Cursors.Arrow;
-            Render(); // Redraw for URL underline
+            RequestRender(System.Windows.Threading.DispatcherPriority.Render); // Redraw for URL underline
         }
         else if (_hoveredUrl.HasValue)
         {
             _hoveredUrl = null;
             Cursor = Cursors.Arrow;
-            Render();
+            RequestRender(System.Windows.Threading.DispatcherPriority.Render);
         }
 
         // Mouse reporting (motion events)
@@ -860,7 +925,9 @@ public class TerminalControl : FrameworkElement
         _session.Buffer.EraseInDisplay(3);
         _session.Buffer.MoveCursorTo(0, 0);
         _scrollOffset = 0;
-        Render();
+        _followOutput = true;
+        _lastScrollbackCount = _session.Buffer.ScrollbackCount;
+        RequestRender(System.Windows.Threading.DispatcherPriority.Render);
 
         // Ask shell to repaint prompt where supported.
         _session.Write("\x0c");
@@ -888,7 +955,9 @@ public class TerminalControl : FrameworkElement
         // Scrollback navigation
         int lines = e.Delta > 0 ? -3 : 3;
         _scrollOffset = Math.Clamp(_scrollOffset + lines, -_session.Buffer.ScrollbackCount, 0);
-        Render();
+        _followOutput = _scrollOffset == 0;
+        _lastScrollbackCount = _session.Buffer.ScrollbackCount;
+        RequestRender(System.Windows.Threading.DispatcherPriority.Render);
         e.Handled = true;
     }
 
@@ -953,7 +1022,7 @@ public class TerminalControl : FrameworkElement
         _fontSize = theme.FontSize;
         CalculateCellSize();
         CalculateTerminalSize();
-        Render();
+        RequestRender(System.Windows.Threading.DispatcherPriority.Render);
     }
 
     public void UpdateSettings(TerminalTheme theme, string fontFamily, int fontSize)
@@ -984,12 +1053,12 @@ public class TerminalControl : FrameworkElement
         _typeface = new Typeface(new FontFamily(fontFamily), FontStyles.Normal, FontWeights.Normal, FontStretches.Normal);
         CalculateCellSize();
         CalculateTerminalSize();
-        Render();
+        RequestRender(System.Windows.Threading.DispatcherPriority.Render);
     }
 
     private static void OnHasNotificationChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
-        ((TerminalControl)d).Render();
+        ((TerminalControl)d).RequestRender(System.Windows.Threading.DispatcherPriority.Render);
     }
 
     private static void OnIsPaneFocusedChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
@@ -1001,6 +1070,6 @@ public class TerminalControl : FrameworkElement
             if (ctrl._cursorBlink)
                 ctrl._cursorTimer?.Start();
         }
-        ctrl.Render();
+        ctrl.RequestRender(System.Windows.Threading.DispatcherPriority.Render);
     }
 }
