@@ -33,6 +33,23 @@ A dark, keyboard-first terminal multiplexer for Windows, inspired by tmux/cmux w
 
 ---
 
+## Screenshots
+
+<details>
+  <summary>Open screenshots</summary>
+
+  <p><strong>Main workspace view</strong></p>
+  <img src="assets/screenshots/1.jpg" alt="cmux main workspace" width="1000" />
+
+  <p><strong>Snippets panel</strong></p>
+  <img src="assets/screenshots/2.jpg" alt="cmux snippets panel" width="700" />
+
+  <p><strong>Command logs window</strong></p>
+  <img src="assets/screenshots/3.jpg" alt="cmux command logs" width="1000" />
+</details>
+
+---
+
 ## Build and run (Windows)
 
 ### Requirements
