@@ -1,11 +1,14 @@
 using System.Diagnostics;
 using System.Globalization;
+using System.IO;
+using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using Cmux.Core.Config;
 using Cmux.Core.Models;
 using Cmux.Core.Terminal;
@@ -117,6 +120,7 @@ public class TerminalControl : FrameworkElement
         Focusable = true;
         ClipToBounds = true;
         Cursor = Cursors.Arrow;
+        AllowDrop = true;
 
         _selection.SelectionChanged += () => RequestRender(System.Windows.Threading.DispatcherPriority.Render);
 
@@ -693,16 +697,260 @@ public class TerminalControl : FrameworkElement
 
     private void PasteFromClipboard()
     {
-        if (_session == null || !Clipboard.ContainsText()) return;
+        if (_session == null) return;
+        if (!TryGetClipboardPasteText(out var text)) return;
+
+        PasteText(text);
+    }
+
+    private void PasteText(string text)
+    {
+        if (_session == null || string.IsNullOrEmpty(text)) return;
 
         EnsureLiveView();
-        var text = Clipboard.GetText();
         TrackInputText(text);
 
         if (_session.Buffer.BracketedPasteMode)
             _session.Write("\x1b[200~" + text + "\x1b[201~");
         else
             _session.Write(text);
+    }
+
+    private static bool HasClipboardPasteContent()
+    {
+        try
+        {
+            return Clipboard.ContainsText()
+                || Clipboard.ContainsFileDropList()
+                || Clipboard.ContainsImage();
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static bool TryGetClipboardPasteText(out string text)
+    {
+        text = string.Empty;
+
+        try
+        {
+            if (Clipboard.ContainsText())
+            {
+                text = Clipboard.GetText();
+                return !string.IsNullOrEmpty(text);
+            }
+
+            if (Clipboard.ContainsFileDropList())
+            {
+                var files = Clipboard.GetFileDropList();
+                var paths = files.Cast<string>()
+                    .Where(path => !string.IsNullOrWhiteSpace(path))
+                    .ToArray();
+
+                if (paths.Length > 0)
+                {
+                    text = string.Join(" ", paths.Select(QuotePathForShell));
+                    return true;
+                }
+            }
+
+            if (Clipboard.ContainsImage())
+            {
+                var image = Clipboard.GetImage();
+                if (image != null)
+                {
+                    var tempPath = SaveBitmapSourceToTempFile(image);
+                    if (!string.IsNullOrWhiteSpace(tempPath))
+                    {
+                        text = QuotePathForShell(tempPath);
+                        return true;
+                    }
+                }
+            }
+        }
+        catch
+        {
+            // Ignore clipboard race/format exceptions and treat as unavailable.
+        }
+
+        return false;
+    }
+
+    private static string? SaveBitmapSourceToTempFile(BitmapSource image)
+    {
+        try
+        {
+            var dir = Path.Combine(Path.GetTempPath(), "cmux", "clipboard-images");
+            Directory.CreateDirectory(dir);
+
+            var fileName = $"cmux-clipboard-{DateTime.Now:yyyyMMdd-HHmmssfff}.png";
+            var fullPath = Path.Combine(dir, fileName);
+
+            var encoder = new PngBitmapEncoder();
+            encoder.Frames.Add(BitmapFrame.Create(image));
+
+            using var stream = File.Create(fullPath);
+            encoder.Save(stream);
+
+            return fullPath;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static string QuotePathForShell(string path)
+    {
+        if (path.IndexOfAny([' ', '\t', '\n', '\r', '"']) < 0)
+            return path;
+
+        return "\"" + path.Replace("\"", "\\\"") + "\"";
+    }
+
+    private static bool HasDropContent(IDataObject? data)
+    {
+        if (data == null)
+            return false;
+
+        try
+        {
+            return data.GetDataPresent(DataFormats.FileDrop)
+                || data.GetDataPresent(DataFormats.UnicodeText)
+                || data.GetDataPresent(DataFormats.Text)
+                || data.GetDataPresent(DataFormats.Bitmap)
+                || data.GetDataPresent("PNG");
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static bool TryGetDropPasteText(IDataObject? data, out string text)
+    {
+        text = string.Empty;
+        if (data == null)
+            return false;
+
+        try
+        {
+            if (data.GetDataPresent(DataFormats.FileDrop) &&
+                data.GetData(DataFormats.FileDrop) is string[] files &&
+                files.Length > 0)
+            {
+                text = string.Join(" ", files
+                    .Where(path => !string.IsNullOrWhiteSpace(path))
+                    .Select(QuotePathForShell));
+                return !string.IsNullOrWhiteSpace(text);
+            }
+
+            if (data.GetDataPresent(DataFormats.UnicodeText) &&
+                data.GetData(DataFormats.UnicodeText) is string unicodeText &&
+                !string.IsNullOrEmpty(unicodeText))
+            {
+                text = unicodeText;
+                return true;
+            }
+
+            if (data.GetDataPresent(DataFormats.Text) &&
+                data.GetData(DataFormats.Text) is string plainText &&
+                !string.IsNullOrEmpty(plainText))
+            {
+                text = plainText;
+                return true;
+            }
+
+            if (TryGetDropBitmapSource(data, out var bitmap))
+            {
+                var tempPath = SaveBitmapSourceToTempFile(bitmap);
+                if (!string.IsNullOrWhiteSpace(tempPath))
+                {
+                    text = QuotePathForShell(tempPath);
+                    return true;
+                }
+            }
+        }
+        catch
+        {
+            // Ignore drag-data conversion failures.
+        }
+
+        return false;
+    }
+
+    private static bool TryGetDropBitmapSource(IDataObject data, out BitmapSource bitmap)
+    {
+        bitmap = null!;
+
+        if (data.GetDataPresent(DataFormats.Bitmap))
+        {
+            var value = data.GetData(DataFormats.Bitmap);
+            if (value is BitmapSource bitmapSource)
+            {
+                bitmap = bitmapSource;
+                return true;
+            }
+        }
+
+        if (data.GetDataPresent("PNG"))
+        {
+            var value = data.GetData("PNG");
+            if (value is MemoryStream memoryStream)
+            {
+                memoryStream.Position = 0;
+                var frame = BitmapFrame.Create(memoryStream, BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.OnLoad);
+                frame.Freeze();
+                bitmap = frame;
+                return true;
+            }
+
+            if (value is byte[] bytes && bytes.Length > 0)
+            {
+                using var stream = new MemoryStream(bytes, writable: false);
+                var frame = BitmapFrame.Create(stream, BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.OnLoad);
+                frame.Freeze();
+                bitmap = frame;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    protected override void OnDragEnter(DragEventArgs e)
+    {
+        base.OnDragEnter(e);
+        e.Effects = HasDropContent(e.Data) ? DragDropEffects.Copy : DragDropEffects.None;
+        e.Handled = true;
+    }
+
+    protected override void OnDragOver(DragEventArgs e)
+    {
+        base.OnDragOver(e);
+        e.Effects = HasDropContent(e.Data) ? DragDropEffects.Copy : DragDropEffects.None;
+        e.Handled = true;
+    }
+
+    protected override void OnDrop(DragEventArgs e)
+    {
+        base.OnDrop(e);
+        Focus();
+        FocusRequested?.Invoke();
+
+        if (_session != null && TryGetDropPasteText(e.Data, out var text))
+        {
+            PasteText(text);
+            e.Effects = DragDropEffects.Copy;
+        }
+        else
+        {
+            e.Effects = DragDropEffects.None;
+        }
+
+        e.Handled = true;
     }
 
     // --- Mouse input ---
@@ -889,7 +1137,7 @@ public class TerminalControl : FrameworkElement
         // Paste
         var pasteItem = new MenuItem { Header = "Paste", InputGestureText = "Ctrl+V" };
         pasteItem.Icon = MakeIcon("\uE77F");
-        pasteItem.IsEnabled = Clipboard.ContainsText();
+        pasteItem.IsEnabled = HasClipboardPasteContent();
         pasteItem.Click += (_, _) => PasteFromClipboard();
         menu.Items.Add(pasteItem);
 

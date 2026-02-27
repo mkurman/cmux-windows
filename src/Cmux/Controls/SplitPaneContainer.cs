@@ -1,11 +1,11 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
-using Microsoft.VisualBasic;
 using Cmux.Core.Models;
 using Cmux.Core.Config;
 using Cmux.Core.Terminal;
 using Cmux.ViewModels;
+using Cmux.Views;
 
 namespace Cmux.Controls;
 
@@ -159,13 +159,16 @@ public class SplitPaneContainer : ContentControl
         renamePane.Click += (_, _) =>
         {
             var currentName = _surface?.GetPaneTitle(paneId, session?.Title) ?? "Terminal";
-            var input = Interaction.InputBox(
-                "Set a custom name for this pane.",
-                "Rename Pane",
-                currentName);
+            var prompt = new TextPromptWindow(
+                title: "Rename Pane",
+                message: "Set a custom name for this pane.",
+                defaultValue: currentName)
+            {
+                Owner = Window.GetWindow(this),
+            };
 
-            if (!string.IsNullOrWhiteSpace(input))
-                _surface?.SetPaneCustomName(paneId, input);
+            if (prompt.ShowDialog() == true && !string.IsNullOrWhiteSpace(prompt.ResponseText))
+                _surface?.SetPaneCustomName(paneId, prompt.ResponseText);
         };
         headerMenu.Items.Add(renamePane);
 

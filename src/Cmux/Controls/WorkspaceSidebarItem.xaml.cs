@@ -2,7 +2,6 @@ using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
-using Microsoft.VisualBasic;
 using Cmux.ViewModels;
 using Cmux.Views;
 
@@ -34,11 +33,18 @@ public partial class WorkspaceSidebarItem : UserControl
     {
         if (Vm == null) return;
 
-        var input = Interaction.InputBox(
-            "Enter a single icon (emoji/symbol) or a glyph code like E8A5, U+E8A5, 0xE8A5.",
-            "Workspace Icon",
-            Vm.IconGlyph);
+        var prompt = new TextPromptWindow(
+            title: "Workspace Icon",
+            message: "Enter a single icon (emoji/symbol) or a glyph code like E8A5, U+E8A5, 0xE8A5.",
+            defaultValue: Vm.IconGlyph)
+        {
+            Owner = Window.GetWindow(this),
+        };
 
+        if (prompt.ShowDialog() != true)
+            return;
+
+        var input = prompt.ResponseText;
         if (string.IsNullOrWhiteSpace(input))
             return;
 
