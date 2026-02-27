@@ -26,6 +26,7 @@ public class TerminalControl : FrameworkElement
     private int _cols;
     private int _rows;
     private bool _mouseDown;
+    private int _scrollOffset; // Negative = scrolled into history, 0 = at bottom
 
     // Cursor blink timer
     private System.Windows.Threading.DispatcherTimer? _cursorTimer;
@@ -101,6 +102,7 @@ public class TerminalControl : FrameworkElement
 
     private void OnRedraw()
     {
+        _scrollOffset = 0; // Auto-scroll to bottom on new output
         Dispatcher.BeginInvoke(Render);
     }
 
@@ -274,7 +276,8 @@ public class TerminalControl : FrameworkElement
             (e.Key is Key.N or Key.T or Key.W or Key.B or Key.D or Key.I))
             return;
 
-        string? sequence = KeyToVtSequence(e.Key, Keyboard.Modifiers);
+        bool appCursor = _session.Buffer.ApplicationCursorKeys;
+        string? sequence = KeyToVtSequence(e.Key, Keyboard.Modifiers, appCursor);
         if (sequence != null)
         {
             _session.Write(sequence);
@@ -305,7 +308,10 @@ public class TerminalControl : FrameworkElement
             if (Clipboard.ContainsText())
             {
                 var text = Clipboard.GetText();
-                _session.Write(text);
+                if (_session.Buffer.BracketedPasteMode)
+                    _session.Write("\x1b[200~" + text + "\x1b[201~");
+                else
+                    _session.Write(text);
             }
             return;
         }
@@ -370,16 +376,25 @@ public class TerminalControl : FrameworkElement
         base.OnMouseRightButtonDown(e);
 
         // Right-click paste (common terminal behavior)
-        if (Clipboard.ContainsText())
+        if (Clipboard.ContainsText() && _session != null)
         {
-            _session?.Write(Clipboard.GetText());
+            var text = Clipboard.GetText();
+            if (_session.Buffer.BracketedPasteMode)
+                _session.Write("\x1b[200~" + text + "\x1b[201~");
+            else
+                _session.Write(text);
         }
     }
 
     protected override void OnMouseWheel(MouseWheelEventArgs e)
     {
         base.OnMouseWheel(e);
-        // TODO: Scrollback navigation
+        if (_session == null) return;
+
+        int lines = e.Delta > 0 ? -3 : 3; // Negative = scroll up (into history)
+        _scrollOffset = Math.Clamp(_scrollOffset + lines, -_session.Buffer.ScrollbackCount, 0);
+        Render();
+        e.Handled = true;
     }
 
     // --- Visual tree ---
@@ -387,9 +402,24 @@ public class TerminalControl : FrameworkElement
     protected override int VisualChildrenCount => 1;
     protected override Visual GetVisualChild(int index) => _visual;
 
-    private static string? KeyToVtSequence(Key key, ModifierKeys modifiers)
+    private static string? KeyToVtSequence(Key key, ModifierKeys modifiers, bool appCursor)
     {
-        // Map Windows keys to VT sequences
+        // Application cursor keys mode sends ESC O instead of ESC [
+        if (appCursor)
+        {
+            var appSeq = key switch
+            {
+                Key.Up => "\x1bOA",
+                Key.Down => "\x1bOB",
+                Key.Right => "\x1bOC",
+                Key.Left => "\x1bOD",
+                Key.Home => "\x1bOH",
+                Key.End => "\x1bOF",
+                _ => (string?)null,
+            };
+            if (appSeq != null) return appSeq;
+        }
+
         return key switch
         {
             Key.Enter => "\r",

@@ -111,7 +111,7 @@ public class VtParserTests
         parser.OnEscDispatch = b => dispatched = b;
 
         // ESC 7 = DECSC (save cursor)
-        parser.Feed("\x1b7");
+        parser.Feed("\u001b7");
 
         dispatched.Should().Be((byte)'7');
     }
@@ -478,5 +478,102 @@ public class TerminalSelectionTests
         selection.IsSelected(1, 0).Should().BeTrue(); // Middle line, full
         selection.IsSelected(2, 5).Should().BeTrue();
         selection.IsSelected(2, 11).Should().BeFalse();
+    }
+}
+
+
+public class AlternateScreenBufferTests
+{
+    [Fact]
+    public void SwitchToAlternateScreen_ClearsAndSavesMainBuffer()
+    {
+        var buffer = new TerminalBuffer(80, 24);
+        buffer.WriteChar('X');
+        buffer.CursorCol.Should().Be(1);
+
+        buffer.SwitchToAlternateScreen();
+
+        buffer.IsAlternateScreen.Should().BeTrue();
+        buffer.CursorRow.Should().Be(0);
+        buffer.CursorCol.Should().Be(0);
+        buffer.CellAt(0, 0).Character.Should().Be(" ");
+    }
+
+    [Fact]
+    public void SwitchToMainScreen_RestoresPreviousState()
+    {
+        var buffer = new TerminalBuffer(80, 24);
+        buffer.WriteChar('A');
+        buffer.WriteChar('B');
+        int savedCol = buffer.CursorCol;
+
+        buffer.SwitchToAlternateScreen();
+        buffer.WriteChar('Z');
+
+        buffer.SwitchToMainScreen();
+
+        buffer.IsAlternateScreen.Should().BeFalse();
+        buffer.CursorCol.Should().Be(savedCol);
+        buffer.CellAt(0, 0).Character.Should().Be("A");
+        buffer.CellAt(0, 1).Character.Should().Be("B");
+    }
+
+    [Fact]
+    public void SwitchToAlternateScreen_DoubleSwitchIsNoop()
+    {
+        var buffer = new TerminalBuffer(80, 24);
+        buffer.WriteChar('X');
+
+        buffer.SwitchToAlternateScreen();
+        buffer.WriteChar('Y');
+
+        buffer.SwitchToAlternateScreen();
+
+        buffer.CellAt(0, 0).Character.Should().Be("Y");
+    }
+
+    [Fact]
+    public void SwitchToMainScreen_WhenNotAlternate_IsNoop()
+    {
+        var buffer = new TerminalBuffer(80, 24);
+        buffer.WriteChar('X');
+
+        buffer.SwitchToMainScreen();
+
+        buffer.IsAlternateScreen.Should().BeFalse();
+        buffer.CellAt(0, 0).Character.Should().Be("X");
+    }
+}
+
+public class TerminalModeTests
+{
+    [Fact]
+    public void ApplicationCursorKeys_DefaultsToFalse()
+    {
+        var buffer = new TerminalBuffer(80, 24);
+        buffer.ApplicationCursorKeys.Should().BeFalse();
+    }
+
+    [Fact]
+    public void BracketedPasteMode_DefaultsToFalse()
+    {
+        var buffer = new TerminalBuffer(80, 24);
+        buffer.BracketedPasteMode.Should().BeFalse();
+    }
+
+    [Fact]
+    public void ApplicationCursorKeys_CanBeSet()
+    {
+        var buffer = new TerminalBuffer(80, 24);
+        buffer.ApplicationCursorKeys = true;
+        buffer.ApplicationCursorKeys.Should().BeTrue();
+    }
+
+    [Fact]
+    public void BracketedPasteMode_CanBeSet()
+    {
+        var buffer = new TerminalBuffer(80, 24);
+        buffer.BracketedPasteMode = true;
+        buffer.BracketedPasteMode.Should().BeTrue();
     }
 }

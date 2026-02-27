@@ -460,8 +460,8 @@ public sealed class TerminalSession : IDisposable
             {
                 switch (param)
                 {
-                    case 1: // DECCKM — Cursor Keys Mode
-                        // TODO: Application cursor keys
+                    case 1: // DECCKM -- Cursor Keys Mode
+                        Buffer.ApplicationCursorKeys = set;
                         break;
                     case 6: // DECOM — Origin Mode
                         Buffer.OriginMode = set;
@@ -475,16 +475,22 @@ public sealed class TerminalSession : IDisposable
                     case 1049: // Alternate screen buffer
                         if (set)
                         {
-                            Buffer.SaveCursor();
-                            Buffer.EraseInDisplay(2);
+                            Buffer.SwitchToAlternateScreen();
                         }
                         else
                         {
-                            Buffer.RestoreCursor();
+                            Buffer.SwitchToMainScreen();
                         }
                         break;
+                    case 47: // Alternate screen (older)
+                    case 1047: // Alternate screen (xterm)
+                        if (set)
+                            Buffer.SwitchToAlternateScreen();
+                        else
+                            Buffer.SwitchToMainScreen();
+                        break;
                     case 2004: // Bracketed paste mode
-                        // TODO: Track this mode
+                        Buffer.BracketedPasteMode = set;
                         break;
                 }
             }

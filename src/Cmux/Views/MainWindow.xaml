@@ -116,6 +116,9 @@
                                     </ControlTemplate>
                                 </Setter.Value>
                             </Setter>
+                            <EventSetter Event="PreviewMouseLeftButtonDown" Handler="WorkspaceItem_PreviewMouseDown" />
+                            <EventSetter Event="PreviewMouseMove" Handler="WorkspaceItem_PreviewMouseMove" />
+                            <EventSetter Event="Drop" Handler="WorkspaceItem_Drop" />
                         </Style>
                     </ListBox.ItemContainerStyle>
                 </ListBox>

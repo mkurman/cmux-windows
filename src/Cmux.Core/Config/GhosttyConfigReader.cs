@@ -1,4 +1,5 @@
 using Cmux.Core.Models;
+using Cmux.Core.Terminal;
 
 namespace Cmux.Core.Config;
 

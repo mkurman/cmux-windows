@@ -181,4 +181,47 @@ public partial class MainWindow : Window
 
     private void CloseButton_Click(object sender, RoutedEventArgs e) =>
         Close();
+
+    // --- Workspace drag-and-drop reordering ---
+
+    private Point _dragStartPoint;
+
+    private void WorkspaceItem_PreviewMouseDown(object sender, MouseButtonEventArgs e)
+    {
+        _dragStartPoint = e.GetPosition(null);
+    }
+
+    private void WorkspaceItem_PreviewMouseMove(object sender, MouseEventArgs e)
+    {
+        if (e.LeftButton != MouseButtonState.Pressed) return;
+
+        var diff = _dragStartPoint - e.GetPosition(null);
+        if (Math.Abs(diff.X) < SystemParameters.MinimumHorizontalDragDistance &&
+            Math.Abs(diff.Y) < SystemParameters.MinimumVerticalDragDistance)
+            return;
+
+        if (sender is System.Windows.Controls.ListBoxItem item &&
+            item.DataContext is ViewModels.WorkspaceViewModel workspace)
+        {
+            DragDrop.DoDragDrop(item, workspace, DragDropEffects.Move);
+        }
+    }
+
+    private void WorkspaceItem_Drop(object sender, DragEventArgs e)
+    {
+        if (sender is not System.Windows.Controls.ListBoxItem targetItem) return;
+        if (targetItem.DataContext is not ViewModels.WorkspaceViewModel targetWorkspace) return;
+
+        var sourceWorkspace = e.Data.GetData(typeof(ViewModels.WorkspaceViewModel)) as ViewModels.WorkspaceViewModel;
+        if (sourceWorkspace == null || sourceWorkspace == targetWorkspace) return;
+
+        int sourceIndex = ViewModel.Workspaces.IndexOf(sourceWorkspace);
+        int targetIndex = ViewModel.Workspaces.IndexOf(targetWorkspace);
+
+        if (sourceIndex >= 0 && targetIndex >= 0)
+        {
+            ViewModel.Workspaces.Move(sourceIndex, targetIndex);
+        }
+    }
+
 }

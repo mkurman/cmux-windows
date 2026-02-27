@@ -1,3 +1,4 @@
+using Cmux.Core.Terminal;
 namespace Cmux.Core.Models;
 
 public class GhosttyTheme

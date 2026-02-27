@@ -20,6 +20,18 @@ public partial class App : Application
         _pipeServer = new NamedPipeServer();
         PipeServer = _pipeServer;
         _pipeServer.Start();
+
+        // Wire up Windows toast notifications
+        NotificationService.NotificationAdded += notification =>
+        {
+            // Only show toast when the app window is not focused
+            var mainWindow = Current.MainWindow;
+            if (mainWindow != null && !mainWindow.IsActive)
+            {
+                var workspaceName = "Terminal"; // Will be enriched by MainViewModel
+                Services.ToastNotificationHelper.ShowToast(notification, workspaceName);
+            }
+        };
     }
 
     protected override void OnExit(ExitEventArgs e)

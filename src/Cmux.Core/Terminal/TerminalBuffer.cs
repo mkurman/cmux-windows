@@ -33,7 +33,17 @@ public class TerminalBuffer
     public bool OriginMode { get; set; }
     public bool AutoWrapMode { get; set; } = true;
     public bool InsertMode { get; set; }
+    public bool ApplicationCursorKeys { get; set; }
+    public bool BracketedPasteMode { get; set; }
+    public bool IsAlternateScreen { get; private set; }
     private bool _wrapPending;
+
+    // Alternate screen buffer state
+    private TerminalCell[,]? _savedMainCells;
+    private List<TerminalCell[]>? _savedMainScrollback;
+    private int _savedMainCursorRow;
+    private int _savedMainCursorCol;
+    private TerminalAttribute _savedMainAttribute;
 
     public int ScrollbackCount => _scrollback.Count;
     public int TotalLines => Rows + _scrollback.Count;
@@ -364,6 +374,64 @@ public class TerminalBuffer
         CursorRow = _savedCursorRow;
         CursorCol = _savedCursorCol;
         CurrentAttribute = _savedAttribute;
+    }
+
+    /// <summary>
+    /// Switches to the alternate screen buffer (DECSET 1049).
+    /// Saves main screen cells, scrollback, cursor, and attribute.
+    /// </summary>
+    public void SwitchToAlternateScreen()
+    {
+        if (IsAlternateScreen) return;
+
+        // Save main screen state
+        _savedMainCells = _cells;
+        _savedMainScrollback = new List<TerminalCell[]>(_scrollback);
+        _savedMainCursorRow = CursorRow;
+        _savedMainCursorCol = CursorCol;
+        _savedMainAttribute = CurrentAttribute;
+
+        // Create a fresh screen
+        _cells = new TerminalCell[Rows, Cols];
+        Clear();
+        _scrollback.Clear();
+
+        CursorRow = 0;
+        CursorCol = 0;
+        CurrentAttribute = TerminalAttribute.Default;
+        SetScrollRegion(0, Rows - 1);
+        IsAlternateScreen = true;
+    }
+
+    /// <summary>
+    /// Switches back to the main screen buffer (DECRST 1049).
+    /// Restores saved main screen state.
+    /// </summary>
+    public void SwitchToMainScreen()
+    {
+        if (!IsAlternateScreen) return;
+
+        // Restore main screen state
+        if (_savedMainCells != null)
+        {
+            _cells = _savedMainCells;
+            _savedMainCells = null;
+        }
+
+        _scrollback.Clear();
+        if (_savedMainScrollback != null)
+        {
+            _scrollback.AddRange(_savedMainScrollback);
+            _savedMainScrollback = null;
+        }
+
+        CursorRow = _savedMainCursorRow;
+        CursorCol = _savedMainCursorCol;
+        CurrentAttribute = _savedMainAttribute;
+        SetScrollRegion(0, Rows - 1);
+        IsAlternateScreen = false;
+
+        RaiseContentChanged();
     }
 
     public void MoveCursorTo(int row, int col)
