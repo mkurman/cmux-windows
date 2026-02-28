@@ -150,7 +150,7 @@ public class TerminalBufferTests
         buffer.WriteChar('A');
 
         buffer.CursorCol.Should().Be(1);
-        buffer.CellAt(0, 0).Character.Should().Be("A");
+        buffer.CellAt(0, 0).Character.Should().Be('A');
     }
 
     [Fact]
@@ -176,7 +176,7 @@ public class TerminalBufferTests
 
         buffer.EraseInDisplay(2);
 
-        buffer.CellAt(0, 0).Character.Should().Be(" ");
+        buffer.CellAt(0, 0).Character.Should().Be(' ');
     }
 
     [Fact]
@@ -187,9 +187,9 @@ public class TerminalBufferTests
 
         buffer.Resize(40, 12);
 
-        buffer.CellAt(0, 0).Character.Should().Be("A");
-        buffer.CellAt(0, 1).Character.Should().Be("B");
-        buffer.CellAt(0, 2).Character.Should().Be("C");
+        buffer.CellAt(0, 0).Character.Should().Be('A');
+        buffer.CellAt(0, 1).Character.Should().Be('B');
+        buffer.CellAt(0, 2).Character.Should().Be('C');
         buffer.Cols.Should().Be(40);
         buffer.Rows.Should().Be(12);
     }
@@ -203,7 +203,7 @@ public class TerminalBufferTests
         buffer.WriteString("X");
         buffer.LineFeed(); // Should scroll only lines 1-3
 
-        buffer.CellAt(0, 0).Character.Should().Be(" "); // Line 0 untouched
+        buffer.CellAt(0, 0).Character.Should().Be(' '); // Line 0 untouched
     }
 
     [Fact]
@@ -501,7 +501,7 @@ public class AlternateScreenBufferTests
         buffer.IsAlternateScreen.Should().BeTrue();
         buffer.CursorRow.Should().Be(0);
         buffer.CursorCol.Should().Be(0);
-        buffer.CellAt(0, 0).Character.Should().Be(" ");
+        buffer.CellAt(0, 0).Character.Should().Be(' ');
     }
 
     [Fact]
@@ -519,8 +519,8 @@ public class AlternateScreenBufferTests
 
         buffer.IsAlternateScreen.Should().BeFalse();
         buffer.CursorCol.Should().Be(savedCol);
-        buffer.CellAt(0, 0).Character.Should().Be("A");
-        buffer.CellAt(0, 1).Character.Should().Be("B");
+        buffer.CellAt(0, 0).Character.Should().Be('A');
+        buffer.CellAt(0, 1).Character.Should().Be('B');
     }
 
     [Fact]
@@ -534,7 +534,7 @@ public class AlternateScreenBufferTests
 
         buffer.SwitchToAlternateScreen();
 
-        buffer.CellAt(0, 0).Character.Should().Be("Y");
+        buffer.CellAt(0, 0).Character.Should().Be('Y');
     }
 
     [Fact]
@@ -546,7 +546,7 @@ public class AlternateScreenBufferTests
         buffer.SwitchToMainScreen();
 
         buffer.IsAlternateScreen.Should().BeFalse();
-        buffer.CellAt(0, 0).Character.Should().Be("X");
+        buffer.CellAt(0, 0).Character.Should().Be('X');
     }
 }
 

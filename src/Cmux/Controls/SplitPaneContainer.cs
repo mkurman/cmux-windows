@@ -53,10 +53,34 @@ public class SplitPaneContainer : ContentControl
     private void OnSurfacePropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
         if (e.PropertyName is nameof(SurfaceViewModel.RootNode)
-            or nameof(SurfaceViewModel.FocusedPaneId)
             or nameof(SurfaceViewModel.IsZoomed))
         {
             Dispatcher.BeginInvoke(Rebuild);
+        }
+        else if (e.PropertyName is nameof(SurfaceViewModel.FocusedPaneId))
+        {
+            Dispatcher.BeginInvoke(UpdateFocusState);
+        }
+    }
+
+    /// <summary>
+    /// Updates only focus-related visual state on cached terminals without
+    /// rebuilding the entire UI tree.
+    /// </summary>
+    private void UpdateFocusState()
+    {
+        if (_surface == null) return;
+
+        // In zoom mode, focus change may require rebuild if the zoomed pane changed
+        if (_surface.IsZoomed)
+        {
+            Rebuild();
+            return;
+        }
+
+        foreach (var (paneId, terminal) in _terminalCache)
+        {
+            terminal.IsPaneFocused = paneId == _surface.FocusedPaneId;
         }
     }
 

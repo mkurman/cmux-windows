@@ -106,14 +106,14 @@ public struct TerminalAttribute
 
 public struct TerminalCell
 {
-    public string Character;
+    public char Character;
     public TerminalAttribute Attribute;
     public bool IsDirty;
     public int Width; // 1 for normal, 2 for wide chars
 
     public static TerminalCell Empty => new()
     {
-        Character = " ",
+        Character = ' ',
         Attribute = TerminalAttribute.Default,
         IsDirty = true,
         Width = 1,

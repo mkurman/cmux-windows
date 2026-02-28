@@ -8,7 +8,7 @@ namespace Cmux.Core.Terminal;
 public class TerminalBuffer
 {
     private TerminalCell[,] _cells;
-    private readonly List<TerminalCell[]> _scrollback = [];
+    private readonly ScrollbackBuffer<TerminalCell[]> _scrollback;
     private readonly int _maxScrollback;
 
     public int Cols { get; private set; }
@@ -48,7 +48,7 @@ public class TerminalBuffer
 
     // Alternate screen buffer state
     private TerminalCell[,]? _savedMainCells;
-    private List<TerminalCell[]>? _savedMainScrollback;
+    private List<TerminalCell[]>? _savedMainScrollbackList;
     private int _savedMainCursorRow;
     private int _savedMainCursorCol;
     private TerminalAttribute _savedMainAttribute;
@@ -63,6 +63,7 @@ public class TerminalBuffer
         Cols = Math.Max(1, cols);
         Rows = Math.Max(1, rows);
         _maxScrollback = maxScrollback;
+        _scrollback = new ScrollbackBuffer<TerminalCell[]>(maxScrollback);
         ScrollTop = 0;
         ScrollBottom = Rows - 1;
         _cells = new TerminalCell[Rows, Cols];
@@ -101,7 +102,7 @@ public class TerminalBuffer
         return _scrollback[index];
     }
 
-    public void SetChar(int row, int col, string ch, TerminalAttribute attr)
+    public void SetChar(int row, int col, char ch, TerminalAttribute attr)
     {
         if (row < 0 || row >= Rows || col < 0 || col >= Cols) return;
         _cells[row, col] = new TerminalCell
@@ -140,7 +141,7 @@ public class TerminalBuffer
         {
             _cells[CursorRow, CursorCol] = new TerminalCell
             {
-                Character = c.ToString(),
+                Character = c,
                 Attribute = CurrentAttribute,
                 IsDirty = true,
                 Width = 1,
@@ -216,8 +217,6 @@ public class TerminalBuffer
                     scrolledLine[c] = _cells[0, c];
 
                 _scrollback.Add(scrolledLine);
-                while (_scrollback.Count > _maxScrollback)
-                    _scrollback.RemoveAt(0);
             }
 
             // Shift lines up within the scroll region
@@ -432,7 +431,7 @@ public class TerminalBuffer
 
         // Save main screen state
         _savedMainCells = _cells;
-        _savedMainScrollback = new List<TerminalCell[]>(_scrollback);
+        _savedMainScrollbackList = _scrollback.ToList();
         _savedMainCursorRow = CursorRow;
         _savedMainCursorCol = CursorCol;
         _savedMainAttribute = CurrentAttribute;
@@ -465,10 +464,10 @@ public class TerminalBuffer
         }
 
         _scrollback.Clear();
-        if (_savedMainScrollback != null)
+        if (_savedMainScrollbackList != null)
         {
-            _scrollback.AddRange(_savedMainScrollback);
-            _savedMainScrollback = null;
+            _scrollback.AddRange(_savedMainScrollbackList);
+            _savedMainScrollbackList = null;
         }
 
         CursorRow = _savedMainCursorRow;
@@ -618,7 +617,7 @@ public class TerminalBuffer
             {
                 _cells[row, col] = new TerminalCell
                 {
-                    Character = text[col].ToString(),
+                    Character = text[col],
                     Attribute = TerminalAttribute.Default,
                     IsDirty = true,
                     Width = 1,
@@ -648,8 +647,8 @@ public class TerminalBuffer
         var chars = new char[cols];
         for (int i = 0; i < cols; i++)
         {
-            var ch = i < line.Length ? line[i].Character : " ";
-            chars[i] = string.IsNullOrEmpty(ch) ? ' ' : ch[0];
+            var ch = i < line.Length ? line[i].Character : ' ';
+            chars[i] = ch == '\0' ? ' ' : ch;
         }
 
         return new string(chars).TrimEnd();
@@ -668,7 +667,7 @@ public class TerminalBuffer
         {
             line[i] = new TerminalCell
             {
-                Character = text[i].ToString(),
+                Character = text[i],
                 Attribute = TerminalAttribute.Default,
                 IsDirty = true,
                 Width = 1,

@@ -105,7 +105,7 @@ public class TerminalSelection
                 if (row >= 0 && row < buffer.Rows)
                 {
                     var cell = buffer.CellAt(row, col);
-                    sb.Append(cell.Character ?? " ");
+                    sb.Append(cell.Character == '\0' ? ' ' : cell.Character);
                 }
             }
 
@@ -130,7 +130,7 @@ public class TerminalSelection
             return;
 
         var cell = buffer.CellAt(row, col);
-        bool IsWordChar(string? ch) => ch != null && ch != " " && ch.Length > 0 && (char.IsLetterOrDigit(ch[0]) || ch[0] == '_' || ch[0] == '-');
+        bool IsWordChar(char ch) => ch != '\0' && ch != ' ' && (char.IsLetterOrDigit(ch) || ch == '_' || ch == '-');
 
         if (!IsWordChar(cell.Character))
         {

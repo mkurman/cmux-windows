@@ -24,7 +24,7 @@ public static partial class UrlDetector
         for (int c = 0; c < buffer.Cols; c++)
         {
             var ch = buffer.CellAt(row, c).Character;
-            chars[c] = string.IsNullOrEmpty(ch) ? ' ' : ch[0];
+            chars[c] = ch == '\0' ? ' ' : ch;
         }
         return new string(chars);
     }

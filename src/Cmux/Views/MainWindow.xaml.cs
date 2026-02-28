@@ -1252,7 +1252,7 @@ public partial class MainWindow : Window
         for (int col = 0; col < buffer.Cols; col++)
         {
             var cell = buffer.CellAt(row, col);
-            sb.Append(cell.Character ?? " ");
+            sb.Append(cell.Character == '\0' ? ' ' : cell.Character);
         }
         return sb.ToString();
     }

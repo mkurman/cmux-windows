@@ -46,6 +46,7 @@ public class TerminalControl : FrameworkElement
 
     // Visual bell
     private DateTime _bellFlashUntil;
+    private System.Windows.Threading.DispatcherTimer? _bellTimer;
 
     // URL detection
     private (int row, int startCol, int endCol, string url)? _hoveredUrl;
@@ -55,6 +56,12 @@ public class TerminalControl : FrameworkElement
     private int _currentSearchMatch = -1;
     private readonly StringBuilder _inputLineBuffer = new();
     private bool _suppressNextEnterToShell;
+
+    // Rendering caches to avoid per-frame allocations
+    private readonly Dictionary<Color, SolidColorBrush> _brushCache = [];
+    private Typeface? _typefaceBold;
+    private Typeface? _typefaceItalic;
+    private Typeface? _typefaceBoldItalic;
     private bool _suppressNextEnterTextInput;
 
     /// <summary>Fired when the pane wants focus.</summary>
@@ -201,16 +208,21 @@ public class TerminalControl : FrameworkElement
         _bellFlashUntil = DateTime.UtcNow.AddMilliseconds(150);
         RequestRender(System.Windows.Threading.DispatcherPriority.Render);
 
-        var timer = new System.Windows.Threading.DispatcherTimer
+        _bellTimer ??= new System.Windows.Threading.DispatcherTimer
         {
             Interval = TimeSpan.FromMilliseconds(170),
         };
-        timer.Tick += (_, _) =>
-        {
-            timer.Stop();
-            RequestRender();
-        };
-        timer.Start();
+        // Restart the timer (handles rapid bell sequences)
+        _bellTimer.Stop();
+        _bellTimer.Tick -= OnBellTimerTick;
+        _bellTimer.Tick += OnBellTimerTick;
+        _bellTimer.Start();
+    }
+
+    private void OnBellTimerTick(object? sender, EventArgs e)
+    {
+        _bellTimer?.Stop();
+        RequestRender();
     }
 
     // --- Search support ---
@@ -285,6 +297,33 @@ public class TerminalControl : FrameworkElement
 
     // --- Rendering ---
 
+    private SolidColorBrush GetCachedBrush(Color color)
+    {
+        if (_brushCache.TryGetValue(color, out var brush))
+            return brush;
+
+        brush = new SolidColorBrush(color);
+        brush.Freeze();
+        _brushCache[color] = brush;
+        return brush;
+    }
+
+    private void InvalidateRenderCaches()
+    {
+        _brushCache.Clear();
+        _typefaceBold = null;
+        _typefaceItalic = null;
+        _typefaceBoldItalic = null;
+    }
+
+    private Typeface GetTypeface(bool bold, bool italic)
+    {
+        if (!bold && !italic) return _typeface;
+        if (bold && !italic) return _typefaceBold ??= new Typeface(new FontFamily(_theme.FontFamily), FontStyles.Normal, FontWeights.Bold, FontStretches.Normal);
+        if (!bold && italic) return _typefaceItalic ??= new Typeface(new FontFamily(_theme.FontFamily), FontStyles.Italic, FontWeights.Normal, FontStretches.Normal);
+        return _typefaceBoldItalic ??= new Typeface(new FontFamily(_theme.FontFamily), FontStyles.Italic, FontWeights.Bold, FontStretches.Normal);
+    }
+
     private void Render()
     {
         if (_session == null) return;
@@ -297,26 +336,28 @@ public class TerminalControl : FrameworkElement
 
         // Background
         var bgColor = ToWpfColor(_theme.Background);
-        dc.DrawRectangle(new SolidColorBrush(bgColor), null, new Rect(0, 0, ActualWidth, ActualHeight));
+        dc.DrawRectangle(GetCachedBrush(bgColor), null, new Rect(0, 0, ActualWidth, ActualHeight));
 
         // Visual bell flash
         if (DateTime.UtcNow < _bellFlashUntil)
         {
-            dc.DrawRectangle(new SolidColorBrush(Color.FromArgb(25, 255, 255, 255)), null,
+            dc.DrawRectangle(GetCachedBrush(Color.FromArgb(25, 255, 255, 255)), null,
                 new Rect(0, 0, ActualWidth, ActualHeight));
         }
 
         // Notification ring
         if (HasNotification)
         {
-            var notifPen = new Pen(new SolidColorBrush(Color.FromArgb(180, 0x63, 0x66, 0xF1)), 2);
+            var notifPen = new Pen(GetCachedBrush(Color.FromArgb(180, 0x63, 0x66, 0xF1)), 2);
+            notifPen.Freeze();
             dc.DrawRoundedRectangle(null, notifPen, new Rect(1, 1, ActualWidth - 2, ActualHeight - 2), 4, 4);
         }
 
         // Focused pane indicator
         if (IsPaneFocused)
         {
-            var focusPen = new Pen(new SolidColorBrush(Color.FromArgb(50, 0x81, 0x8C, 0xF8)), 1);
+            var focusPen = new Pen(GetCachedBrush(Color.FromArgb(50, 0x81, 0x8C, 0xF8)), 1);
+            focusPen.Freeze();
             dc.DrawRectangle(null, focusPen, new Rect(0, 0, ActualWidth, ActualHeight));
         }
 
@@ -339,6 +380,10 @@ public class TerminalControl : FrameworkElement
             for (int i = 0; i < cmLen; i++)
                 currentMatchSet.Add((cmRow, cmCol + i));
         }
+
+        // Pre-cache search highlight brushes
+        var searchMatchBrush = _searchMatches.Count > 0 ? GetCachedBrush(Color.FromArgb(100, 0xFB, 0xBF, 0x24)) : null;
+        var currentMatchBrush = _currentSearchMatch >= 0 ? GetCachedBrush(Color.FromArgb(180, 0xFB, 0x92, 0x3C)) : null;
 
         // Render visible rows
         for (int visRow = 0; visRow < _rows; visRow++)
@@ -400,45 +445,54 @@ public class TerminalControl : FrameworkElement
                 // Draw cell background
                 if (!cellBg.IsDefault)
                 {
-                    dc.DrawRectangle(new SolidColorBrush(ToWpfColor(cellBg)), null,
+                    dc.DrawRectangle(GetCachedBrush(ToWpfColor(cellBg)), null,
                         new Rect(x, y, _cellWidth, _cellHeight));
                 }
 
                 // Search match highlight (behind text)
                 if (isCurrentMatch)
                 {
-                    dc.DrawRectangle(new SolidColorBrush(Color.FromArgb(180, 0xFB, 0x92, 0x3C)), null,
+                    dc.DrawRectangle(currentMatchBrush, null,
                         new Rect(x, y, _cellWidth, _cellHeight));
                 }
                 else if (isSearchMatch)
                 {
-                    dc.DrawRectangle(new SolidColorBrush(Color.FromArgb(100, 0xFB, 0xBF, 0x24)), null,
+                    dc.DrawRectangle(searchMatchBrush, null,
                         new Rect(x, y, _cellWidth, _cellHeight));
                 }
 
                 // URL hover highlight
                 if (_hoveredUrl is { } url && visRow == url.row && c >= url.startCol && c <= url.endCol)
                 {
-                    // Blue underline for hovered URL
-                    var urlPen = new Pen(new SolidColorBrush(Color.FromRgb(0x81, 0x8C, 0xF8)), 1);
+                    var urlPen = new Pen(GetCachedBrush(Color.FromRgb(0x81, 0x8C, 0xF8)), 1);
+                    urlPen.Freeze();
                     dc.DrawLine(urlPen, new Point(x, y + _cellHeight - 1), new Point(x + _cellWidth, y + _cellHeight - 1));
                 }
 
                 // Cell character
-                if (!string.IsNullOrEmpty(cell.Character) && cell.Character != " ")
+                if (cell.Character != '\0' && cell.Character != ' ')
                 {
                     var fgColor = cellFg.IsDefault ? ToWpfColor(_theme.Foreground) : ToWpfColor(cellFg);
+                    bool isBold = attr.Flags.HasFlag(CellFlags.Bold);
+                    bool isItalic = attr.Flags.HasFlag(CellFlags.Italic);
+                    bool isDim = attr.Flags.HasFlag(CellFlags.Dim);
+                    var tf = GetTypeface(isBold, isItalic);
 
-                    var weight = attr.Flags.HasFlag(CellFlags.Bold) ? FontWeights.Bold : FontWeights.Normal;
-                    var style = attr.Flags.HasFlag(CellFlags.Italic) ? FontStyles.Italic : FontStyles.Normal;
-                    var tf = new Typeface(new FontFamily(_theme.FontFamily), style, weight, FontStretches.Normal);
+                    SolidColorBrush brush;
+                    if (isDim)
+                    {
+                        // Dim needs a unique non-frozen brush with opacity
+                        var dimColor = Color.FromArgb(128, fgColor.R, fgColor.G, fgColor.B);
+                        brush = GetCachedBrush(dimColor);
+                    }
+                    else
+                    {
+                        brush = GetCachedBrush(fgColor);
+                    }
 
-                    var brush = new SolidColorBrush(fgColor);
-                    if (attr.Flags.HasFlag(CellFlags.Dim))
-                        brush.Opacity = 0.5;
-
+                    var charStr = cell.Character.ToString();
                     var text = new FormattedText(
-                        cell.Character,
+                        charStr,
                         CultureInfo.CurrentCulture,
                         FlowDirection.LeftToRight,
                         tf,
@@ -452,6 +506,7 @@ public class TerminalControl : FrameworkElement
                     if (attr.Flags.HasFlag(CellFlags.Underline))
                     {
                         var pen = new Pen(brush, 1);
+                        pen.Freeze();
                         dc.DrawLine(pen, new Point(x, y + _cellHeight - 1), new Point(x + _cellWidth, y + _cellHeight - 1));
                     }
 
@@ -459,6 +514,7 @@ public class TerminalControl : FrameworkElement
                     if (attr.Flags.HasFlag(CellFlags.Strikethrough))
                     {
                         var pen = new Pen(brush, 1);
+                        pen.Freeze();
                         dc.DrawLine(pen, new Point(x, y + _cellHeight / 2), new Point(x + _cellWidth, y + _cellHeight / 2));
                     }
                 }
@@ -473,7 +529,7 @@ public class TerminalControl : FrameworkElement
             var cursorColor = _theme.CursorColor.HasValue
                 ? ToWpfColor(_theme.CursorColor.Value)
                 : ToWpfColor(_theme.Foreground);
-            var cursorBrush = new SolidColorBrush(Color.FromArgb(200, cursorColor.R, cursorColor.G, cursorColor.B));
+            var cursorBrush = GetCachedBrush(Color.FromArgb(200, cursorColor.R, cursorColor.G, cursorColor.B));
 
             switch ((_cursorStyle ?? "bar").ToLowerInvariant())
             {
@@ -500,14 +556,14 @@ public class TerminalControl : FrameworkElement
                     FlowDirection.LeftToRight,
                     _typeface,
                     10,
-                    new SolidColorBrush(Color.FromArgb(160, 0x81, 0x8C, 0xF8)),
+                    GetCachedBrush(Color.FromArgb(160, 0x81, 0x8C, 0xF8)),
                     dpi);
                 // Background pill for indicator
                 double iw = indicatorText.WidthIncludingTrailingWhitespace + 12;
                 double ih = indicatorText.Height + 4;
                 double ix = ActualWidth - iw - 8;
                 dc.DrawRoundedRectangle(
-                    new SolidColorBrush(Color.FromArgb(200, 0x14, 0x14, 0x14)), null,
+                    GetCachedBrush(Color.FromArgb(200, 0x14, 0x14, 0x14)), null,
                     new Rect(ix, 6, iw, ih), 4, 4);
                 dc.DrawText(indicatorText, new Point(ix + 6, 8));
             }
@@ -1404,6 +1460,7 @@ public class TerminalControl : FrameworkElement
         _theme = theme;
         _typeface = new Typeface(new FontFamily(theme.FontFamily), FontStyles.Normal, FontWeights.Normal, FontStretches.Normal);
         _fontSize = theme.FontSize;
+        InvalidateRenderCaches();
         CalculateCellSize();
         CalculateTerminalSize();
         RequestRender(System.Windows.Threading.DispatcherPriority.Render);
@@ -1435,6 +1492,7 @@ public class TerminalControl : FrameworkElement
         _cursorBlink = settings.CursorBlink;
 
         _typeface = new Typeface(new FontFamily(fontFamily), FontStyles.Normal, FontWeights.Normal, FontStretches.Normal);
+        InvalidateRenderCaches();
         CalculateCellSize();
         CalculateTerminalSize();
         RequestRender(System.Windows.Threading.DispatcherPriority.Render);
