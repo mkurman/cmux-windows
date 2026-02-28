@@ -60,12 +60,12 @@ public class TerminalBuffer
 
     public TerminalBuffer(int cols, int rows, int maxScrollback = 10_000)
     {
-        Cols = cols;
-        Rows = rows;
+        Cols = Math.Max(1, cols);
+        Rows = Math.Max(1, rows);
         _maxScrollback = maxScrollback;
         ScrollTop = 0;
-        ScrollBottom = rows - 1;
-        _cells = new TerminalCell[rows, cols];
+        ScrollBottom = Rows - 1;
+        _cells = new TerminalCell[Rows, Cols];
         Clear();
     }
 
@@ -76,13 +76,22 @@ public class TerminalBuffer
                 _cells[r, c] = TerminalCell.Empty;
     }
 
-    public ref TerminalCell CellAt(int row, int col) => ref _cells[row, col];
+    public ref TerminalCell CellAt(int row, int col)
+    {
+        int maxRow = _cells.GetLength(0) - 1;
+        int maxCol = _cells.GetLength(1) - 1;
+        row = Math.Clamp(row, 0, maxRow);
+        col = Math.Clamp(col, 0, maxCol);
+        return ref _cells[row, col];
+    }
 
     public TerminalCell[] GetLine(int row)
     {
-        var line = new TerminalCell[Cols];
-        for (int c = 0; c < Cols; c++)
-            line[c] = _cells[row, c];
+        int cols = _cells.GetLength(1);
+        int safeRow = Math.Clamp(row, 0, _cells.GetLength(0) - 1);
+        var line = new TerminalCell[cols];
+        for (int c = 0; c < cols; c++)
+            line[c] = _cells[safeRow, c];
         return line;
     }
 
@@ -110,6 +119,9 @@ public class TerminalBuffer
     /// </summary>
     public void WriteChar(char c)
     {
+        if (!ClampCursorToBounds())
+            return;
+
         if (_wrapPending && AutoWrapMode)
         {
             CarriageReturn();
@@ -245,6 +257,9 @@ public class TerminalBuffer
     /// </summary>
     public void EraseInDisplay(int mode)
     {
+        if (!ClampCursorToBounds())
+            return;
+
         switch (mode)
         {
             case 0: // Cursor to end
@@ -279,6 +294,9 @@ public class TerminalBuffer
     /// </summary>
     public void EraseInLine(int mode)
     {
+        if (!ClampCursorToBounds())
+            return;
+
         switch (mode)
         {
             case 0:
@@ -300,6 +318,10 @@ public class TerminalBuffer
 
     public void EraseChars(int count)
     {
+        if (!ClampCursorToBounds())
+            return;
+
+        count = Math.Max(0, count);
         for (int i = 0; i < count && CursorCol + i < Cols; i++)
             _cells[CursorRow, CursorCol + i] = TerminalCell.Empty;
         RaiseContentChanged();
@@ -307,6 +329,10 @@ public class TerminalBuffer
 
     public void InsertLines(int count)
     {
+        if (!ClampCursorToBounds())
+            return;
+
+        count = Math.Max(0, count);
         int savedBottom = ScrollBottom;
         ScrollBottom = Rows - 1;
         for (int n = 0; n < count; n++)
@@ -323,6 +349,10 @@ public class TerminalBuffer
 
     public void DeleteLines(int count)
     {
+        if (!ClampCursorToBounds())
+            return;
+
+        count = Math.Max(0, count);
         for (int n = 0; n < count; n++)
         {
             for (int r = CursorRow; r < ScrollBottom; r++)
@@ -336,6 +366,10 @@ public class TerminalBuffer
 
     public void InsertChars(int count)
     {
+        if (!ClampCursorToBounds())
+            return;
+
+        count = Math.Max(0, count);
         for (int n = 0; n < count; n++)
         {
             for (int c = Cols - 1; c > CursorCol; c--)
@@ -347,6 +381,10 @@ public class TerminalBuffer
 
     public void DeleteChars(int count)
     {
+        if (!ClampCursorToBounds())
+            return;
+
+        count = Math.Max(0, count);
         for (int n = 0; n < count; n++)
         {
             for (int c = CursorCol; c < Cols - 1; c++)
@@ -491,6 +529,9 @@ public class TerminalBuffer
     /// </summary>
     public void Resize(int newCols, int newRows)
     {
+        newCols = Math.Max(1, newCols);
+        newRows = Math.Max(1, newRows);
+
         var newCells = new TerminalCell[newRows, newCols];
         for (int r = 0; r < newRows; r++)
             for (int c = 0; c < newCols; c++)
@@ -590,6 +631,16 @@ public class TerminalBuffer
         ResetScrollRegion();
         MarkAllDirty();
         RaiseContentChanged();
+    }
+
+    private bool ClampCursorToBounds()
+    {
+        if (Rows <= 0 || Cols <= 0)
+            return false;
+
+        CursorRow = Math.Clamp(CursorRow, 0, Rows - 1);
+        CursorCol = Math.Clamp(CursorCol, 0, Cols - 1);
+        return true;
     }
 
     private static string LineToText(TerminalCell[] line, int cols)

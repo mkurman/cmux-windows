@@ -311,24 +311,9 @@
                         <Trigger Property="IsMouseOver" Value="True">
                             <Setter TargetName="border" Property="BorderBrush" Value="{StaticResource ForegroundDimBrush}" />
                         </Trigger>
-                        <EventTrigger RoutedEvent="GotKeyboardFocus">
-                            <BeginStoryboard>
-                                <Storyboard>
-                                    <ColorAnimation Storyboard.TargetName="borderStroke"
-                                                    Storyboard.TargetProperty="Color"
-                                                    To="{StaticResource AccentColor}" Duration="0:0:0.15" />
-                                </Storyboard>
-                            </BeginStoryboard>
-                        </EventTrigger>
-                        <EventTrigger RoutedEvent="LostKeyboardFocus">
-                            <BeginStoryboard>
-                                <Storyboard>
-                                    <ColorAnimation Storyboard.TargetName="borderStroke"
-                                                    Storyboard.TargetProperty="Color"
-                                                    To="{StaticResource BorderColor}" Duration="0:0:0.25" />
-                                </Storyboard>
-                            </BeginStoryboard>
-                        </EventTrigger>
+                        <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                            <Setter TargetName="border" Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+                        </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
                             <Setter Property="Opacity" Value="0.4" />
                         </Trigger>

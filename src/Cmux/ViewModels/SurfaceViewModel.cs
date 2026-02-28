@@ -213,6 +213,27 @@ public partial class SurfaceViewModel : ObservableObject, IDisposable
             cwd);
     }
 
+    public bool TryHandlePaneCommand(string paneId, string command)
+    {
+        if (!_sessions.TryGetValue(paneId, out var session))
+            return false;
+
+        return App.AgentRuntime.TryHandlePaneCommand(
+            command,
+            new Cmux.Services.AgentPaneContext
+            {
+                WorkspaceId = _workspaceId,
+                SurfaceId = Surface.Id,
+                PaneId = paneId,
+                WorkingDirectory = session.WorkingDirectory,
+                WriteToPane = text =>
+                {
+                    if (!string.IsNullOrEmpty(text))
+                        session.Write(text);
+                },
+            });
+    }
+
     private void AppendToCommandHistory(string paneId, string command)
     {
         if (!_paneCommandHistory.TryGetValue(paneId, out var history))

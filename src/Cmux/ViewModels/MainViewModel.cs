@@ -36,6 +36,12 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private int _totalUnreadCount;
 
+    [ObservableProperty]
+    private bool _agentPanelVisible = true;
+
+    [ObservableProperty]
+    private double _agentPanelWidth = 380;
+
     private readonly NotificationService _notificationService;
 
     public NotificationService NotificationService => _notificationService;
@@ -207,6 +213,9 @@ public partial class MainViewModel : ObservableObject
 
     [RelayCommand]
     public void ToggleNotificationPanel() => NotificationPanelVisible = !NotificationPanelVisible;
+
+    [RelayCommand]
+    public void ToggleAgentPanel() => AgentPanelVisible = !AgentPanelVisible;
 
     partial void OnCompactSidebarChanged(bool value)
     {
@@ -407,8 +416,13 @@ public partial class MainViewModel : ObservableObject
                 "WORKSPACE.CREATE" => HandleWorkspaceCreate(args),
                 "WORKSPACE.SELECT" => HandleWorkspaceSelect(args),
                 "SURFACE.CREATE" => HandleSurfaceCreate(args),
+                "SURFACE.SELECT" => HandleSurfaceSelect(args),
                 "SPLIT.RIGHT" => HandleSplit(SplitDirection.Vertical),
                 "SPLIT.DOWN" => HandleSplit(SplitDirection.Horizontal),
+                "PANE.LIST" => HandlePaneList(args),
+                "PANE.FOCUS" => HandlePaneFocus(args),
+                "PANE.WRITE" => HandlePaneWrite(args),
+                "PANE.READ" => HandlePaneRead(args),
                 "STATUS" => HandleStatus(),
                 _ => JsonSerializer.Serialize(new { error = $"Unknown command: {command}" }),
             };
@@ -456,12 +470,25 @@ public partial class MainViewModel : ObservableObject
     {
         if (args.TryGetValue("index", out var indexStr) && int.TryParse(indexStr, out int index))
         {
-            SelectWorkspace(index);
-            return JsonSerializer.Serialize(new { ok = true });
+            if (TryResolveCollectionIndex(index, Workspaces.Count, out var resolvedIndex))
+            {
+                SelectWorkspace(resolvedIndex);
+                return JsonSerializer.Serialize(new { ok = true });
+            }
         }
         if (args.TryGetValue("id", out var id))
         {
             var ws = Workspaces.FirstOrDefault(w => w.Workspace.Id == id);
+            if (ws != null)
+            {
+                SelectedWorkspace = ws;
+                return JsonSerializer.Serialize(new { ok = true });
+            }
+        }
+        if (args.TryGetValue("name", out var name))
+        {
+            var ws = Workspaces.FirstOrDefault(w => string.Equals(w.Name, name, StringComparison.OrdinalIgnoreCase))
+                ?? Workspaces.FirstOrDefault(w => w.Name.Contains(name, StringComparison.OrdinalIgnoreCase));
             if (ws != null)
             {
                 SelectedWorkspace = ws;
@@ -477,10 +504,209 @@ public partial class MainViewModel : ObservableObject
         return JsonSerializer.Serialize(new { ok = true });
     }
 
+    private string HandleSurfaceSelect(Dictionary<string, string> args)
+    {
+        if (!TryResolveWorkspace(args, out var workspace, out var error))
+            return JsonSerializer.Serialize(new { error });
+
+        if (!TryResolveSurface(workspace, args, out var surface, out error))
+            return JsonSerializer.Serialize(new { error });
+
+        SelectedWorkspace = workspace;
+        workspace.SelectedSurface = surface;
+
+        return JsonSerializer.Serialize(new
+        {
+            ok = true,
+            workspaceId = workspace.Workspace.Id,
+            workspaceName = workspace.Name,
+            surfaceId = surface.Surface.Id,
+            surfaceName = surface.Name,
+        });
+    }
+
     private string HandleSplit(SplitDirection direction)
     {
         SelectedWorkspace?.SelectedSurface?.SplitFocused(direction);
         return JsonSerializer.Serialize(new { ok = true });
+    }
+
+    private string HandlePaneList(Dictionary<string, string> args)
+    {
+        if (!TryResolveWorkspace(args, out var workspace, out var error))
+            return JsonSerializer.Serialize(new { error });
+
+        if (!TryResolveSurface(workspace, args, out var surface, out error))
+            return JsonSerializer.Serialize(new { error });
+
+        var leaves = surface.RootNode.GetLeaves()
+            .Select(l => l.PaneId)
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .Cast<string>()
+            .ToList();
+
+        var panes = leaves
+            .Select((paneId, idx) =>
+            {
+                surface.Surface.PaneCustomNames.TryGetValue(paneId, out var customName);
+                return new
+                {
+                    index = idx + 1,
+                    id = paneId,
+                    name = string.IsNullOrWhiteSpace(customName) ? $"Pane {idx + 1}" : customName,
+                    customName = customName ?? "",
+                    focused = string.Equals(surface.FocusedPaneId, paneId, StringComparison.Ordinal),
+                    workingDirectory = surface.GetSession(paneId)?.WorkingDirectory ?? "",
+                };
+            })
+            .ToList();
+
+        return JsonSerializer.Serialize(new
+        {
+            workspace = new
+            {
+                id = workspace.Workspace.Id,
+                name = workspace.Name,
+            },
+            surface = new
+            {
+                id = surface.Surface.Id,
+                name = surface.Name,
+            },
+            panes,
+        });
+    }
+
+    private string HandlePaneFocus(Dictionary<string, string> args)
+    {
+        if (!TryResolveWorkspace(args, out var workspace, out var error))
+            return JsonSerializer.Serialize(new { error });
+
+        if (!TryResolveSurface(workspace, args, out var surface, out error))
+            return JsonSerializer.Serialize(new { error });
+
+        if (!TryResolvePaneId(surface, args, out var paneId, out var paneIndex, out var paneName, out error))
+            return JsonSerializer.Serialize(new { error });
+
+        SelectedWorkspace = workspace;
+        workspace.SelectedSurface = surface;
+        surface.FocusPane(paneId);
+
+        return JsonSerializer.Serialize(new
+        {
+            ok = true,
+            workspaceId = workspace.Workspace.Id,
+            workspaceName = workspace.Name,
+            surfaceId = surface.Surface.Id,
+            surfaceName = surface.Name,
+            paneId,
+            paneIndex,
+            paneName,
+        });
+    }
+
+    private string HandlePaneWrite(Dictionary<string, string> args)
+    {
+        var text = args.TryGetValue("text", out var requestedText) ? (requestedText ?? "") : "";
+
+        if (!TryResolveWorkspace(args, out var workspace, out var error))
+            return JsonSerializer.Serialize(new { error });
+
+        if (!TryResolveSurface(workspace, args, out var surface, out error))
+            return JsonSerializer.Serialize(new { error });
+
+        if (!TryResolvePaneId(surface, args, out var paneId, out var paneIndex, out var paneName, out error))
+            return JsonSerializer.Serialize(new { error });
+
+        var session = surface.GetSession(paneId);
+        if (session == null)
+            return JsonSerializer.Serialize(new { error = $"Pane session not found: {paneId}" });
+
+        bool submit = args.TryGetValue("submit", out var submitRaw)
+            && bool.TryParse(submitRaw, out var parsedSubmit)
+            && parsedSubmit;
+
+        if (submit)
+            text = text.TrimEnd('\r', '\n');
+
+        if (!submit && string.IsNullOrWhiteSpace(text))
+            return JsonSerializer.Serialize(new { error = "Missing required argument: text" });
+
+        var submitKey = args.TryGetValue("submitKey", out var submitKeyRaw)
+            ? submitKeyRaw ?? ""
+            : "auto";
+
+        if (!string.IsNullOrEmpty(text))
+            session.Write(text);
+
+        if (submit)
+        {
+            var submitSequence = ResolveSubmitSequence(submitKey);
+            if (!string.IsNullOrEmpty(submitSequence))
+                session.Write(submitSequence);
+
+            if (!string.IsNullOrWhiteSpace(text))
+                surface.RegisterCommandSubmission(paneId, text);
+        }
+
+        return JsonSerializer.Serialize(new
+        {
+            ok = true,
+            workspaceId = workspace.Workspace.Id,
+            workspaceName = workspace.Name,
+            surfaceId = surface.Surface.Id,
+            surfaceName = surface.Name,
+            paneId,
+            paneIndex,
+            paneName,
+            submit,
+            submitKey,
+            bytes = text.Length,
+        });
+    }
+
+    private string HandlePaneRead(Dictionary<string, string> args)
+    {
+        if (!TryResolveWorkspace(args, out var workspace, out var error))
+            return JsonSerializer.Serialize(new { error });
+
+        if (!TryResolveSurface(workspace, args, out var surface, out error))
+            return JsonSerializer.Serialize(new { error });
+
+        if (!TryResolvePaneId(surface, args, out var paneId, out var paneIndex, out var paneName, out error))
+            return JsonSerializer.Serialize(new { error });
+
+        var session = surface.GetSession(paneId);
+        if (session == null)
+            return JsonSerializer.Serialize(new { error = $"Pane session not found: {paneId}" });
+
+        int lines = 80;
+        if (args.TryGetValue("lines", out var linesRaw) && int.TryParse(linesRaw, out var parsedLines))
+            lines = Math.Clamp(parsedLines, 1, 5000);
+
+        int maxChars = 20000;
+        if (args.TryGetValue("maxChars", out var charsRaw) && int.TryParse(charsRaw, out var parsedChars))
+            maxChars = Math.Clamp(parsedChars, 512, 200000);
+
+        var allText = session.Buffer.ExportPlainText(maxScrollbackLines: 20000);
+        var tailText = TailLines(allText, lines);
+        if (tailText.Length > maxChars)
+            tailText = "..." + tailText[^maxChars..];
+
+        return JsonSerializer.Serialize(new
+        {
+            ok = true,
+            workspaceId = workspace.Workspace.Id,
+            workspaceName = workspace.Name,
+            surfaceId = surface.Surface.Id,
+            surfaceName = surface.Name,
+            paneId,
+            paneIndex,
+            paneName,
+            lines,
+            maxChars,
+            text = tailText,
+        });
     }
 
     private string HandleStatus()
@@ -492,5 +718,250 @@ public partial class MainViewModel : ObservableObject
             selectedWorkspace = SelectedWorkspace?.Workspace.Id,
             unreadNotifications = TotalUnreadCount,
         });
+    }
+
+    private bool TryResolveWorkspace(Dictionary<string, string> args, out WorkspaceViewModel workspace, out string error)
+    {
+        workspace = null!;
+        error = "";
+
+        var defaultWorkspace = SelectedWorkspace ?? Workspaces.FirstOrDefault();
+        if (defaultWorkspace == null)
+        {
+            error = "No workspace available.";
+            return false;
+        }
+
+        workspace = defaultWorkspace;
+
+        if (args.TryGetValue("workspaceId", out var workspaceId) && !string.IsNullOrWhiteSpace(workspaceId))
+        {
+            var byId = Workspaces.FirstOrDefault(w => string.Equals(w.Workspace.Id, workspaceId, StringComparison.Ordinal));
+            if (byId == null)
+            {
+                error = $"Workspace id not found: {workspaceId}";
+                return false;
+            }
+
+            workspace = byId;
+            return true;
+        }
+
+        if (args.TryGetValue("workspaceName", out var workspaceName) && !string.IsNullOrWhiteSpace(workspaceName))
+        {
+            var byName = Workspaces.FirstOrDefault(w => string.Equals(w.Name, workspaceName, StringComparison.OrdinalIgnoreCase))
+                ?? Workspaces.FirstOrDefault(w => w.Name.Contains(workspaceName, StringComparison.OrdinalIgnoreCase));
+            if (byName == null)
+            {
+                error = $"Workspace name not found: {workspaceName}";
+                return false;
+            }
+
+            workspace = byName;
+            return true;
+        }
+
+        if (args.TryGetValue("workspaceIndex", out var workspaceIndexRaw)
+            && int.TryParse(workspaceIndexRaw, out var workspaceIndex))
+        {
+            if (!TryResolveCollectionIndex(workspaceIndex, Workspaces.Count, out var resolvedIndex))
+            {
+                error = $"Workspace index out of range: {workspaceIndex}";
+                return false;
+            }
+
+            workspace = Workspaces[resolvedIndex];
+            return true;
+        }
+
+        return true;
+    }
+
+    private static bool TryResolveSurface(WorkspaceViewModel workspace, Dictionary<string, string> args, out SurfaceViewModel surface, out string error)
+    {
+        surface = null!;
+        error = "";
+
+        var defaultSurface = workspace.SelectedSurface ?? workspace.Surfaces.FirstOrDefault();
+        if (defaultSurface == null)
+        {
+            error = "No surface available in workspace.";
+            return false;
+        }
+
+        surface = defaultSurface;
+
+        if (args.TryGetValue("surfaceId", out var surfaceId) && !string.IsNullOrWhiteSpace(surfaceId))
+        {
+            var byId = workspace.Surfaces.FirstOrDefault(s => string.Equals(s.Surface.Id, surfaceId, StringComparison.Ordinal));
+            if (byId == null)
+            {
+                error = $"Surface id not found: {surfaceId}";
+                return false;
+            }
+
+            surface = byId;
+            return true;
+        }
+
+        if (args.TryGetValue("surfaceName", out var surfaceName) && !string.IsNullOrWhiteSpace(surfaceName))
+        {
+            var byName = workspace.Surfaces.FirstOrDefault(s => string.Equals(s.Name, surfaceName, StringComparison.OrdinalIgnoreCase))
+                ?? workspace.Surfaces.FirstOrDefault(s => s.Name.Contains(surfaceName, StringComparison.OrdinalIgnoreCase));
+            if (byName == null)
+            {
+                error = $"Surface name not found: {surfaceName}";
+                return false;
+            }
+
+            surface = byName;
+            return true;
+        }
+
+        if (args.TryGetValue("surfaceIndex", out var surfaceIndexRaw)
+            && int.TryParse(surfaceIndexRaw, out var surfaceIndex))
+        {
+            if (!TryResolveCollectionIndex(surfaceIndex, workspace.Surfaces.Count, out var resolvedIndex))
+            {
+                error = $"Surface index out of range: {surfaceIndex}";
+                return false;
+            }
+
+            surface = workspace.Surfaces[resolvedIndex];
+            return true;
+        }
+
+        return true;
+    }
+
+    private static bool TryResolvePaneId(
+        SurfaceViewModel surface,
+        Dictionary<string, string> args,
+        out string paneId,
+        out int paneIndex,
+        out string paneName,
+        out string error)
+    {
+        paneId = "";
+        paneIndex = -1;
+        paneName = "";
+        error = "";
+
+        var panes = surface.RootNode.GetLeaves()
+            .Select(l => l.PaneId)
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .Cast<string>()
+            .Select((id, idx) =>
+            {
+                surface.Surface.PaneCustomNames.TryGetValue(id, out var customName);
+                return new
+                {
+                    Id = id,
+                    Index = idx + 1,
+                    Name = string.IsNullOrWhiteSpace(customName) ? $"Pane {idx + 1}" : customName!,
+                    CustomName = customName ?? "",
+                };
+            })
+            .ToList();
+
+        if (panes.Count == 0)
+        {
+            error = "No panes available in surface.";
+            return false;
+        }
+
+        string? target = null;
+
+        if (args.TryGetValue("paneId", out var requestedPaneId) && !string.IsNullOrWhiteSpace(requestedPaneId))
+        {
+            target = panes.FirstOrDefault(p => string.Equals(p.Id, requestedPaneId, StringComparison.Ordinal))?.Id;
+            if (target == null)
+            {
+                error = $"Pane id not found: {requestedPaneId}";
+                return false;
+            }
+        }
+        else if (args.TryGetValue("paneName", out var requestedPaneName) && !string.IsNullOrWhiteSpace(requestedPaneName))
+        {
+            target = panes.FirstOrDefault(p => string.Equals(p.CustomName, requestedPaneName, StringComparison.OrdinalIgnoreCase))?.Id
+                ?? panes.FirstOrDefault(p => string.Equals(p.Name, requestedPaneName, StringComparison.OrdinalIgnoreCase))?.Id;
+            if (target == null)
+            {
+                error = $"Pane name not found: {requestedPaneName}";
+                return false;
+            }
+        }
+        else if (args.TryGetValue("paneIndex", out var paneIndexRaw) && int.TryParse(paneIndexRaw, out var requestedIndex))
+        {
+            if (!TryResolveCollectionIndex(requestedIndex, panes.Count, out var resolvedIndex))
+            {
+                error = $"Pane index out of range: {requestedIndex}";
+                return false;
+            }
+
+            target = panes[resolvedIndex].Id;
+        }
+        else
+        {
+            target = !string.IsNullOrWhiteSpace(surface.FocusedPaneId)
+                ? panes.FirstOrDefault(p => string.Equals(p.Id, surface.FocusedPaneId, StringComparison.Ordinal))?.Id
+                : null;
+
+            target ??= panes[0].Id;
+        }
+
+        var pane = panes.First(p => string.Equals(p.Id, target, StringComparison.Ordinal));
+        paneId = pane.Id;
+        paneIndex = pane.Index;
+        paneName = pane.Name;
+        return true;
+    }
+
+    private static bool TryResolveCollectionIndex(int requested, int count, out int zeroBasedIndex)
+    {
+        zeroBasedIndex = -1;
+        if (count <= 0)
+            return false;
+
+        if (requested >= 1 && requested <= count)
+        {
+            zeroBasedIndex = requested - 1;
+            return true;
+        }
+
+        if (requested >= 0 && requested < count)
+        {
+            zeroBasedIndex = requested;
+            return true;
+        }
+
+        return false;
+    }
+
+    private static string TailLines(string? text, int lines)
+    {
+        if (string.IsNullOrEmpty(text))
+            return "";
+
+        var split = text.Replace("\r", "", StringComparison.Ordinal).Split('\n');
+        var tail = split.TakeLast(Math.Max(1, lines));
+        return string.Join("\n", tail).TrimEnd();
+    }
+
+    private static string ResolveSubmitSequence(string? submitKey)
+    {
+        var key = (submitKey ?? "auto").Trim().ToLowerInvariant();
+
+        if (key is "auto" or "")
+            return "\r";
+
+        return key switch
+        {
+            "enter" or "cr" or "ctrl+m" => "\r",
+            "linefeed" or "lf" or "ctrl+j" => "\n",
+            "crlf" => "\r\n",
+            "none" => "",
+            _ => "\r",
+        };
     }
 }

@@ -158,6 +158,7 @@
                         <MenuItem Header="Command _Palette" Click="CommandPalette_Click" InputGestureText="Ctrl+Shift+P" />
                         <MenuItem Header="_Snippets" Click="Snippets_Click" />
                         <Separator />
+                        <MenuItem Header="Toggle Agent _Chat" Click="MenuToggleAgentChat_Click" InputGestureText="Ctrl+Shift+A" />
                         <MenuItem Header="Toggle _Sidebar" Command="{Binding ToggleSidebarCommand}" InputGestureText="Ctrl+B" />
                     </MenuItem>
 
@@ -345,13 +346,17 @@
                         <RowDefinition Height="*" />    <!-- Terminal content -->
                         <RowDefinition Height="Auto" /> <!-- Status bar -->
                     </Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition x:Name="AgentChatColumn" Width="0" />
+                    </Grid.ColumnDefinitions>
 
                     <!-- Surface tabs -->
-                    <controls:SurfaceTabBar Grid.Row="0"
+                    <controls:SurfaceTabBar Grid.Row="0" Grid.Column="0"
                         DataContext="{Binding SelectedWorkspace}" />
 
                     <!-- Toolbar -->
-                    <Border Grid.Row="1" Background="{StaticResource SidebarBackgroundBrush}"
+                    <Border Grid.Row="1" Grid.Column="0" Background="{StaticResource SidebarBackgroundBrush}"
                             BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1"
                             Padding="6,2">
                         <StackPanel Orientation="Horizontal">
@@ -385,40 +390,45 @@
                                     Click="ToolbarZoom_Click">
                                 <TextBlock x:Name="ToolbarZoomIcon" Text="&#xE740;" FontFamily="Segoe MDL2 Assets" FontSize="12" />
                             </Button>
+                            <Rectangle Width="1" Height="16" Fill="{StaticResource BorderBrush}" Margin="4,0" />
+                            <Button x:Name="ToolbarAgentChatButton" Style="{StaticResource IconButton}" ToolTip="Toggle Agent Chat (Ctrl+Shift+A)"
+                                    Click="ToggleAgentChat_Click">
+                                <TextBlock Text="&#xE11B;" FontFamily="Segoe MDL2 Assets" FontSize="12" />
+                            </Button>
                         </StackPanel>
                     </Border>
 
                     <!-- Terminal content -->
-                    <ContentControl Grid.Row="2" x:Name="ContentArea">
+                    <ContentControl Grid.Row="2" Grid.Column="0" x:Name="ContentArea">
                         <controls:SplitPaneContainer x:Name="SplitPaneContainerControl"
                             DataContext="{Binding SelectedWorkspace.SelectedSurface}" />
                     </ContentControl>
 
                     <!-- Notification panel overlay -->
-                    <controls:NotificationPanel Grid.Row="0" Grid.RowSpan="3"
+                    <controls:NotificationPanel Grid.Row="0" Grid.RowSpan="3" Grid.Column="0"
                         HorizontalAlignment="Right"
                         Visibility="{Binding NotificationPanelVisible, Converter={StaticResource BoolToVisibility}}"
                         DataContext="{Binding}" />
 
                     <!-- Search overlay -->
-                    <controls:SearchOverlay Grid.Row="0" Grid.RowSpan="3"
+                    <controls:SearchOverlay Grid.Row="0" Grid.RowSpan="3" Grid.Column="0"
                         x:Name="SearchOverlayControl"
                         Visibility="Collapsed"
                         VerticalAlignment="Top" HorizontalAlignment="Right"
                         Margin="0,8,8,0" />
 
                     <!-- Command palette overlay -->
-                    <controls:CommandPalette Grid.Row="0" Grid.RowSpan="3"
+                    <controls:CommandPalette Grid.Row="0" Grid.RowSpan="3" Grid.Column="0"
                         x:Name="CommandPaletteControl"
                         Visibility="Collapsed" />
 
                     <!-- Snippet picker overlay -->
-                    <controls:SnippetPicker Grid.Row="0" Grid.RowSpan="3"
+                    <controls:SnippetPicker Grid.Row="0" Grid.RowSpan="3" Grid.Column="0"
                         x:Name="SnippetPickerControl"
                         Visibility="Collapsed" />
 
                     <!-- Status bar -->
-                    <Border Grid.Row="3" Background="{StaticResource SidebarBackgroundBrush}"
+                    <Border Grid.Row="3" Grid.Column="0" Background="{StaticResource SidebarBackgroundBrush}"
                             BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0"
                             Padding="10,3">
                         <Grid>
@@ -455,6 +465,129 @@
                                            Foreground="{StaticResource ForegroundDimBrush}" VerticalAlignment="Center"
                                            Opacity="0.6" />
                             </StackPanel>
+                        </Grid>
+                    </Border>
+
+                    <!-- Agent chat panel -->
+                    <Border x:Name="AgentChatPanel"
+                            Grid.Row="0" Grid.RowSpan="4" Grid.Column="1"
+                            BorderBrush="{StaticResource BorderBrush}" BorderThickness="1,0,0,0"
+                            Background="{StaticResource SidebarBackgroundBrush}"
+                            Visibility="Collapsed">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+
+                            <Border Grid.Row="0" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1" Padding="10,8">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Orientation="Vertical">
+                                        <TextBlock Text="Agent Chat" Foreground="{StaticResource ForegroundBrush}" FontSize="13" FontWeight="SemiBold" />
+                                        <TextBlock Text="Persistent threads per pane" Foreground="{StaticResource ForegroundDimBrush}" FontSize="10" />
+                                    </StackPanel>
+                                    <Button Grid.Column="1" Style="{StaticResource IconButton}" ToolTip="Hide Agent Chat"
+                                            Click="ToggleAgentChat_Click">
+                                        <TextBlock Text="&#xE711;" FontFamily="Segoe MDL2 Assets" FontSize="10" />
+                                    </Button>
+                                </Grid>
+                            </Border>
+
+                            <Grid Grid.Row="1" Margin="10,8,10,6">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="&#xE721;" FontFamily="Segoe MDL2 Assets" FontSize="12"
+                                           Foreground="{StaticResource ForegroundDimBrush}" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                <TextBox x:Name="AgentThreadSearchBox" Grid.Column="1" Style="{StaticResource CmuxTextBox}"
+                                         Height="28" VerticalContentAlignment="Center"
+                                         TextChanged="AgentThreadSearchBox_TextChanged"
+                                         ToolTip="Search threads" />
+                                <Button Grid.Column="2" Style="{StaticResource IconButton}" Margin="6,0,0,0"
+                                        ToolTip="New thread" Click="AgentNewThread_Click">
+                                    <TextBlock Text="&#xE710;" FontFamily="Segoe MDL2 Assets" FontSize="10" />
+                                </Button>
+                                <Button Grid.Column="3" Style="{StaticResource IconButton}" Margin="4,0,0,0"
+                                        ToolTip="Refresh threads" Click="AgentRefreshThreads_Click">
+                                    <TextBlock Text="&#xE72C;" FontFamily="Segoe MDL2 Assets" FontSize="10" />
+                                </Button>
+                            </Grid>
+
+                            <ListBox x:Name="AgentThreadsList"
+                                     Grid.Row="2" Height="120" Margin="10,0,10,6"
+                                     SelectionChanged="AgentThreadsList_SelectionChanged"
+                                     Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Margin="4,3">
+                                            <TextBlock Text="{Binding Title}" Foreground="{StaticResource ForegroundBrush}" FontSize="11" />
+                                            <TextBlock Text="{Binding Meta}" Foreground="{StaticResource ForegroundDimBrush}" FontSize="10" />
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+
+                            <StackPanel Grid.Row="3" Margin="10,0,10,6">
+                                <TextBlock x:Name="AgentStatusText" Text="Idle" Foreground="{StaticResource ForegroundDimBrush}" FontSize="10" />
+                                <TextBlock x:Name="AgentUsageText" Text="Usage: -" Foreground="{StaticResource ForegroundDimBrush}" FontSize="10" />
+                                <TextBlock x:Name="AgentContextText" Text="Context: -" Foreground="{StaticResource ForegroundDimBrush}" FontSize="10" />
+                                <Grid Margin="0,6,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="&#xE721;" FontFamily="Segoe MDL2 Assets" FontSize="12"
+                                               Foreground="{StaticResource ForegroundDimBrush}" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                    <TextBox x:Name="AgentMessageSearchBox" Grid.Column="1" Style="{StaticResource CmuxTextBox}" Height="28"
+                                             VerticalContentAlignment="Center"
+                                             ToolTip="Search within selected thread"
+                                             TextChanged="AgentMessageSearchBox_TextChanged" />
+                                </Grid>
+                            </StackPanel>
+
+                            <ListBox x:Name="AgentMessagesList" Grid.Row="4" Margin="10,0,10,8"
+                                     Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                     HorizontalContentAlignment="Stretch"
+                                     ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Padding="8,6" Margin="4,3" CornerRadius="6" Background="#221A1A2E"
+                                                HorizontalAlignment="Stretch">
+                                            <StackPanel>
+                                                <TextBlock Text="{Binding Header}" Foreground="{StaticResource ForegroundDimBrush}" FontSize="10" />
+                                                <TextBlock Text="{Binding Content}" Foreground="{StaticResource ForegroundBrush}" TextWrapping="Wrap" />
+                                                <TextBlock Text="{Binding Meta}" Foreground="{StaticResource ForegroundDimBrush}" FontSize="10" />
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+
+                            <Grid Grid.Row="5" Margin="10,0,10,10">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBox x:Name="AgentPromptBox" Grid.Column="0" Style="{StaticResource CmuxTextBox}"
+                                         MinHeight="56" MaxHeight="160" AcceptsReturn="True" TextWrapping="Wrap"
+                                         VerticalScrollBarVisibility="Auto"
+                                         PreviewKeyDown="AgentPromptBox_PreviewKeyDown" />
+                                <Button Grid.Column="1" Margin="8,0,0,0" Padding="10,6"
+                                        Style="{StaticResource AccentButton}"
+                                        Content="Send"
+                                        Click="AgentSend_Click" />
+                            </Grid>
                         </Grid>
                     </Border>
                 </Grid>

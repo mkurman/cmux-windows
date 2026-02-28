@@ -122,6 +122,7 @@ public class SplitPaneContainer : ContentControl
 
         // Wire up event handlers with closures capturing the current pane ID
         terminal.FocusRequested += () => _surface?.FocusPane(paneId);
+        terminal.CommandInterceptRequested += command => _surface?.TryHandlePaneCommand(paneId, command) == true;
         terminal.CommandSubmitted += command => _surface?.RegisterCommandSubmission(paneId, command);
         terminal.ClearRequested += () => _surface?.CapturePaneTranscript(paneId, "clear-terminal");
         terminal.SplitRequested += dir =>

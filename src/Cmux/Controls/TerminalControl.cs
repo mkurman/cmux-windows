@@ -54,10 +54,13 @@ public class TerminalControl : FrameworkElement
     private List<(int row, int col, int length)> _searchMatches = [];
     private int _currentSearchMatch = -1;
     private readonly StringBuilder _inputLineBuffer = new();
+    private bool _suppressNextEnterToShell;
+    private bool _suppressNextEnterTextInput;
 
     /// <summary>Fired when the pane wants focus.</summary>
     public event Action? FocusRequested;
     public event Action<string>? CommandSubmitted;
+    public event Func<string, bool>? CommandInterceptRequested;
     public event Action? ClearRequested;
     public event Action<SplitDirection>? SplitRequested;
     public event Action? ZoomRequested;
@@ -69,6 +72,7 @@ public class TerminalControl : FrameworkElement
     {
         FocusRequested = null;
         CommandSubmitted = null;
+        CommandInterceptRequested = null;
         ClearRequested = null;
         SplitRequested = null;
         ZoomRequested = null;
@@ -285,9 +289,11 @@ public class TerminalControl : FrameworkElement
     {
         if (_session == null) return;
 
-        var buffer = _session.Buffer;
-        using var dc = _visual.RenderOpen();
-        var dpi = VisualTreeHelper.GetDpi(this).PixelsPerDip;
+        try
+        {
+            var buffer = _session.Buffer;
+            using var dc = _visual.RenderOpen();
+            var dpi = VisualTreeHelper.GetDpi(this).PixelsPerDip;
 
         // Background
         var bgColor = ToWpfColor(_theme.Background);
@@ -483,27 +489,32 @@ public class TerminalControl : FrameworkElement
             }
         }
 
-        // Scrollback indicator
-        if (isScrolledBack)
+            // Scrollback indicator
+            if (isScrolledBack)
+            {
+                int linesBack = -_scrollOffset;
+                string indicator = $"[{linesBack}/{scrollbackCount}]";
+                var indicatorText = new FormattedText(
+                    indicator,
+                    CultureInfo.CurrentCulture,
+                    FlowDirection.LeftToRight,
+                    _typeface,
+                    10,
+                    new SolidColorBrush(Color.FromArgb(160, 0x81, 0x8C, 0xF8)),
+                    dpi);
+                // Background pill for indicator
+                double iw = indicatorText.WidthIncludingTrailingWhitespace + 12;
+                double ih = indicatorText.Height + 4;
+                double ix = ActualWidth - iw - 8;
+                dc.DrawRoundedRectangle(
+                    new SolidColorBrush(Color.FromArgb(200, 0x14, 0x14, 0x14)), null,
+                    new Rect(ix, 6, iw, ih), 4, 4);
+                dc.DrawText(indicatorText, new Point(ix + 6, 8));
+            }
+        }
+        catch (Exception ex)
         {
-            int linesBack = -_scrollOffset;
-            string indicator = $"[{linesBack}/{scrollbackCount}]";
-            var indicatorText = new FormattedText(
-                indicator,
-                CultureInfo.CurrentCulture,
-                FlowDirection.LeftToRight,
-                _typeface,
-                10,
-                new SolidColorBrush(Color.FromArgb(160, 0x81, 0x8C, 0xF8)),
-                dpi);
-            // Background pill for indicator
-            double iw = indicatorText.WidthIncludingTrailingWhitespace + 12;
-            double ih = indicatorText.Height + 4;
-            double ix = ActualWidth - iw - 8;
-            dc.DrawRoundedRectangle(
-                new SolidColorBrush(Color.FromArgb(200, 0x14, 0x14, 0x14)), null,
-                new Rect(ix, 6, iw, ih), 4, 4);
-            dc.DrawText(indicatorText, new Point(ix + 6, 8));
+            Debug.WriteLine($"[TerminalControl] Render failed: {ex}");
         }
     }
 
@@ -570,7 +581,7 @@ public class TerminalControl : FrameworkElement
 
                 case '\r':
                 case '\n':
-                    SubmitBufferedCommand();
+                    SubmitBufferedCommand(allowInterception: false);
                     break;
 
                 default:
@@ -586,13 +597,51 @@ public class TerminalControl : FrameworkElement
         }
     }
 
-    private void SubmitBufferedCommand()
+    private void SubmitBufferedCommand(bool allowInterception)
     {
-        var command = _inputLineBuffer.ToString().Trim();
+        var rawCommand = _inputLineBuffer.ToString();
+        var command = rawCommand.Trim();
         _inputLineBuffer.Clear();
 
-        if (!string.IsNullOrWhiteSpace(command))
-            CommandSubmitted?.Invoke(command);
+        if (string.IsNullOrWhiteSpace(command))
+            return;
+
+        if (allowInterception && TryInterceptCommand(command))
+        {
+            _suppressNextEnterToShell = true;
+            _suppressNextEnterTextInput = true;
+
+            // The command text has already been sent character-by-character to the shell.
+            // Cancel the current input line so a subsequent newline from agent output
+            // cannot execute the intercepted handler command.
+            if (_session != null)
+                _session.Write("\x03");
+            return;
+        }
+
+        CommandSubmitted?.Invoke(command);
+    }
+
+    private bool TryInterceptCommand(string command)
+    {
+        var handlers = CommandInterceptRequested;
+        if (handlers == null)
+            return false;
+
+        foreach (var callback in handlers.GetInvocationList().OfType<Func<string, bool>>())
+        {
+            try
+            {
+                if (callback(command))
+                    return true;
+            }
+            catch
+            {
+                // Ignore handler failures to avoid breaking terminal input.
+            }
+        }
+
+        return false;
     }
 
     private bool CopySelectionToClipboard()
@@ -646,9 +695,15 @@ public class TerminalControl : FrameworkElement
             return;
         }
 
-        // Don't intercept app-level shortcuts
-        if (ctrl && (e.Key is Key.N or Key.T or Key.W or Key.B or Key.D or Key.I))
+        // Forward Ctrl+letter as control bytes (e.g. Ctrl+X => 0x18) for TUI apps like nano.
+        if (ctrl && !modifiers.HasFlag(ModifierKeys.Alt) && TryGetCtrlLetterSequence(e.Key, out var ctrlSequence))
+        {
+            _inputLineBuffer.Clear();
+            EnsureLiveView();
+            _session.Write(ctrlSequence);
+            e.Handled = true;
             return;
+        }
 
         bool appCursor = _session.Buffer.ApplicationCursorKeys;
         string? sequence = KeyToVtSequence(e.Key, modifiers, appCursor);
@@ -657,7 +712,15 @@ public class TerminalControl : FrameworkElement
             if (e.Key == Key.Back)
                 TrackInputText("\b");
             else if (e.Key == Key.Enter)
-                SubmitBufferedCommand();
+            {
+                SubmitBufferedCommand(allowInterception: true);
+                if (_suppressNextEnterToShell)
+                {
+                    _suppressNextEnterToShell = false;
+                    e.Handled = true;
+                    return;
+                }
+            }
 
             EnsureLiveView();
             _session.Write(sequence);
@@ -668,6 +731,22 @@ public class TerminalControl : FrameworkElement
     protected override void OnTextInput(TextCompositionEventArgs e)
     {
         if (_session == null || string.IsNullOrEmpty(e.Text)) return;
+
+        // KeyDown handles Enter; suppress the trailing TextInput CR/LF when
+        // an intercepted command consumed the shell submission.
+        if (_suppressNextEnterTextInput && (e.Text.Contains('\r') || e.Text.Contains('\n')))
+        {
+            _suppressNextEnterTextInput = false;
+            e.Handled = true;
+            return;
+        }
+
+        // Prevent duplicate newline writes from TextInput path.
+        if (e.Text.Contains('\r') || e.Text.Contains('\n'))
+        {
+            e.Handled = true;
+            return;
+        }
 
         // Handle Ctrl+C (copy when selection exists)
         if (Keyboard.Modifiers.HasFlag(ModifierKeys.Control) && e.Text == "\x03")
@@ -1259,6 +1338,17 @@ public class TerminalControl : FrameworkElement
 
     protected override int VisualChildrenCount => 1;
     protected override Visual GetVisualChild(int index) => _visual;
+
+    private static bool TryGetCtrlLetterSequence(Key key, out string sequence)
+    {
+        sequence = "";
+        if (key < Key.A || key > Key.Z)
+            return false;
+
+        var controlCode = (char)(key - Key.A + 1);
+        sequence = controlCode.ToString();
+        return true;
+    }
 
     private static string? KeyToVtSequence(Key key, ModifierKeys modifiers, bool appCursor)
     {

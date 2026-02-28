@@ -2,6 +2,7 @@ using System.Windows;
 using Cmux.Core.Config;
 using Cmux.Core.IPC;
 using Cmux.Core.Services;
+using Cmux.Services;
 
 namespace Cmux;
 
@@ -13,6 +14,8 @@ public partial class App : Application
     public static NamedPipeServer? PipeServer { get; private set; }
     public static SnippetService SnippetService { get; } = new();
     public static CommandLogService CommandLogService { get; } = new();
+    public static AgentConversationStoreService AgentConversationStore { get; } = new();
+    public static AgentRuntimeService AgentRuntime { get; } = new();
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -54,6 +57,7 @@ public partial class App : Application
     protected override void OnExit(ExitEventArgs e)
     {
         _pipeServer?.Dispose();
+        AgentRuntime.Dispose();
         base.OnExit(e);
     }
 }

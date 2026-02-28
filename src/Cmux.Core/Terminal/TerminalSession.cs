@@ -1,5 +1,6 @@
 using System.IO.Pipes;
 using System.Text;
+using System.Diagnostics;
 using Microsoft.Win32.SafeHandles;
 
 namespace Cmux.Core.Terminal;
@@ -187,7 +188,15 @@ public sealed class TerminalSession : IDisposable
 
                 lock (_lock)
                 {
-                    _parser.Feed(buffer.AsSpan(0, bytesRead));
+                    try
+                    {
+                        _parser.Feed(buffer.AsSpan(0, bytesRead));
+                    }
+                    catch (Exception ex)
+                    {
+                        // Never let malformed/edge VT sequences crash the app.
+                        Debug.WriteLine($"[TerminalSession:{PaneId}] VT parse error: {ex}");
+                    }
                 }
 
                 OutputReceived?.Invoke();
@@ -237,6 +246,9 @@ public sealed class TerminalSession : IDisposable
     public void Resize(int cols, int rows)
     {
         if (_disposed) return;
+
+        cols = Math.Max(1, cols);
+        rows = Math.Max(1, rows);
 
         lock (_lock)
         {

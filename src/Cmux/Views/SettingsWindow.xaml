@@ -58,6 +58,16 @@
             <Setter Property="CaretBrush" Value="{StaticResource ForegroundBrush}" />
         </Style>
 
+        <Style x:Key="SettingsPasswordBox" TargetType="PasswordBox">
+            <Setter Property="Background" Value="#FF1A1A1A" />
+            <Setter Property="Foreground" Value="{StaticResource ForegroundBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+            <Setter Property="Padding" Value="8,6" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="CaretBrush" Value="{StaticResource ForegroundBrush}" />
+        </Style>
+
         <Style x:Key="SettingsComboItem" TargetType="ComboBoxItem">
             <Setter Property="Background" Value="#FF1A1A1A" />
             <Setter Property="Foreground" Value="{StaticResource ForegroundBrush}" />
@@ -204,6 +214,28 @@
             <Setter Property="VerticalAlignment" Value="Center" />
             <Setter Property="FontSize" Value="13" />
         </Style>
+
+        <Style x:Key="SettingsListBox" TargetType="ListBox">
+            <Setter Property="Background" Value="#FF1A1A1A" />
+            <Setter Property="Foreground" Value="{StaticResource ForegroundBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+            <Setter Property="Padding" Value="2" />
+        </Style>
+
+        <Style x:Key="SettingsListBoxItem" TargetType="ListBoxItem">
+            <Setter Property="Foreground" Value="{StaticResource ForegroundBrush}" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Padding" Value="6,4" />
+            <Style.Triggers>
+                <Trigger Property="IsSelected" Value="True">
+                    <Setter Property="Background" Value="#FF252547" />
+                </Trigger>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#331A1A2E" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
     </Window.Resources>
 
     <Border Background="{StaticResource BackgroundBrush}" CornerRadius="10" BorderThickness="1"
@@ -272,6 +304,14 @@
                             <TextBlock Text="&#xE765;" FontFamily="Segoe MDL2 Assets" FontSize="14"
                                        VerticalAlignment="Center" Margin="0,0,10,0" />
                             <TextBlock Text="Keyboard" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+                    <Button x:Name="NavAgent" Style="{StaticResource NavButton}"
+                            Click="NavButton_Click">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="&#xE943;" FontFamily="Segoe MDL2 Assets" FontSize="14"
+                                       VerticalAlignment="Center" Margin="0,0,10,0" />
+                            <TextBlock Text="Agent" VerticalAlignment="Center" />
                         </StackPanel>
                     </Button>
                     <Button x:Name="NavAbout" Style="{StaticResource NavButton}"
@@ -781,6 +821,492 @@
                                            Foreground="{StaticResource ForegroundDimBrush}" FontSize="13" VerticalAlignment="Center" />
                             </Grid>
                         </Border>
+                    </StackPanel>
+
+                    <!-- ═══ Agent Section ═══ -->
+                    <StackPanel x:Name="AgentSection" Visibility="Collapsed">
+                        <TextBlock Text="Agent" FontSize="18" FontWeight="SemiBold"
+                                   Foreground="{StaticResource ForegroundBrush}" Margin="0,0,0,20" />
+
+                        <Grid Margin="0,0,0,10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="160" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="Enable Agent" Style="{StaticResource SectionLabel}" />
+                            <CheckBox x:Name="AgentEnabledCheck" Grid.Column="1" Style="{StaticResource SettingsCheck}"
+                                      Content="Enable pane handler commands" />
+                        </Grid>
+
+                        <Grid Margin="0,0,0,10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="160" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="Agent Name" Style="{StaticResource SectionLabel}" />
+                            <TextBox x:Name="AgentNameBox" Grid.Column="1" Style="{StaticResource SettingsTextBox}" Width="220" HorizontalAlignment="Left" />
+                        </Grid>
+
+                        <Grid Margin="0,0,0,10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="160" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="Primary Handler" Style="{StaticResource SectionLabel}" />
+                            <TextBox x:Name="AgentHandlerBox" Grid.Column="1" Style="{StaticResource SettingsTextBox}" Width="220" HorizontalAlignment="Left" />
+                        </Grid>
+
+                        <Grid Margin="0,0,0,10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="160" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="Extra Handlers" Style="{StaticResource SectionLabel}" />
+                            <TextBox x:Name="AgentAdditionalHandlersBox" Grid.Column="1" Style="{StaticResource SettingsTextBox}"
+                                     ToolTip="Comma/space separated aliases (e.g. /bot /assistant)." />
+                        </Grid>
+
+                        <Grid Margin="0,0,0,14">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="160" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="Active Provider" Style="{StaticResource SectionLabel}" />
+                            <ComboBox x:Name="AgentProviderCombo" Grid.Column="1" Style="{StaticResource SettingsCombo}" Width="220" HorizontalAlignment="Left">
+                                <ComboBoxItem Content="openai" />
+                                <ComboBoxItem Content="anthropic" />
+                            </ComboBox>
+                        </Grid>
+
+                        <TextBlock Text="System Prompt" Style="{StaticResource SectionLabel}" Margin="0,0,0,6" />
+                        <TextBox x:Name="AgentSystemPromptBox" Style="{StaticResource SettingsTextBox}" Height="96"
+                                 AcceptsReturn="True" VerticalScrollBarVisibility="Auto"
+                                 TextWrapping="Wrap" Margin="0,0,0,12" />
+
+                        <Border Background="#FF1A1A1A" CornerRadius="6" Padding="14,12" Margin="0,0,0,10">
+                            <StackPanel>
+                                <TextBlock Text="OpenAI-Compatible" FontWeight="SemiBold" Foreground="{StaticResource ForegroundBrush}" Margin="0,0,0,10" />
+
+                                <Grid Margin="0,0,0,8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="120" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="Base URL" Style="{StaticResource SectionLabel}" />
+                                    <TextBox x:Name="OpenAiBaseUrlBox" Grid.Column="1" Style="{StaticResource SettingsTextBox}" />
+                                </Grid>
+
+                                <Grid Margin="0,0,0,8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="120" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="Model" Style="{StaticResource SectionLabel}" />
+                                    <TextBox x:Name="OpenAiModelBox" Grid.Column="1" Style="{StaticResource SettingsTextBox}" />
+                                </Grid>
+
+                                <Grid Margin="0,0,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="120" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="API Key" Style="{StaticResource SectionLabel}" />
+                                    <PasswordBox x:Name="OpenAiApiKeyBox" Grid.Column="1" Style="{StaticResource SettingsPasswordBox}" />
+                                    <Button Grid.Column="2" Content="Clear" Style="{StaticResource CmuxButton}" Padding="10,5"
+                                            Margin="8,0,0,0" Click="ClearOpenAiKey_Click" />
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Background="#FF1A1A1A" CornerRadius="6" Padding="14,12" Margin="0,0,0,10">
+                            <StackPanel>
+                                <TextBlock Text="Anthropic-Compatible" FontWeight="SemiBold" Foreground="{StaticResource ForegroundBrush}" Margin="0,0,0,10" />
+
+                                <Grid Margin="0,0,0,8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="120" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="Base URL" Style="{StaticResource SectionLabel}" />
+                                    <TextBox x:Name="AnthropicBaseUrlBox" Grid.Column="1" Style="{StaticResource SettingsTextBox}" />
+                                </Grid>
+
+                                <Grid Margin="0,0,0,8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="120" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="Model" Style="{StaticResource SectionLabel}" />
+                                    <TextBox x:Name="AnthropicModelBox" Grid.Column="1" Style="{StaticResource SettingsTextBox}" />
+                                </Grid>
+
+                                <Grid Margin="0,0,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="120" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="API Key" Style="{StaticResource SectionLabel}" />
+                                    <PasswordBox x:Name="AnthropicApiKeyBox" Grid.Column="1" Style="{StaticResource SettingsPasswordBox}" />
+                                    <Button Grid.Column="2" Content="Clear" Style="{StaticResource CmuxButton}" Padding="10,5"
+                                            Margin="8,0,0,0" Click="ClearAnthropicKey_Click" />
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Background="#FF1A1A1A" CornerRadius="6" Padding="14,12" Margin="0,0,0,10">
+                            <StackPanel>
+                                <TextBlock Text="Tools" FontWeight="SemiBold" Foreground="{StaticResource ForegroundBrush}" Margin="0,0,0,10" />
+
+                                <Grid Margin="0,0,0,8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="120" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="Bash Tool" Style="{StaticResource SectionLabel}" />
+                                    <CheckBox x:Name="AgentBashToolCheck" Grid.Column="1" Style="{StaticResource SettingsCheck}" />
+                                </Grid>
+
+                                <Grid Margin="0,0,0,8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="120" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="Bash Timeout" Style="{StaticResource SectionLabel}" />
+                                    <TextBox x:Name="AgentBashTimeoutBox" Grid.Column="1" Style="{StaticResource SettingsTextBox}" Width="100" HorizontalAlignment="Left" />
+                                </Grid>
+
+                                <Grid Margin="0,0,0,8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="120" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="Web Search" Style="{StaticResource SectionLabel}" />
+                                    <CheckBox x:Name="AgentWebSearchCheck" Grid.Column="1" Style="{StaticResource SettingsCheck}" />
+                                </Grid>
+
+                                <Grid Margin="0,0,0,8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="120" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="Exa Base URL" Style="{StaticResource SectionLabel}" />
+                                    <TextBox x:Name="ExaBaseUrlBox" Grid.Column="1" Style="{StaticResource SettingsTextBox}" />
+                                </Grid>
+
+                                <Grid Margin="0,0,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="120" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="Exa API Key" Style="{StaticResource SectionLabel}" />
+                                    <PasswordBox x:Name="ExaApiKeyBox" Grid.Column="1" Style="{StaticResource SettingsPasswordBox}" />
+                                <Button Grid.Column="2" Content="Clear" Style="{StaticResource CmuxButton}" Padding="10,5"
+                                            Margin="8,0,0,0" Click="ClearExaKey_Click" />
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Background="#FF1A1A1A" CornerRadius="6" Padding="14,12" Margin="0,0,0,10">
+                            <StackPanel>
+                                <TextBlock Text="Pane Submit" FontWeight="SemiBold" Foreground="{StaticResource ForegroundBrush}" Margin="0,0,0,10" />
+
+                                <Grid Margin="0,0,0,8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="180" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="Default Submit Key" Style="{StaticResource SectionLabel}" />
+                                    <ComboBox x:Name="AgentDefaultSubmitKeyCombo" Grid.Column="1" Style="{StaticResource SettingsCombo}" Width="220" HorizontalAlignment="Left">
+                                        <ComboBoxItem Content="auto" />
+                                        <ComboBoxItem Content="enter" />
+                                        <ComboBoxItem Content="linefeed" />
+                                        <ComboBoxItem Content="crlf" />
+                                    </ComboBox>
+                                </Grid>
+
+                                <Grid Margin="0,0,0,8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="180" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="Enable Auto Fallback" Style="{StaticResource SectionLabel}" />
+                                    <CheckBox x:Name="AgentEnableSubmitFallbackCheck" Grid.Column="1" Style="{StaticResource SettingsCheck}" />
+                                </Grid>
+
+                                <Grid Margin="0,0,0,8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="180" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="Fallback Wait (ms)" Style="{StaticResource SectionLabel}" />
+                                    <TextBox x:Name="AgentSubmitFallbackWaitMsBox" Grid.Column="1" Style="{StaticResource SettingsTextBox}" Width="120" HorizontalAlignment="Left" />
+                                </Grid>
+
+                                <Grid Margin="0,0,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="180" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="Fallback Order" Style="{StaticResource SectionLabel}" />
+                                    <TextBox x:Name="AgentSubmitFallbackOrderBox" Grid.Column="1" Style="{StaticResource SettingsTextBox}"
+                                             ToolTip="Comma-separated keys, e.g. enter,linefeed,crlf" />
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Background="#FF1A1A1A" CornerRadius="6" Padding="14,12" Margin="0,0,0,10">
+                            <StackPanel>
+                                <TextBlock Text="Agent Files &amp; Skills" FontWeight="SemiBold" Foreground="{StaticResource ForegroundBrush}" Margin="0,0,0,10" />
+
+                                <Grid Margin="0,0,0,8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="180" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="Auto Discover" Style="{StaticResource SectionLabel}" />
+                                    <CheckBox x:Name="AgentAutoDiscoverFilesCheck" Grid.Column="1" Style="{StaticResource SettingsCheck}" />
+                                </Grid>
+
+                                <Grid Margin="0,0,0,8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="180" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="Instructions Path" Style="{StaticResource SectionLabel}" />
+                                    <TextBox x:Name="AgentInstructionsPathBox" Grid.Column="1" Style="{StaticResource SettingsTextBox}"
+                                             ToolTip="Path to agents.md/AGENTS.md file. Leave empty to use auto discovery." />
+                                </Grid>
+
+                                <Grid Margin="0,0,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="180" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="Skills Root Path" Style="{StaticResource SectionLabel}" />
+                                    <TextBox x:Name="AgentSkillsRootPathBox" Grid.Column="1" Style="{StaticResource SettingsTextBox}"
+                                             ToolTip="Path to skills root folder. Leave empty to use auto discovery." />
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Background="#FF1A1A1A" CornerRadius="6" Padding="14,12" Margin="0,0,0,10">
+                            <StackPanel>
+                                <TextBlock Text="Chat Panel" FontWeight="SemiBold" Foreground="{StaticResource ForegroundBrush}" Margin="0,0,0,10" />
+
+                                <Grid Margin="0,0,0,8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="180" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="Chat Font Family" Style="{StaticResource SectionLabel}" />
+                                    <ComboBox x:Name="AgentChatFontFamilyCombo" Grid.Column="1" Style="{StaticResource SettingsCombo}"
+                                              IsEditable="True" IsTextSearchEnabled="True" />
+                                </Grid>
+
+                                <Grid Margin="0,0,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="180" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="Chat Font Size" Style="{StaticResource SectionLabel}" />
+                                    <TextBox x:Name="AgentChatFontSizeBox" Grid.Column="1" Style="{StaticResource SettingsTextBox}" Width="100" HorizontalAlignment="Left" />
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Background="#FF1A1A1A" CornerRadius="6" Padding="14,12" Margin="0,0,0,10">
+                            <StackPanel>
+                                <TextBlock Text="Conversation Memory" FontWeight="SemiBold" Foreground="{StaticResource ForegroundBrush}" Margin="0,0,0,10" />
+
+                                <Grid Margin="0,0,0,8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="180" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="Enable Memory" Style="{StaticResource SectionLabel}" />
+                                    <CheckBox x:Name="AgentMemoryCheck" Grid.Column="1" Style="{StaticResource SettingsCheck}" />
+                                </Grid>
+
+                                <Grid Margin="0,0,0,8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="180" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="Enable Streaming" Style="{StaticResource SectionLabel}" />
+                                    <CheckBox x:Name="AgentStreamingCheck" Grid.Column="1" Style="{StaticResource SettingsCheck}" />
+                                </Grid>
+
+                                <Grid Margin="0,0,0,8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="180" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="Auto Compact Context" Style="{StaticResource SectionLabel}" />
+                                    <CheckBox x:Name="AgentAutoCompactCheck" Grid.Column="1" Style="{StaticResource SettingsCheck}" />
+                                </Grid>
+
+                                <Grid Margin="0,0,0,8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="180" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="Max Context Messages" Style="{StaticResource SectionLabel}" />
+                                    <TextBox x:Name="AgentContextMaxMessagesBox" Grid.Column="1" Style="{StaticResource SettingsTextBox}" Width="100" HorizontalAlignment="Left" />
+                                </Grid>
+
+                                <Grid Margin="0,0,0,8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="180" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="Context Budget Tokens" Style="{StaticResource SectionLabel}" />
+                                    <TextBox x:Name="AgentContextBudgetTokensBox" Grid.Column="1" Style="{StaticResource SettingsTextBox}" Width="120" HorizontalAlignment="Left" />
+                                </Grid>
+
+                                <Grid Margin="0,0,0,8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="180" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="Compact Threshold %" Style="{StaticResource SectionLabel}" />
+                                    <TextBox x:Name="AgentCompactThresholdBox" Grid.Column="1" Style="{StaticResource SettingsTextBox}" Width="80" HorizontalAlignment="Left" />
+                                </Grid>
+
+                                <Grid Margin="0,0,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="180" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="Keep Recent on Compact" Style="{StaticResource SectionLabel}" />
+                                    <TextBox x:Name="AgentKeepRecentOnCompactionBox" Grid.Column="1" Style="{StaticResource SettingsTextBox}" Width="100" HorizontalAlignment="Left" />
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+
+                        <Grid Margin="0,2,0,6">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="160" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="Custom Tools Mode" Style="{StaticResource SectionLabel}" />
+                            <ComboBox x:Name="CustomToolsModeCombo" Grid.Column="1" Style="{StaticResource SettingsCombo}" Width="220"
+                                      HorizontalAlignment="Left" SelectionChanged="CustomToolsModeCombo_SelectionChanged">
+                                <ComboBoxItem Content="Creator" />
+                                <ComboBoxItem Content="JSON" />
+                            </ComboBox>
+                        </Grid>
+
+                        <StackPanel x:Name="CustomToolsCreatorPanel" Margin="0,0,0,10">
+                            <ListBox x:Name="CustomToolsListBox" Height="100" DisplayMemberPath="Name"
+                                     Style="{StaticResource SettingsListBox}" ItemContainerStyle="{StaticResource SettingsListBoxItem}"
+                                     SelectionChanged="CustomToolsListBox_SelectionChanged" Margin="0,0,0,8" />
+                            <Grid Margin="0,0,0,6">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="120" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="Name" Style="{StaticResource SectionLabel}" />
+                                <TextBox x:Name="CustomToolNameBox" Grid.Column="1" Style="{StaticResource SettingsTextBox}" />
+                            </Grid>
+                            <Grid Margin="0,0,0,6">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="120" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="Description" Style="{StaticResource SectionLabel}" />
+                                <TextBox x:Name="CustomToolDescriptionBox" Grid.Column="1" Style="{StaticResource SettingsTextBox}" />
+                            </Grid>
+                            <Grid Margin="0,0,0,6">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="120" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="Command Template" Style="{StaticResource SectionLabel}" />
+                                <TextBox x:Name="CustomToolCommandTemplateBox" Grid.Column="1" Style="{StaticResource SettingsTextBox}" />
+                            </Grid>
+                            <CheckBox x:Name="CustomToolEnabledCheck" Content="Enabled" Style="{StaticResource SettingsCheck}" Margin="0,0,0,6" />
+                            <StackPanel Orientation="Horizontal">
+                                <Button Content="Add / Update" Style="{StaticResource CmuxButton}" Padding="12,6" Click="AddOrUpdateCustomTool_Click" />
+                                <Button Content="Remove Selected" Style="{StaticResource CmuxButton}" Padding="12,6" Margin="8,0,0,0"
+                                        Click="RemoveSelectedCustomTool_Click" />
+                            </StackPanel>
+                        </StackPanel>
+
+                        <StackPanel x:Name="CustomToolsJsonPanel" Visibility="Collapsed" Margin="0,0,0,10">
+                            <TextBlock Text="Custom Tools JSON (array of { enabled, name, description, commandTemplate })"
+                                       Foreground="{StaticResource ForegroundDimBrush}" Margin="0,2,0,6" />
+                            <TextBox x:Name="CustomToolsJsonBox" Style="{StaticResource SettingsTextBox}" Height="120"
+                                     AcceptsReturn="True" VerticalScrollBarVisibility="Auto"
+                                     TextWrapping="NoWrap" FontFamily="Cascadia Code" FontSize="12" />
+                        </StackPanel>
+
+                        <Grid Margin="0,2,0,6">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="160" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="MCP Servers Mode" Style="{StaticResource SectionLabel}" />
+                            <ComboBox x:Name="McpServersModeCombo" Grid.Column="1" Style="{StaticResource SettingsCombo}" Width="220"
+                                      HorizontalAlignment="Left" SelectionChanged="McpServersModeCombo_SelectionChanged">
+                                <ComboBoxItem Content="Creator" />
+                                <ComboBoxItem Content="JSON" />
+                            </ComboBox>
+                        </Grid>
+
+                        <StackPanel x:Name="McpServersCreatorPanel">
+                            <ListBox x:Name="McpServersListBox" Height="100" DisplayMemberPath="Name"
+                                     Style="{StaticResource SettingsListBox}" ItemContainerStyle="{StaticResource SettingsListBoxItem}"
+                                     SelectionChanged="McpServersListBox_SelectionChanged" Margin="0,0,0,8" />
+                            <Grid Margin="0,0,0,6">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="120" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="Name" Style="{StaticResource SectionLabel}" />
+                                <TextBox x:Name="McpServerNameBox" Grid.Column="1" Style="{StaticResource SettingsTextBox}" />
+                            </Grid>
+                            <Grid Margin="0,0,0,6">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="120" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="Command" Style="{StaticResource SectionLabel}" />
+                                <TextBox x:Name="McpServerCommandBox" Grid.Column="1" Style="{StaticResource SettingsTextBox}" />
+                            </Grid>
+                            <Grid Margin="0,0,0,6">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="120" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="Arguments" Style="{StaticResource SectionLabel}" />
+                                <TextBox x:Name="McpServerArgumentsBox" Grid.Column="1" Style="{StaticResource SettingsTextBox}" />
+                            </Grid>
+                            <Grid Margin="0,0,0,6">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="120" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="Working Dir" Style="{StaticResource SectionLabel}" />
+                                <TextBox x:Name="McpServerWorkingDirectoryBox" Grid.Column="1" Style="{StaticResource SettingsTextBox}" />
+                            </Grid>
+                            <CheckBox x:Name="McpServerEnabledCheck" Content="Enabled" Style="{StaticResource SettingsCheck}" Margin="0,0,0,6" />
+                            <StackPanel Orientation="Horizontal">
+                                <Button Content="Add / Update" Style="{StaticResource CmuxButton}" Padding="12,6" Click="AddOrUpdateMcpServer_Click" />
+                                <Button Content="Remove Selected" Style="{StaticResource CmuxButton}" Padding="12,6" Margin="8,0,0,0"
+                                        Click="RemoveSelectedMcpServer_Click" />
+                            </StackPanel>
+                        </StackPanel>
+
+                        <StackPanel x:Name="McpServersJsonPanel" Visibility="Collapsed">
+                            <TextBlock Text="MCP Servers JSON (array of { enabled, name, command, arguments, workingDirectory })"
+                                       Foreground="{StaticResource ForegroundDimBrush}" Margin="0,2,0,6" />
+                            <TextBox x:Name="McpServersJsonBox" Style="{StaticResource SettingsTextBox}" Height="120"
+                                     AcceptsReturn="True" VerticalScrollBarVisibility="Auto"
+                                     TextWrapping="NoWrap" FontFamily="Cascadia Code" FontSize="12" />
+                        </StackPanel>
                     </StackPanel>
 
                     <!-- ═══ About Section ═══ -->

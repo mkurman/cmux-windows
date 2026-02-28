@@ -1,3 +1,8 @@
+using System.Reflection;
+using System.Text;
+using System.Text.Json;
+using Cmux.Core.Models;
+using Cmux.Core.Services;
 using Cmux.Core.Terminal;
 using FluentAssertions;
 using Xunit;
@@ -642,5 +647,116 @@ public class MouseModeTests
         var buffer = new TerminalBuffer(80, 24);
         buffer.MouseTrackingButton = true;
         buffer.MouseEnabled.Should().BeTrue();
+    }
+}
+
+public class AgentConversationStoreMessageParsingTests
+{
+    private static readonly MethodInfo ReadMessagesMethod = typeof(AgentConversationStoreService)
+        .GetMethod("ReadMessagesFromFile", BindingFlags.NonPublic | BindingFlags.Static)!;
+
+    private static readonly JsonSerializerOptions CamelCaseIndented = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        WriteIndented = true,
+    };
+
+    private static readonly JsonSerializerOptions CamelCaseCompact = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        WriteIndented = false,
+    };
+
+    [Fact]
+    public void ReadMessagesFromFile_ParsesMultilineObjects_WithUtf8Bom()
+    {
+        var message1 = new AgentConversationMessage
+        {
+            Id = "m1",
+            ThreadId = "t1",
+            Role = "user",
+            Content = "hello",
+            CreatedAtUtc = new DateTime(2026, 2, 27, 12, 0, 0, DateTimeKind.Utc),
+        };
+        var message2 = new AgentConversationMessage
+        {
+            Id = "m2",
+            ThreadId = "t1",
+            Role = "assistant",
+            Content = "hi",
+            CreatedAtUtc = new DateTime(2026, 2, 27, 12, 0, 5, DateTimeKind.Utc),
+        };
+
+        var json = string.Join(
+            Environment.NewLine,
+            JsonSerializer.Serialize(message1, CamelCaseIndented),
+            JsonSerializer.Serialize(message2, CamelCaseIndented)) + Environment.NewLine;
+
+        var path = Path.Combine(Path.GetTempPath(), $"cmux-agent-{Guid.NewGuid():N}.jsonl");
+        try
+        {
+            var payload = Encoding.UTF8.GetBytes(json);
+            var bytes = new byte[] { 0xEF, 0xBB, 0xBF }.Concat(payload).ToArray();
+            File.WriteAllBytes(path, bytes);
+
+            var output = new List<AgentConversationMessage>();
+            ReadMessagesMethod.Invoke(null, [path, output]);
+
+            output.Should().HaveCount(2);
+            output[0].Id.Should().Be("m1");
+            output[1].Id.Should().Be("m2");
+            output[0].Content.Should().Be("hello");
+            output[1].Content.Should().Be("hi");
+        }
+        finally
+        {
+            if (File.Exists(path))
+                File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public void ReadMessagesFromFile_FallbackLineParser_HandlesBomOnFirstLine()
+    {
+        var message1 = new AgentConversationMessage
+        {
+            Id = "line1",
+            ThreadId = "t2",
+            Role = "user",
+            Content = "first",
+            CreatedAtUtc = new DateTime(2026, 2, 27, 12, 1, 0, DateTimeKind.Utc),
+        };
+        var message2 = new AgentConversationMessage
+        {
+            Id = "line2",
+            ThreadId = "t2",
+            Role = "assistant",
+            Content = "second",
+            CreatedAtUtc = new DateTime(2026, 2, 27, 12, 1, 5, DateTimeKind.Utc),
+        };
+
+        var line1 = JsonSerializer.Serialize(message1, CamelCaseCompact);
+        var line2 = JsonSerializer.Serialize(message2, CamelCaseCompact);
+        var malformed = "{\"broken\": }";
+        var content = string.Join(Environment.NewLine, line1, malformed, line2) + Environment.NewLine;
+
+        var path = Path.Combine(Path.GetTempPath(), $"cmux-agent-{Guid.NewGuid():N}.jsonl");
+        try
+        {
+            var payload = Encoding.UTF8.GetBytes(content);
+            var bytes = new byte[] { 0xEF, 0xBB, 0xBF }.Concat(payload).ToArray();
+            File.WriteAllBytes(path, bytes);
+
+            var output = new List<AgentConversationMessage>();
+            ReadMessagesMethod.Invoke(null, [path, output]);
+
+            output.Should().HaveCount(2);
+            output.Select(m => m.Id).Should().ContainInOrder("line1", "line2");
+        }
+        finally
+        {
+            if (File.Exists(path))
+                File.Delete(path);
+        }
     }
 }
