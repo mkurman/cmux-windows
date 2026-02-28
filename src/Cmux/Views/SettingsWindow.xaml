@@ -1334,7 +1334,7 @@
                             <StackPanel>
                                 <TextBlock Text="cmux for Windows" FontSize="20" FontWeight="Bold"
                                            Foreground="{StaticResource ForegroundBrush}" Margin="0,0,0,4" />
-                                <TextBlock Text="v0.1.3" FontSize="13"
+                                <TextBlock Text="v1.0.4" FontSize="13"
                                            Foreground="{StaticResource AccentBrush}" Margin="0,0,0,12" />
                                 <TextBlock Text="A modern terminal multiplexer designed for AI coding agents. Split panes, workspaces, command palette, and intelligent terminal management."
                                            Foreground="{StaticResource ForegroundDimBrush}" FontSize="13"
