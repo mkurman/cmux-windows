@@ -127,6 +127,8 @@ public partial class SettingsWindow : Window
         AgentEnableSubmitFallbackCheck.IsChecked = agent.EnableSubmitFallback;
         AgentSubmitFallbackWaitMsBox.Text = Math.Clamp(agent.SubmitFallbackWaitMs, 0, 5000).ToString();
         AgentSubmitFallbackOrderBox.Text = string.IsNullOrWhiteSpace(agent.SubmitFallbackOrder) ? "enter,linefeed" : agent.SubmitFallbackOrder;
+        AgentEnableSubmitProfilesCheck.IsChecked = agent.EnableTargetSubmitProfiles;
+        AgentSubmitProfilesJsonBox.Text = JsonSerializer.Serialize(agent.SubmitProfiles ?? [], new JsonSerializerOptions { WriteIndented = true });
         AgentAutoDiscoverFilesCheck.IsChecked = agent.AutoDiscoverAgentFiles;
         AgentInstructionsPathBox.Text = agent.AgentInstructionsPath ?? "";
         AgentSkillsRootPathBox.Text = agent.SkillsRootPath ?? "";
@@ -250,6 +252,20 @@ public partial class SettingsWindow : Window
         if (int.TryParse(AgentSubmitFallbackWaitMsBox.Text, out var submitFallbackWaitMs))
             agent.SubmitFallbackWaitMs = Math.Clamp(submitFallbackWaitMs, 0, 5000);
         agent.SubmitFallbackOrder = AgentSubmitFallbackOrderBox.Text?.Trim() ?? "enter,linefeed";
+        agent.EnableTargetSubmitProfiles = AgentEnableSubmitProfilesCheck.IsChecked == true;
+        if (!TryParseSubmitProfilesJson(AgentSubmitProfilesJsonBox.Text, out var submitProfiles, out var submitProfilesParseError))
+        {
+            MessageBox.Show(submitProfilesParseError, "Settings", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return false;
+        }
+
+        if (!ValidateSubmitProfiles(submitProfiles, out var submitProfilesValidationError))
+        {
+            MessageBox.Show(submitProfilesValidationError, "Settings", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return false;
+        }
+
+        agent.SubmitProfiles = submitProfiles;
         agent.AutoDiscoverAgentFiles = AgentAutoDiscoverFilesCheck.IsChecked == true;
         agent.AgentInstructionsPath = AgentInstructionsPathBox.Text?.Trim() ?? "";
         agent.SkillsRootPath = AgentSkillsRootPathBox.Text?.Trim() ?? "";
@@ -664,6 +680,32 @@ public partial class SettingsWindow : Window
         }
     }
 
+    private static bool TryParseSubmitProfilesJson(string text, out List<AgentSubmitProfileConfig> profiles, out string error)
+    {
+        profiles = [];
+        error = "";
+        try
+        {
+            if (string.IsNullOrWhiteSpace(text))
+                return true;
+
+            using var doc = JsonDocument.Parse(text);
+            if (doc.RootElement.ValueKind != JsonValueKind.Array)
+            {
+                error = "Submit profiles JSON must be an array.";
+                return false;
+            }
+
+            profiles = JsonSerializer.Deserialize<List<AgentSubmitProfileConfig>>(text) ?? [];
+            return true;
+        }
+        catch (Exception ex)
+        {
+            error = $"Invalid submit profiles JSON: {ex.Message}";
+            return false;
+        }
+    }
+
     private static bool ValidateCustomTools(IEnumerable<AgentCustomToolConfig> tools, out string error)
     {
         var list = tools.ToList();
@@ -724,6 +766,54 @@ public partial class SettingsWindow : Window
                 error = $"MCP server '{s.Name}' is missing 'command'.";
                 return false;
             }
+        }
+
+        error = "";
+        return true;
+    }
+
+    private static bool ValidateSubmitProfiles(IEnumerable<AgentSubmitProfileConfig> profiles, out string error)
+    {
+        var list = profiles.ToList();
+        var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        for (int i = 0; i < list.Count; i++)
+        {
+            var p = list[i];
+            var row = i + 1;
+
+            if (string.IsNullOrWhiteSpace(p.Name))
+            {
+                error = $"Submit profile at index {row} is missing 'name'.";
+                return false;
+            }
+
+            if (!names.Add(p.Name.Trim()))
+            {
+                error = $"Duplicate submit profile name: '{p.Name}'.";
+                return false;
+            }
+
+            var normalizedOrder = (p.SubmitOrder ?? "").Trim();
+            if (string.IsNullOrWhiteSpace(normalizedOrder))
+            {
+                error = $"Submit profile '{p.Name}' is missing 'submitOrder'.";
+                return false;
+            }
+
+            foreach (var token in normalizedOrder.Split([',', ';', ' ', '\t', '\r', '\n'], StringSplitOptions.RemoveEmptyEntries))
+            {
+                var key = token.Trim().ToLowerInvariant();
+                if (key is not ("enter" or "linefeed" or "crlf" or "lf" or "cr" or "ctrl+j" or "ctrl+m"))
+                {
+                    error = $"Submit profile '{p.Name}' has unsupported submit key '{token}'.";
+                    return false;
+                }
+            }
+
+            p.RepeatCount = Math.Clamp(p.RepeatCount, 1, 8);
+            p.DelayMs = Math.Clamp(p.DelayMs, 0, 3000);
+            p.WaitMs = p.WaitMs < 0 ? -1 : Math.Clamp(p.WaitMs, 0, 5000);
         }
 
         error = "";

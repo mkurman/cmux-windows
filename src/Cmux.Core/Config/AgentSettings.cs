@@ -26,6 +26,8 @@ public class AgentSettings
     public bool EnableSubmitFallback { get; set; } = true;
     public int SubmitFallbackWaitMs { get; set; } = 350;
     public string SubmitFallbackOrder { get; set; } = "enter,linefeed";
+    public bool EnableTargetSubmitProfiles { get; set; } = false;
+    public List<AgentSubmitProfileConfig> SubmitProfiles { get; set; } = [];
     public bool AutoDiscoverAgentFiles { get; set; } = true;
     public string AgentInstructionsPath { get; set; } = "";
     public string SkillsRootPath { get; set; } = "";
@@ -71,4 +73,20 @@ public class AgentMcpServerConfig
     public string Command { get; set; } = "";
     public string Arguments { get; set; } = "";
     public string WorkingDirectory { get; set; } = "";
+}
+
+public class AgentSubmitProfileConfig
+{
+    public bool Enabled { get; set; } = true;
+    public string Name { get; set; } = "";
+    public string WorkspacePattern { get; set; } = "";
+    public string SurfacePattern { get; set; } = "";
+    public string PanePattern { get; set; } = "";
+    public string CommandPattern { get; set; } = "";
+    public string TailPattern { get; set; } = "";
+    public string SubmitOrder { get; set; } = "enter,linefeed,crlf";
+    public int RepeatCount { get; set; } = 1;
+    public int DelayMs { get; set; } = 120;
+    public int WaitMs { get; set; } = -1;
+    public bool AutoOnly { get; set; } = true;
 }

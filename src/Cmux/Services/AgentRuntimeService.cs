@@ -5,6 +5,7 @@ using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using Cmux.Core.Config;
 using Cmux.Core.Models;
 using Cmux.Core.Services;
@@ -937,7 +938,8 @@ Describe:
                         return writeResult;
 
                     var waitMs = Math.Clamp(settings.SubmitFallbackWaitMs, 0, 5000);
-                    if (TryGetInt(args, "waitMs", out var requestedWait))
+                    var hasWaitOverride = TryGetInt(args, "waitMs", out var requestedWait);
+                    if (hasWaitOverride)
                         waitMs = Math.Clamp(requestedWait, 0, 5000);
                     var tailLines = 80;
                     if (TryGetInt(args, "tailLines", out var requestedLines))
@@ -957,36 +959,65 @@ Describe:
                         var beforeSubmit = await ExecutePipeCommandAsync("PANE.READ", readPayload, token);
                         var beforeText = TryExtractPaneReadText(beforeSubmit, out var extractedBefore) ? extractedBefore : "";
 
-                        for (int i = 0; i < submitAttemptOrder.Count; i++)
+                        var matchedSubmitProfile = ResolveSubmitProfile(settings, selectorPayload, normalizedCommand, beforeText, submitKey);
+                        if (matchedSubmitProfile != null)
+                        {
+                            var profileOrder = ParseSubmitKeySequence(matchedSubmitProfile.SubmitOrder, keepDuplicates: true);
+                            if (profileOrder.Count > 0)
+                                submitAttemptOrder = profileOrder;
+
+                            if (!hasWaitOverride && matchedSubmitProfile.WaitMs >= 0)
+                                waitMs = Math.Clamp(matchedSubmitProfile.WaitMs, 0, 5000);
+
+                            submitTrace.Add($"profile: {matchedSubmitProfile.Name}");
+                            submitTrace.Add($"profileOrder: {string.Join(",", submitAttemptOrder)}");
+                        }
+
+                        var repeatCount = matchedSubmitProfile == null
+                            ? 1
+                            : Math.Clamp(matchedSubmitProfile.RepeatCount, 1, 8);
+                        var repeatDelayMs = matchedSubmitProfile == null
+                            ? 0
+                            : Math.Clamp(matchedSubmitProfile.DelayMs, 0, 3000);
+
+                        bool accepted = false;
+                        for (int i = 0; i < submitAttemptOrder.Count && !accepted; i++)
                         {
                             var candidate = submitAttemptOrder[i];
-                            var submitPayload = new Dictionary<string, string>(selectorPayload, StringComparer.Ordinal)
+                            for (int repeat = 0; repeat < repeatCount && !accepted; repeat++)
                             {
-                                ["text"] = i == 0 ? normalizedCommand : "",
-                                ["submit"] = "true",
-                                ["submitKey"] = candidate,
-                            };
-
-                            var submitResult = await ExecutePipeCommandAsync("PANE.WRITE", submitPayload, token);
-                            if (i == 0)
-                                writeResult = submitResult;
-                            submitTrace.Add($"{candidate}: {submitResult}");
-
-                            if (waitMs > 0)
-                                await Task.Delay(waitMs, token);
-
-                            var afterSubmit = await ExecutePipeCommandAsync("PANE.READ", readPayload, token);
-                            if (TryExtractPaneReadText(afterSubmit, out var afterText))
-                            {
-                                if (HasMeaningfulPaneTailChange(beforeText, afterText))
+                                var submitPayload = new Dictionary<string, string>(selectorPayload, StringComparer.Ordinal)
                                 {
-                                    submitTrace.Add($"acceptedKey: {candidate}");
+                                    ["text"] = i == 0 && repeat == 0 ? normalizedCommand : "",
+                                    ["submit"] = "true",
+                                    ["submitKey"] = candidate,
+                                };
+
+                                var submitResult = await ExecutePipeCommandAsync("PANE.WRITE", submitPayload, token);
+                                if (i == 0 && repeat == 0)
+                                    writeResult = submitResult;
+                                submitTrace.Add($"{candidate}[{repeat + 1}/{repeatCount}]: {submitResult}");
+
+                                if (waitMs > 0)
+                                    await Task.Delay(waitMs, token);
+
+                                var afterSubmit = await ExecutePipeCommandAsync("PANE.READ", readPayload, token);
+                                if (TryExtractPaneReadText(afterSubmit, out var afterText))
+                                {
+                                    if (HasMeaningfulPaneTailChange(beforeText, afterText))
+                                    {
+                                        submitTrace.Add($"acceptedKey: {candidate} (try {repeat + 1})");
+                                        beforeText = afterText;
+                                        accepted = true;
+                                        break;
+                                    }
+
+                                    submitTrace.Add($"noMeaningfulChange: {candidate} (try {repeat + 1})");
                                     beforeText = afterText;
-                                    break;
                                 }
 
-                                submitTrace.Add($"noMeaningfulChange: {candidate}");
-                                beforeText = afterText;
+                                if (!accepted && repeat + 1 < repeatCount && repeatDelayMs > 0)
+                                    await Task.Delay(repeatDelayMs, token);
                             }
                         }
                     }
@@ -1751,11 +1782,11 @@ Available tools:
         if (!settings.EnableSubmitFallback)
             return ["enter"];
 
-        var parsed = ParseSubmitFallbackOrder(settings.SubmitFallbackOrder);
+        var parsed = ParseSubmitKeySequence(settings.SubmitFallbackOrder, keepDuplicates: false);
         return parsed.Count == 0 ? ["enter", "linefeed", "crlf"] : parsed;
     }
 
-    private static List<string> ParseSubmitFallbackOrder(string? value)
+    private static List<string> ParseSubmitKeySequence(string? value, bool keepDuplicates)
     {
         var list = new List<string>();
         if (string.IsNullOrWhiteSpace(value))
@@ -1774,11 +1805,85 @@ Available tools:
                 _ => normalized,
             };
 
-            if (!list.Any(item => string.Equals(item, normalized, StringComparison.Ordinal)))
+            if (keepDuplicates || !list.Any(item => string.Equals(item, normalized, StringComparison.Ordinal)))
                 list.Add(normalized);
         }
 
         return list;
+    }
+
+    private static AgentSubmitProfileConfig? ResolveSubmitProfile(
+        AgentSettings settings,
+        Dictionary<string, string> selectorPayload,
+        string command,
+        string paneTail,
+        string submitKey)
+    {
+        if (!settings.EnableTargetSubmitProfiles || settings.SubmitProfiles.Count == 0)
+            return null;
+
+        var normalizedSubmitKey = (submitKey ?? "auto").Trim().ToLowerInvariant();
+        bool autoSubmit = normalizedSubmitKey is "auto" or "";
+
+        foreach (var profile in settings.SubmitProfiles)
+        {
+            if (profile == null || !profile.Enabled)
+                continue;
+
+            if (profile.AutoOnly && !autoSubmit)
+                continue;
+
+            var workspaceValue = SelectFirst(selectorPayload, ["workspaceName", "workspaceId"]);
+            var surfaceValue = SelectFirst(selectorPayload, ["surfaceName", "surfaceId"]);
+            var paneValue = SelectFirst(selectorPayload, ["paneName", "paneId"]);
+
+            if (!MatchesSubmitProfilePattern(profile.WorkspacePattern, workspaceValue))
+                continue;
+            if (!MatchesSubmitProfilePattern(profile.SurfacePattern, surfaceValue))
+                continue;
+            if (!MatchesSubmitProfilePattern(profile.PanePattern, paneValue))
+                continue;
+            if (!MatchesSubmitProfilePattern(profile.CommandPattern, command))
+                continue;
+            if (!MatchesSubmitProfilePattern(profile.TailPattern, paneTail))
+                continue;
+
+            return profile;
+        }
+
+        return null;
+    }
+
+    private static string SelectFirst(Dictionary<string, string> payload, IReadOnlyList<string> keys)
+    {
+        foreach (var key in keys)
+        {
+            if (payload.TryGetValue(key, out var value) && !string.IsNullOrWhiteSpace(value))
+                return value.Trim();
+        }
+
+        return "";
+    }
+
+    private static bool MatchesSubmitProfilePattern(string? pattern, string? value)
+    {
+        var normalizedPattern = (pattern ?? "").Trim();
+        if (string.IsNullOrWhiteSpace(normalizedPattern))
+            return true;
+
+        var normalizedValue = value ?? "";
+        if (string.IsNullOrWhiteSpace(normalizedValue))
+            return false;
+
+        if (normalizedPattern.Contains('*') || normalizedPattern.Contains('?'))
+        {
+            var wildcardRegex = "^" + Regex.Escape(normalizedPattern)
+                .Replace("\\*", ".*", StringComparison.Ordinal)
+                .Replace("\\?", ".", StringComparison.Ordinal) + "$";
+            return Regex.IsMatch(normalizedValue, wildcardRegex, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        }
+
+        return normalizedValue.Contains(normalizedPattern, StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool TryExtractPaneReadText(string response, out string text)

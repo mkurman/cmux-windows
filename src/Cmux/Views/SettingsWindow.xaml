@@ -1054,6 +1054,22 @@
                                     <TextBox x:Name="AgentSubmitFallbackOrderBox" Grid.Column="1" Style="{StaticResource SettingsTextBox}"
                                              ToolTip="Comma-separated keys, e.g. enter,linefeed,crlf" />
                                 </Grid>
+
+                                <Grid Margin="0,10,0,8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="180" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="Enable Submit Profiles" Style="{StaticResource SectionLabel}" />
+                                    <CheckBox x:Name="AgentEnableSubmitProfilesCheck" Grid.Column="1" Style="{StaticResource SettingsCheck}" />
+                                </Grid>
+
+                                <TextBlock Text="Submit Profiles JSON (array). Fields: enabled, name, workspacePattern, surfacePattern, panePattern, commandPattern, tailPattern, submitOrder, repeatCount, delayMs, waitMs, autoOnly."
+                                           Foreground="{StaticResource ForegroundDimBrush}" Margin="0,2,0,6" />
+                                <TextBox x:Name="AgentSubmitProfilesJsonBox" Style="{StaticResource SettingsTextBox}" Height="120"
+                                         AcceptsReturn="True" VerticalScrollBarVisibility="Auto"
+                                         TextWrapping="NoWrap" FontFamily="Cascadia Code" FontSize="12"
+                                         ToolTip="submitOrder keys: enter,linefeed,crlf. Patterns support substring or wildcard * and ?." />
                             </StackPanel>
                         </Border>
 
