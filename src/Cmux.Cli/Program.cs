@@ -256,7 +256,7 @@ public static class Program
 
     private static int PrintVersion()
     {
-        Console.WriteLine("cmux 1.0.4 (Windows)");
+        Console.WriteLine("cmux 1.0.6 (Windows)");
         return 0;
     }
 

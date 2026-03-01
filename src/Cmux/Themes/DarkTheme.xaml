@@ -31,6 +31,14 @@
     <Color x:Key="TealAccent">#FF2DD4BF</Color>
     <Color x:Key="PinkAccent">#FFF472B6</Color>
     <Color x:Key="OrangeAccent">#FFFB923C</Color>
+    <Color x:Key="InputBackgroundColor">#FF1A1A1A</Color>
+    <Color x:Key="CloseButtonHoverColor">#FFE81123</Color>
+
+    <!-- ═══════════════════════════════════════════════════════════════════
+         Layout Tokens
+         ═══════════════════════════════════════════════════════════════════ -->
+    <system:Double x:Key="TitleBarHeight">38</system:Double>
+    <CornerRadius x:Key="WindowCornerRadius">10</CornerRadius>
 
     <!-- ═══════════════════════════════════════════════════════════════════
          Brushes (existing keys preserved)
@@ -54,6 +62,8 @@
     <!-- New brushes -->
     <SolidColorBrush x:Key="SurfaceBrush" Color="{StaticResource SurfaceColor}" />
     <SolidColorBrush x:Key="SurfaceHighBrush" Color="{StaticResource SurfaceHighColor}" />
+    <SolidColorBrush x:Key="InputBackgroundBrush" Color="{StaticResource InputBackgroundColor}" />
+    <SolidColorBrush x:Key="OverlayBackgroundBrush" Color="#F2141414" />
 
     <LinearGradientBrush x:Key="AccentGradientBrush" StartPoint="0,0" EndPoint="1,1">
         <GradientStop Color="#FF6366F1" Offset="0.0" />
@@ -395,5 +405,68 @@
             </Setter.Value>
         </Setter>
     </Style>
+
+    <!-- ═══════════════════════════════════════════════════════════════════
+         WindowChromeButton — flat title bar buttons (min/max/close)
+         ═══════════════════════════════════════════════════════════════════ -->
+    <Style x:Key="WindowChromeButton" TargetType="Button">
+        <Setter Property="Width" Value="46" />
+        <Setter Property="Height" Value="32" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Foreground" Value="{StaticResource ForegroundDimBrush}" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="border" Background="{TemplateBinding Background}"
+                            Width="{TemplateBinding Width}" Height="{TemplateBinding Height}">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="border" Property="Background" Value="#20FFFFFF" />
+                            <Setter Property="Foreground" Value="{StaticResource ForegroundBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="border" Property="Background" Value="#30FFFFFF" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="WindowCloseButton" TargetType="Button" BasedOn="{StaticResource WindowChromeButton}">
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="border" Background="Transparent"
+                            Width="{TemplateBinding Width}" Height="{TemplateBinding Height}"
+                            CornerRadius="0,10,0,0">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="border" Property="Background" Value="#FFE81123" />
+                            <Setter Property="Foreground" Value="White" />
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="border" Property="Background" Value="#FFCC1020" />
+                            <Setter Property="Foreground" Value="White" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ═══════════════════════════════════════════════════════════════════
+         Overlay shadow (softer than FloatingShadow for modal overlays)
+         ═══════════════════════════════════════════════════════════════════ -->
+    <DropShadowEffect x:Key="OverlayShadow" BlurRadius="20" ShadowDepth="4"
+                      Direction="270" Color="#000000" Opacity="0.4" />
 
 </ResourceDictionary>

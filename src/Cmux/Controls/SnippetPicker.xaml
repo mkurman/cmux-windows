@@ -3,9 +3,10 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              Width="560" MaxHeight="500"
              HorizontalAlignment="Center" VerticalAlignment="Center">
-    <Border Background="#F2141414" CornerRadius="10" BorderBrush="#FF2A2A2A" BorderThickness="1">
+    <Border Background="{StaticResource OverlayBackgroundBrush}" CornerRadius="12"
+            BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
         <Border.Effect>
-            <DropShadowEffect BlurRadius="30" ShadowDepth="8" Color="#000000" Opacity="0.7" Direction="270" />
+            <DropShadowEffect BlurRadius="20" ShadowDepth="4" Color="#000000" Opacity="0.4" Direction="270" />
         </Border.Effect>
         <Grid>
             <Grid.RowDefinitions>
@@ -16,19 +17,19 @@
             </Grid.RowDefinitions>
 
             <!-- Header -->
-            <Border Grid.Row="0" Padding="16,12" BorderBrush="#FF2A2A2A" BorderThickness="0,0,0,1">
+            <Border Grid.Row="0" Padding="16,12" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1">
                 <Grid>
                     <TextBlock Text="Snippets" FontSize="16" FontWeight="SemiBold"
                                Foreground="{StaticResource ForegroundBrush}" />
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                         <Button Content="&#xE710;" FontFamily="Segoe MDL2 Assets" FontSize="12"
-                                HorizontalAlignment="Right" Padding="8" Background="Transparent"
-                                Foreground="#FF6B7280" Click="NewSnippet_Click" Cursor="Hand"
+                                HorizontalAlignment="Right"
+                                Click="NewSnippet_Click"
                                 Style="{StaticResource IconButton}"
                                 ToolTip="New snippet (Ctrl+N)" />
                         <Button Content="&#xE10A;" FontFamily="Segoe MDL2 Assets" FontSize="12"
-                                HorizontalAlignment="Right" Padding="8" Background="Transparent"
-                                Foreground="#FF6B7280" Click="Close_Click" Cursor="Hand"
+                                HorizontalAlignment="Right"
+                                Click="Close_Click"
                                 Style="{StaticResource IconButton}"
                                 ToolTip="Close" />
                     </StackPanel>
@@ -37,14 +38,13 @@
 
             <!-- Search -->
             <TextBox Grid.Row="1" x:Name="SearchBox" Margin="12,8"
-                     Background="#FF0F0F0F" Foreground="#FFE0E0E0" CaretBrush="#FF818CF8"
-                     BorderBrush="#FF2A2A2A" BorderThickness="1" Padding="8,6"
+                     Style="{StaticResource CmuxTextBox}"
                      TextChanged="SearchBox_TextChanged" KeyDown="SearchBox_KeyDown" />
 
             <!-- Snippet editor -->
             <Border Grid.Row="2" x:Name="NewSnippetPanel" Margin="12,0,12,8" Padding="10"
-                    Background="#FF12121A" BorderBrush="#FF2A2A3C" BorderThickness="1"
-                    CornerRadius="6" Visibility="Collapsed">
+                    Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}"
+                    BorderThickness="1" CornerRadius="6" Visibility="Collapsed">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
@@ -59,31 +59,28 @@
                     </Grid.ColumnDefinitions>
 
                     <TextBlock x:Name="EditorTitle" Grid.Row="0" Grid.ColumnSpan="2"
-                               Text="New snippet" Foreground="#FFE0E0E0" FontWeight="SemiBold"
+                               Text="New snippet" Foreground="{StaticResource ForegroundBrush}" FontWeight="SemiBold"
                                Margin="0,0,0,8" />
 
-                    <TextBlock Grid.Row="1" Grid.Column="0" Text="Name" Foreground="#FF6B7280"
+                    <TextBlock Grid.Row="1" Grid.Column="0" Text="Name" Foreground="{StaticResource ForegroundDimBrush}"
                                Margin="0,2,8,8" VerticalAlignment="Center" />
                     <TextBox Grid.Row="1" Grid.Column="1" x:Name="NewSnippetName"
-                             Background="#FF0F0F0F" Foreground="#FFE0E0E0" CaretBrush="#FF818CF8"
-                             BorderBrush="#FF2A2A2A" BorderThickness="1" Padding="6,4" />
+                             Style="{StaticResource CmuxTextBox}" Padding="6,4" />
 
-                    <TextBlock Grid.Row="2" Grid.Column="0" Text="Category" Foreground="#FF6B7280"
+                    <TextBlock Grid.Row="2" Grid.Column="0" Text="Category" Foreground="{StaticResource ForegroundDimBrush}"
                                Margin="0,10,8,8" VerticalAlignment="Center" />
                     <TextBox Grid.Row="2" Grid.Column="1" x:Name="NewSnippetCategory"
                              Margin="0,8,0,0"
-                             Background="#FF0F0F0F" Foreground="#FFE0E0E0" CaretBrush="#FF818CF8"
-                             BorderBrush="#FF2A2A2A" BorderThickness="1" Padding="6,4"
+                             Style="{StaticResource CmuxTextBox}" Padding="6,4"
                              Text="Custom" />
 
-                    <TextBlock Grid.Row="3" Grid.Column="0" Text="Command" Foreground="#FF6B7280"
+                    <TextBlock Grid.Row="3" Grid.Column="0" Text="Command" Foreground="{StaticResource ForegroundDimBrush}"
                                Margin="0,10,8,8" VerticalAlignment="Top" />
                     <TextBox Grid.Row="3" Grid.Column="1" x:Name="NewSnippetContent"
                              Margin="0,8,0,0" MinHeight="64" MaxHeight="120"
                              AcceptsReturn="True" TextWrapping="Wrap"
                              VerticalScrollBarVisibility="Auto"
-                             Background="#FF0F0F0F" Foreground="#FFE0E0E0" CaretBrush="#FF818CF8"
-                             BorderBrush="#FF2A2A2A" BorderThickness="1" Padding="6,4" />
+                             Style="{StaticResource CmuxTextBox}" Padding="6,4" />
 
                     <StackPanel Grid.Row="4" Grid.Column="1" Orientation="Horizontal"
                                 HorizontalAlignment="Right" Margin="0,10,0,0">
@@ -114,10 +111,10 @@
                                     </Border>
                                     <ControlTemplate.Triggers>
                                         <Trigger Property="IsMouseOver" Value="True">
-                                            <Setter TargetName="ItemBorder" Property="Background" Value="#FF1F1F1F" />
+                                            <Setter TargetName="ItemBorder" Property="Background" Value="{StaticResource SidebarItemHoverBrush}" />
                                         </Trigger>
                                         <Trigger Property="IsSelected" Value="True">
-                                            <Setter TargetName="ItemBorder" Property="Background" Value="#FF1A1A2E" />
+                                            <Setter TargetName="ItemBorder" Property="Background" Value="{StaticResource SidebarItemSelectedBrush}" />
                                         </Trigger>
                                     </ControlTemplate.Triggers>
                                 </ControlTemplate>
@@ -136,13 +133,13 @@
 
                             <StackPanel>
                                 <TextBlock Text="{Binding Name}" FontWeight="SemiBold"
-                                           Foreground="#FFE0E0E0" FontSize="13" />
+                                           Foreground="{StaticResource ForegroundBrush}" FontSize="13" />
                                 <TextBlock Text="{Binding Content}" FontSize="11"
-                                           Foreground="#FF6B7280" TextTrimming="CharacterEllipsis" />
+                                           Foreground="{StaticResource ForegroundDimBrush}" TextTrimming="CharacterEllipsis" />
                             </StackPanel>
 
                             <TextBlock Grid.Column="1" Text="{Binding Category}" FontSize="10"
-                                       Foreground="#FF6B7280" VerticalAlignment="Center" Margin="12,0,6,0" />
+                                       Foreground="{StaticResource ForegroundDimBrush}" VerticalAlignment="Center" Margin="12,0,6,0" />
 
                             <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
                                 <Button Width="24" Height="20" Padding="0" Background="Transparent"
@@ -150,27 +147,27 @@
                                         ToolTip="Toggle favorite">
                                     <Button.Style>
                                         <Style TargetType="Button">
-                                            <Setter Property="Foreground" Value="#FF6B7280" />
+                                            <Setter Property="Foreground" Value="{StaticResource ForegroundDimBrush}" />
                                             <Style.Triggers>
                                                 <DataTrigger Binding="{Binding IsFavorite}" Value="True">
-                                                    <Setter Property="Foreground" Value="#FFFBBF24" />
+                                                    <Setter Property="Foreground" Value="{StaticResource WarningBrush}" />
                                                 </DataTrigger>
                                             </Style.Triggers>
                                         </Style>
                                     </Button.Style>
-                                    <TextBlock Text="★" FontSize="11" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    <TextBlock Text="&#x2605;" FontSize="11" HorizontalAlignment="Center" VerticalAlignment="Center" />
                                 </Button>
 
                                 <Button Width="24" Height="20" Padding="0" Background="Transparent"
                                         BorderThickness="0" Cursor="Hand" Click="EditSnippet_Click"
-                                        Foreground="#FF6B7280" ToolTip="Edit snippet">
+                                        Foreground="{StaticResource ForegroundDimBrush}" ToolTip="Edit snippet">
                                     <TextBlock Text="&#xE70F;" FontFamily="Segoe MDL2 Assets" FontSize="10"
                                                HorizontalAlignment="Center" VerticalAlignment="Center" />
                                 </Button>
 
                                 <Button Width="24" Height="20" Padding="0" Background="Transparent"
                                         BorderThickness="0" Cursor="Hand" Click="DeleteSnippet_Click"
-                                        Foreground="#FFEF4444" ToolTip="Delete snippet">
+                                        Foreground="{StaticResource ErrorBrush}" ToolTip="Delete snippet">
                                     <TextBlock Text="&#xE74D;" FontFamily="Segoe MDL2 Assets" FontSize="10"
                                                HorizontalAlignment="Center" VerticalAlignment="Center" />
                                 </Button>
@@ -182,7 +179,7 @@
 
             <!-- Empty state -->
             <TextBlock x:Name="EmptyText" Grid.Row="3"
-                       Text="No snippets found" Foreground="#FF6B7280"
+                       Text="No snippets found" Foreground="{StaticResource ForegroundDimBrush}"
                        FontSize="13" HorizontalAlignment="Center"
                        Margin="0,20,0,20" Visibility="Collapsed" />
         </Grid>

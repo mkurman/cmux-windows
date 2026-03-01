@@ -4,11 +4,14 @@
              Width="360">
 
     <Border CornerRadius="12,0,0,12" Padding="0"
-            Background="#F2141414"
+            Background="{StaticResource OverlayBackgroundBrush}"
             BorderBrush="{StaticResource BorderBrush}" BorderThickness="1,0,0,0">
         <Border.Effect>
-            <DropShadowEffect BlurRadius="24" ShadowDepth="0" Color="#000000" Opacity="0.6" />
+            <DropShadowEffect BlurRadius="20" ShadowDepth="0" Color="#000000" Opacity="0.4" />
         </Border.Effect>
+        <Border.RenderTransform>
+            <TranslateTransform x:Name="PanelTranslate" X="0" />
+        </Border.RenderTransform>
         <Grid>
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
@@ -16,7 +19,7 @@
             </Grid.RowDefinitions>
 
             <!-- Header -->
-            <Border Grid.Row="0" Background="#FF1A1A1A" CornerRadius="12,0,0,0" Padding="0">
+            <Border Grid.Row="0" Background="{StaticResource SurfaceBrush}" CornerRadius="12,0,0,0" Padding="0">
                 <Grid Margin="16,12">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />

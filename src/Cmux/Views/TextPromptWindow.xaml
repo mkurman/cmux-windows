@@ -3,45 +3,75 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Input" Height="190" Width="460"
         WindowStartupLocation="CenterOwner"
-        Background="{StaticResource BackgroundBrush}"
+        WindowStyle="None" AllowsTransparency="True"
+        Background="Transparent"
         ResizeMode="NoResize"
         ShowInTaskbar="False">
 
-    <Grid Margin="14">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="*" />
-            <RowDefinition Height="Auto" />
-        </Grid.RowDefinitions>
+    <WindowChrome.WindowChrome>
+        <WindowChrome CaptionHeight="32" CornerRadius="0" GlassFrameThickness="0"
+                      ResizeBorderThickness="0" />
+    </WindowChrome.WindowChrome>
 
-        <TextBlock x:Name="PromptText"
-                   Grid.Row="0"
-                   Foreground="{StaticResource ForegroundBrush}"
-                   TextWrapping="Wrap"
-                   FontSize="13" />
+    <Border Background="{StaticResource BackgroundBrush}"
+            CornerRadius="{StaticResource WindowCornerRadius}"
+            BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+        <Border.Effect>
+            <DropShadowEffect BlurRadius="20" ShadowDepth="4" Color="#000000" Opacity="0.4" Direction="270" />
+        </Border.Effect>
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="32" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
 
-        <TextBox x:Name="InputTextBox"
-                 Grid.Row="1"
-                 Margin="0,10,0,0"
-                 Padding="8,5"
-                 Background="#FF1A1A1A"
-                 Foreground="{StaticResource ForegroundBrush}"
-                 BorderBrush="{StaticResource BorderBrush}"
-                 BorderThickness="1"
-                 CaretBrush="{StaticResource ForegroundBrush}"
-                 SelectionBrush="{StaticResource AccentBrush}"
-                 KeyDown="InputTextBox_KeyDown" />
+            <!-- Title bar -->
+            <Border Grid.Row="0" Background="{StaticResource SidebarBackgroundBrush}"
+                    CornerRadius="10,10,0,0"
+                    BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1">
+                <Grid>
+                    <TextBlock Text="Input" Foreground="{StaticResource ForegroundDimBrush}"
+                               FontSize="12" VerticalAlignment="Center" Margin="14,0,0,0" />
+                    <Button Style="{StaticResource WindowCloseButton}" HorizontalAlignment="Right"
+                            WindowChrome.IsHitTestVisibleInChrome="True"
+                            Click="Cancel_Click" Width="38" Height="32">
+                        <TextBlock Text="&#xE8BB;" FontFamily="Segoe MDL2 Assets" FontSize="9" />
+                    </Button>
+                </Grid>
+            </Border>
 
-        <TextBlock Grid.Row="2"
-                   Margin="0,8,0,0"
-                   Foreground="{StaticResource ForegroundDimBrush}"
-                   FontSize="11"
-                   Text="Press Enter to confirm or Esc to cancel." />
+            <!-- Content -->
+            <Grid Grid.Row="1" Margin="14">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
 
-        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
-            <Button Content="Cancel" Style="{StaticResource CmuxButton}" Padding="12,6" Margin="0,0,8,0" Click="Cancel_Click" />
-            <Button Content="OK" Style="{StaticResource AccentButton}" Padding="14,6" Click="Ok_Click" />
-        </StackPanel>
-    </Grid>
+                <TextBlock x:Name="PromptText"
+                           Grid.Row="0"
+                           Foreground="{StaticResource ForegroundBrush}"
+                           TextWrapping="Wrap"
+                           FontSize="13" />
+
+                <TextBox x:Name="InputTextBox"
+                         Grid.Row="1"
+                         Margin="0,10,0,0"
+                         Style="{StaticResource CmuxTextBox}"
+                         KeyDown="InputTextBox_KeyDown" />
+
+                <TextBlock Grid.Row="2"
+                           Margin="0,8,0,0"
+                           Foreground="{StaticResource ForegroundDimBrush}"
+                           FontSize="11"
+                           Text="Press Enter to confirm or Esc to cancel." />
+
+                <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+                    <Button Content="Cancel" Style="{StaticResource CmuxButton}" Padding="12,6" Margin="0,0,8,0" Click="Cancel_Click" />
+                    <Button Content="OK" Style="{StaticResource AccentButton}" Padding="14,6" Click="Ok_Click" />
+                </StackPanel>
+            </Grid>
+        </Grid>
+    </Border>
 </Window>

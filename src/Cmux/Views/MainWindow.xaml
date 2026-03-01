@@ -6,10 +6,16 @@
         xmlns:controls="clr-namespace:Cmux.Controls"
         Title="cmux windows" Height="800" Width="1200"
         MinHeight="400" MinWidth="600"
-        WindowStyle="SingleBorderWindow" ResizeMode="CanResize"
-        Background="{StaticResource BackgroundBrush}"
+        WindowStyle="None" AllowsTransparency="True"
+        ResizeMode="CanResize"
+        Background="Transparent"
         Loaded="OnLoaded" Closing="OnClosing"
         KeyDown="OnKeyDown">
+
+    <WindowChrome.WindowChrome>
+        <WindowChrome CaptionHeight="38" CornerRadius="0" GlassFrameThickness="0"
+                      ResizeBorderThickness="6" />
+    </WindowChrome.WindowChrome>
 
     <Window.Resources>
         <SolidColorBrush x:Key="{x:Static SystemColors.MenuBrushKey}" Color="#FF141420" />
@@ -121,66 +127,102 @@
         <vm:MainViewModel />
     </Window.DataContext>
 
-    <Border Background="{StaticResource BackgroundBrush}" CornerRadius="0" Margin="0"
-            BorderBrush="{StaticResource BorderBrush}" BorderThickness="0">
+    <Border x:Name="WindowBorder" Background="{StaticResource BackgroundBrush}"
+            CornerRadius="{StaticResource WindowCornerRadius}"
+            BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+        <Border.Clip>
+            <RectangleGeometry x:Name="WindowClipGeometry" RadiusX="10" RadiusY="10" />
+        </Border.Clip>
         <Grid>
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
 
-            <!-- Standard menu bar -->
-            <Border Grid.Row="0" Background="{StaticResource SidebarBackgroundBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1">
-                <Menu Style="{StaticResource AppMenuStyle}">
-                    <Menu.Resources>
-                        <Style TargetType="Separator" BasedOn="{StaticResource AppMenuSeparatorStyle}" />
-                    </Menu.Resources>
+            <!-- Custom title bar -->
+            <Border Grid.Row="0" Background="{StaticResource SidebarBackgroundBrush}"
+                    BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1">
+                <Grid Height="38">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" /> <!-- Menu items -->
+                        <ColumnDefinition Width="*" />    <!-- Drag area -->
+                        <ColumnDefinition Width="Auto" /> <!-- Window buttons -->
+                    </Grid.ColumnDefinitions>
 
-                    <MenuItem Header="_File" Style="{StaticResource AppMenuTopItemStyle}" ItemContainerStyle="{StaticResource AppMenuSubItemStyle}">
-                        <MenuItem Header="_New Workspace" Command="{Binding CreateNewWorkspaceCommand}" InputGestureText="Ctrl+N" />
-                        <MenuItem Header="New _Surface" Command="{Binding SelectedWorkspace.CreateNewSurfaceCommand}" InputGestureText="Ctrl+T" />
-                        <Separator />
-                        <MenuItem Header="Open Command _Logs" Click="MenuOpenLogs_Click" InputGestureText="Ctrl+Shift+L" />
-                        <MenuItem Header="Open Session _Vault" Click="MenuOpenSessionVault_Click" InputGestureText="Ctrl+Shift+V" />
-                        <Separator />
-                        <MenuItem Header="_Settings" Click="MenuOpenSettings_Click" InputGestureText="Ctrl+," />
-                        <Separator />
-                        <MenuItem Header="E_xit" Click="CloseButton_Click" />
-                    </MenuItem>
+                    <!-- Menu items (left side) -->
+                    <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center"
+                                WindowChrome.IsHitTestVisibleInChrome="True">
+                        <TextBlock Text="cmuxw" FontSize="13" FontWeight="SemiBold"
+                                   Foreground="{StaticResource AccentBrush}"
+                                   VerticalAlignment="Center" Margin="14,0,12,0" />
+                        <Menu Style="{StaticResource AppMenuStyle}" VerticalAlignment="Center">
+                            <Menu.Resources>
+                                <Style TargetType="Separator" BasedOn="{StaticResource AppMenuSeparatorStyle}" />
+                            </Menu.Resources>
+                            <MenuItem Header="_File" Style="{StaticResource AppMenuTopItemStyle}" ItemContainerStyle="{StaticResource AppMenuSubItemStyle}">
+                                <MenuItem Header="_New Workspace" Command="{Binding CreateNewWorkspaceCommand}" InputGestureText="Ctrl+N" />
+                                <MenuItem Header="New _Surface" Command="{Binding SelectedWorkspace.CreateNewSurfaceCommand}" InputGestureText="Ctrl+T" />
+                                <Separator />
+                                <MenuItem Header="Open Command _Logs" Click="MenuOpenLogs_Click" InputGestureText="Ctrl+Shift+L" />
+                                <MenuItem Header="Open Session _Vault" Click="MenuOpenSessionVault_Click" InputGestureText="Ctrl+Shift+V" />
+                                <Separator />
+                                <MenuItem Header="_Settings" Click="MenuOpenSettings_Click" InputGestureText="Ctrl+," />
+                                <Separator />
+                                <MenuItem Header="E_xit" Click="CloseButton_Click" />
+                            </MenuItem>
+                            <MenuItem Header="_Window" Style="{StaticResource AppMenuTopItemStyle}" ItemContainerStyle="{StaticResource AppMenuSubItemStyle}">
+                                <MenuItem Header="Split _Right" Click="ToolbarSplitRight_Click" InputGestureText="Ctrl+D" />
+                                <MenuItem Header="Split _Down" Click="ToolbarSplitDown_Click" InputGestureText="Ctrl+Shift+D" />
+                                <MenuItem Header="_Zoom Pane" Click="ToolbarZoom_Click" InputGestureText="Ctrl+Shift+Z" />
+                                <MenuItem Header="_Equalize Panes" Click="ToolbarEqualize_Click" />
+                                <Separator />
+                                <MenuItem Header="_Search" Click="Search_Click" InputGestureText="Ctrl+Shift+F" />
+                                <MenuItem Header="Command _Palette" Click="CommandPalette_Click" InputGestureText="Ctrl+Shift+P" />
+                                <MenuItem Header="_Snippets" Click="Snippets_Click" />
+                                <Separator />
+                                <MenuItem Header="Toggle Agent _Chat" Click="MenuToggleAgentChat_Click" InputGestureText="Ctrl+Shift+A" />
+                                <MenuItem Header="Toggle _Sidebar" Command="{Binding ToggleSidebarCommand}" InputGestureText="Ctrl+B" />
+                            </MenuItem>
+                            <MenuItem Header="_Help" Style="{StaticResource AppMenuTopItemStyle}" ItemContainerStyle="{StaticResource AppMenuSubItemStyle}">
+                                <MenuItem Header="Keyboard Shortcuts" Click="MenuOpenKeyboardShortcuts_Click" />
+                                <MenuItem Header="About" Click="MenuAbout_Click" />
+                            </MenuItem>
+                        </Menu>
+                    </StackPanel>
 
-                    <MenuItem Header="_Window" Style="{StaticResource AppMenuTopItemStyle}" ItemContainerStyle="{StaticResource AppMenuSubItemStyle}">
-                        <MenuItem Header="Split _Right" Click="ToolbarSplitRight_Click" InputGestureText="Ctrl+D" />
-                        <MenuItem Header="Split _Down" Click="ToolbarSplitDown_Click" InputGestureText="Ctrl+Shift+D" />
-                        <MenuItem Header="_Zoom Pane" Click="ToolbarZoom_Click" InputGestureText="Ctrl+Shift+Z" />
-                        <MenuItem Header="_Equalize Panes" Click="ToolbarEqualize_Click" />
-                        <Separator />
-                        <MenuItem Header="_Search" Click="Search_Click" InputGestureText="Ctrl+Shift+F" />
-                        <MenuItem Header="Command _Palette" Click="CommandPalette_Click" InputGestureText="Ctrl+Shift+P" />
-                        <MenuItem Header="_Snippets" Click="Snippets_Click" />
-                        <Separator />
-                        <MenuItem Header="Toggle Agent _Chat" Click="MenuToggleAgentChat_Click" InputGestureText="Ctrl+Shift+A" />
-                        <MenuItem Header="Toggle _Sidebar" Command="{Binding ToggleSidebarCommand}" InputGestureText="Ctrl+B" />
-                    </MenuItem>
+                    <!-- Drag area (center) -->
+                    <Border Grid.Column="1" Background="Transparent"
+                            MouseLeftButtonDown="TitleBar_MouseLeftButtonDown" />
 
-                    <MenuItem Header="_Help" Style="{StaticResource AppMenuTopItemStyle}" ItemContainerStyle="{StaticResource AppMenuSubItemStyle}">
-                        <MenuItem Header="Keyboard Shortcuts" Click="MenuOpenSettings_Click" />
-                        <MenuItem Header="About" Click="MenuAbout_Click" />
-                    </MenuItem>
-                </Menu>
+                    <!-- Window control buttons (right side) -->
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Top"
+                                WindowChrome.IsHitTestVisibleInChrome="True">
+                        <Button Style="{StaticResource WindowChromeButton}" Click="MinimizeButton_Click"
+                                ToolTip="Minimize">
+                            <TextBlock Text="&#xE921;" FontFamily="Segoe MDL2 Assets" FontSize="10" />
+                        </Button>
+                        <Button x:Name="MaxRestoreButton" Style="{StaticResource WindowChromeButton}"
+                                Click="MaximizeButton_Click" ToolTip="Maximize">
+                            <TextBlock x:Name="MaxRestoreIcon" Text="&#xE922;" FontFamily="Segoe MDL2 Assets" FontSize="10" />
+                        </Button>
+                        <Button Style="{StaticResource WindowCloseButton}" Click="CloseButton_Click"
+                                ToolTip="Close">
+                            <TextBlock Text="&#xE8BB;" FontFamily="Segoe MDL2 Assets" FontSize="10" />
+                        </Button>
+                    </StackPanel>
+                </Grid>
             </Border>
 
             <!-- Main content -->
             <Grid Grid.Row="1">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="{Binding SidebarWidth, Mode=TwoWay}"
-                                      MinWidth="200" MaxWidth="500" />
+                    <ColumnDefinition x:Name="SidebarColumn" Width="280" />
                     <ColumnDefinition Width="1" />
                     <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
 
                 <!-- Sidebar -->
-                <Border Grid.Column="0" Background="{StaticResource SidebarBackgroundBrush}"
-                        Visibility="{Binding SidebarVisible, Converter={StaticResource BoolToVisibility}}">
+                <Border x:Name="SidebarBorder" Grid.Column="0" Background="{StaticResource SidebarBackgroundBrush}">
 
                     <Grid>
                         <Grid.RowDefinitions>
@@ -335,7 +377,7 @@
                 </Border>
 
                 <!-- Vertical divider -->
-                <GridSplitter Grid.Column="1" Width="1" Background="{StaticResource BorderBrush}"
+                <GridSplitter x:Name="SidebarSplitter" Grid.Column="1" Width="1" Background="{StaticResource BorderBrush}"
                               HorizontalAlignment="Stretch" />
 
                 <!-- Content area -->
@@ -352,7 +394,7 @@
                     </Grid.ColumnDefinitions>
 
                     <!-- Surface tabs -->
-                    <controls:SurfaceTabBar Grid.Row="0" Grid.Column="0"
+                    <controls:SurfaceTabBar x:Name="SurfaceTabBarControl" Grid.Row="0" Grid.Column="0"
                         DataContext="{Binding SelectedWorkspace}" />
 
                     <!-- Toolbar -->
@@ -410,13 +452,6 @@
                         Visibility="{Binding NotificationPanelVisible, Converter={StaticResource BoolToVisibility}}"
                         DataContext="{Binding}" />
 
-                    <!-- Search overlay -->
-                    <controls:SearchOverlay Grid.Row="0" Grid.RowSpan="3" Grid.Column="0"
-                        x:Name="SearchOverlayControl"
-                        Visibility="Collapsed"
-                        VerticalAlignment="Top" HorizontalAlignment="Right"
-                        Margin="0,8,8,0" />
-
                     <!-- Command palette overlay -->
                     <controls:CommandPalette Grid.Row="0" Grid.RowSpan="3" Grid.Column="0"
                         x:Name="CommandPaletteControl"
@@ -460,6 +495,16 @@
                                 <TextBlock x:Name="PaneCountText" Text="1 pane" FontSize="11"
                                            Foreground="{StaticResource ForegroundDimBrush}" VerticalAlignment="Center"
                                            Margin="0,0,12,0" />
+                                <!-- Daemon status -->
+                                <Border x:Name="DaemonStatusBorder" CornerRadius="3" Padding="5,1" Margin="0,0,12,0"
+                                        VerticalAlignment="Center" Background="Transparent">
+                                    <StackPanel Orientation="Horizontal">
+                                        <Ellipse x:Name="DaemonStatusDot" Width="6" Height="6"
+                                                 Fill="#FF6B7280" Margin="0,0,4,0" VerticalAlignment="Center" />
+                                        <TextBlock x:Name="DaemonStatusText" Text="Daemon" FontSize="10"
+                                                   Foreground="{StaticResource ForegroundDimBrush}" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Border>
                                 <!-- Shortcuts hint -->
                                 <TextBlock Text="Ctrl+Shift+P: Commands" FontSize="10"
                                            Foreground="{StaticResource ForegroundDimBrush}" VerticalAlignment="Center"

@@ -20,6 +20,12 @@ public class SplitPaneContainer : ContentControl
 
     public event Action? SearchRequested;
 
+    private static SolidColorBrush GetThemeBrush(string key) =>
+        Application.Current.Resources[key] as SolidColorBrush ?? Brushes.Transparent;
+
+    private static Color GetThemeColor(string key) =>
+        Application.Current.Resources[key] is Color c ? c : Colors.Transparent;
+
     public SplitPaneContainer()
     {
         Background = Brushes.Transparent;
@@ -174,8 +180,8 @@ public class SplitPaneContainer : ContentControl
         // Header bar with title and close button
         var header = new Border
         {
-            Background = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0x1A, 0x1A, 0x2E)),
-            Height = 24,
+            Background = GetThemeBrush("SidebarItemHoverBrush"),
+            Height = 22,
             Padding = new Thickness(8, 2, 8, 2),
         };
 
@@ -219,8 +225,8 @@ public class SplitPaneContainer : ContentControl
             Margin = new Thickness(0, 0, 6, 0),
             VerticalAlignment = VerticalAlignment.Center,
             Background = terminal.IsPaneFocused
-                ? new SolidColorBrush(System.Windows.Media.Color.FromRgb(0x81, 0x8C, 0xF8))
-                : new SolidColorBrush(System.Windows.Media.Color.FromRgb(0x3B, 0x3B, 0x4F)),
+                ? GetThemeBrush("AccentBrush")
+                : GetThemeBrush("DividerBrush"),
         };
         Grid.SetColumn(focusIndicator, 0);
 
@@ -229,7 +235,7 @@ public class SplitPaneContainer : ContentControl
         {
             Text = title,
             FontSize = 11,
-            Foreground = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0xE0, 0xE0, 0xE0)),
+            Foreground = GetThemeBrush("ForegroundBrush"),
             VerticalAlignment = VerticalAlignment.Center,
             TextTrimming = TextTrimming.CharacterEllipsis,
         };
@@ -243,7 +249,7 @@ public class SplitPaneContainer : ContentControl
             Width = 18,
             Height = 18,
             Background = Brushes.Transparent,
-            Foreground = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0x6B, 0x72, 0x80)),
+            Foreground = GetThemeBrush("ForegroundDimBrush"),
             BorderThickness = new Thickness(0),
             Cursor = System.Windows.Input.Cursors.Hand,
             ToolTip = "Close pane",
@@ -259,12 +265,13 @@ public class SplitPaneContainer : ContentControl
         panel.Children.Add(header);
         panel.Children.Add(terminal);
 
+        var focusedAccent = GetThemeColor("AccentColor");
         return new Border
         {
             Child = panel,
             BorderBrush = terminal.IsPaneFocused
-                ? new SolidColorBrush(System.Windows.Media.Color.FromRgb(0x81, 0x8C, 0xF8))
-                : new SolidColorBrush(System.Windows.Media.Color.FromRgb(0x2A, 0x2A, 0x3E)),
+                ? new SolidColorBrush(Color.FromArgb(153, focusedAccent.R, focusedAccent.G, focusedAccent.B))
+                : GetThemeBrush("BorderBrush"),
             BorderThickness = new Thickness(1),
         };
     }

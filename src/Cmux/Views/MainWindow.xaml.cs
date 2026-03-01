@@ -41,19 +41,15 @@ public partial class MainWindow : Window
         SnippetPickerControl.SnippetSelected += OnSnippetSelected;
         SnippetPickerControl.Closed += () => SnippetPickerControl.Visibility = Visibility.Collapsed;
 
-        // Wire search overlay events
-        SearchOverlayControl.SearchTextChanged += OnSearchTextChanged;
-        SearchOverlayControl.NextMatchRequested += OnSearchNext;
-        SearchOverlayControl.PreviousMatchRequested += OnSearchPrevious;
-        SearchOverlayControl.SearchClosed += OnSearchClosed;
+        // Wire inline search events from tab bar
+        SurfaceTabBarControl.SearchTextChanged += OnSearchTextChanged;
+        SurfaceTabBarControl.NextMatchRequested += OnSearchNext;
+        SurfaceTabBarControl.PreviousMatchRequested += OnSearchPrevious;
 
         // Wire terminal surface events
         SplitPaneContainerControl.SearchRequested += () =>
         {
-            if (SearchOverlayControl.Visibility != Visibility.Visible)
-                ToggleSearch();
-            else
-                SearchOverlayControl.FocusInput();
+            SurfaceTabBarControl.FocusSearch();
         };
 
         // Periodically refresh lightweight UI state (pane count, zoom icon)
@@ -175,6 +171,48 @@ public partial class MainWindow : Window
         }
 
         RefreshSurfaceUiState();
+        UpdateSidebarLayout();
+        UpdateDaemonStatus();
+        UpdateWindowChrome();
+        SizeChanged += (_, _) => UpdateWindowClip();
+        StateChanged += (_, _) => UpdateWindowChrome();
+        UpdateWindowClip();
+
+        // Monitor daemon connection changes
+        App.DaemonClient.Connected += () => Dispatcher.BeginInvoke(UpdateDaemonStatus);
+        App.DaemonClient.Disconnected += () => Dispatcher.BeginInvoke(UpdateDaemonStatus);
+    }
+
+    private void UpdateDaemonStatus()
+    {
+        var connected = App.DaemonClient.IsConnected;
+        DaemonStatusDot.Fill = connected
+            ? new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x34, 0xD3, 0x99)) // green
+            : new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x6B, 0x72, 0x80)); // gray
+        DaemonStatusText.Text = connected ? "Daemon" : "Local";
+        DaemonStatusBorder.ToolTip = connected
+            ? "Connected to cmux-daemon — sessions persist across restarts"
+            : "Running locally — sessions will not persist";
+    }
+
+    private void UpdateWindowChrome()
+    {
+        bool maximized = WindowState == WindowState.Maximized;
+        // When maximized, use zero corner radius and no border
+        WindowBorder.CornerRadius = maximized ? new CornerRadius(0) : (CornerRadius)FindResource("WindowCornerRadius");
+        WindowBorder.BorderThickness = maximized ? new Thickness(0) : new Thickness(1);
+        // Update maximize/restore icon
+        MaxRestoreIcon.Text = maximized ? "\uE923" : "\uE922";
+        MaxRestoreButton.ToolTip = maximized ? "Restore" : "Maximize";
+        UpdateWindowClip();
+    }
+
+    private void UpdateWindowClip()
+    {
+        double radius = WindowState == WindowState.Maximized ? 0 : 10;
+        WindowClipGeometry.RadiusX = radius;
+        WindowClipGeometry.RadiusY = radius;
+        WindowClipGeometry.Rect = new System.Windows.Rect(0, 0, WindowBorder.ActualWidth, WindowBorder.ActualHeight);
     }
 
     private void OnClosing(object sender, System.ComponentModel.CancelEventArgs e)
@@ -192,6 +230,13 @@ public partial class MainWindow : Window
             e.PropertyName == nameof(MainViewModel.AgentPanelWidth))
         {
             UpdateAgentPanelLayout();
+            return;
+        }
+
+        if (e.PropertyName == nameof(MainViewModel.SidebarVisible) ||
+            e.PropertyName == nameof(MainViewModel.SidebarWidth))
+        {
+            UpdateSidebarLayout();
             return;
         }
 
@@ -282,61 +327,42 @@ public partial class MainWindow : Window
         bool shift = (Keyboard.Modifiers & ModifierKeys.Shift) != 0;
         bool alt = (Keyboard.Modifiers & ModifierKeys.Alt) != 0;
 
-        if (ctrl && !alt && IsTerminalFocusActive())
-            return;
+        // === App-level shortcuts that always work, even with terminal focus ===
 
-        // Workspaces
-        if (ctrl && !shift && !alt)
+        // Ctrl+Tab / Ctrl+Shift+Tab: cycle surfaces
+        if (ctrl && e.Key == Key.Tab)
+        {
+            if (shift)
+                ViewModel.SelectedWorkspace?.PreviousSurface();
+            else
+                ViewModel.SelectedWorkspace?.NextSurface();
+            e.Handled = true;
+            return;
+        }
+
+        // Ctrl+Alt: pane focus + history picker
+        if (ctrl && alt && !shift)
         {
             switch (e.Key)
             {
-                case Key.N: // New workspace
-                    ViewModel.CreateNewWorkspace();
+                case Key.Right:
+                case Key.Down:
+                    ViewModel.SelectedWorkspace?.SelectedSurface?.FocusNextPane();
                     e.Handled = true;
                     return;
-                case Key.B: // Toggle sidebar
-                    ViewModel.ToggleSidebar();
+                case Key.Left:
+                case Key.Up:
+                    ViewModel.SelectedWorkspace?.SelectedSurface?.FocusPreviousPane();
                     e.Handled = true;
                     return;
-                case Key.I: // Notification panel
-                    ViewModel.ToggleNotificationPanel();
-                    e.Handled = true;
-                    return;
-                case Key.T: // New surface
-                    ViewModel.SelectedWorkspace?.CreateNewSurface();
-                    e.Handled = true;
-                    return;
-                case Key.W: // Close surface
-                    var surface = ViewModel.SelectedWorkspace?.SelectedSurface;
-                    if (surface != null)
-                        ViewModel.SelectedWorkspace?.CloseSurface(surface);
-                    e.Handled = true;
-                    return;
-                case Key.D: // Split right
-                    ViewModel.SelectedWorkspace?.SelectedSurface?.SplitRight();
-                    e.Handled = true;
-                    return;
-                // Workspace 1-8
-                case Key.D1: ViewModel.SelectWorkspace(0); e.Handled = true; return;
-                case Key.D2: ViewModel.SelectWorkspace(1); e.Handled = true; return;
-                case Key.D3: ViewModel.SelectWorkspace(2); e.Handled = true; return;
-                case Key.D4: ViewModel.SelectWorkspace(3); e.Handled = true; return;
-                case Key.D5: ViewModel.SelectWorkspace(4); e.Handled = true; return;
-                case Key.D6: ViewModel.SelectWorkspace(5); e.Handled = true; return;
-                case Key.D7: ViewModel.SelectWorkspace(6); e.Handled = true; return;
-                case Key.D8: ViewModel.SelectWorkspace(7); e.Handled = true; return;
-                case Key.D9: // Last workspace
-                    if (ViewModel.Workspaces.Count > 0)
-                        ViewModel.SelectWorkspace(ViewModel.Workspaces.Count - 1);
-                    e.Handled = true;
-                    return;
-                case Key.OemComma: // Settings (Ctrl+,)
-                    OpenSettings();
+                case Key.H: // Open command history picker (Ctrl+Alt+H)
+                    OpenCommandHistoryPicker();
                     e.Handled = true;
                     return;
             }
         }
 
+        // Ctrl+Shift: app-level shortcuts (split, zoom, search, surfaces, etc.)
         if (ctrl && shift && !alt)
         {
             switch (e.Key)
@@ -396,42 +422,60 @@ public partial class MainWindow : Window
             }
         }
 
-        // Ctrl+Alt: pane focus + history picker
-        if (ctrl && alt && !shift)
+        // === Ctrl-only shortcuts (skip when terminal has focus to let terminal handle them) ===
+        if (ctrl && !alt && IsTerminalFocusActive())
+            return;
+
+        // Workspaces
+        if (ctrl && !shift && !alt)
         {
             switch (e.Key)
             {
-                case Key.Right:
-                    ViewModel.SelectedWorkspace?.SelectedSurface?.FocusNextPane();
+                case Key.N: // New workspace
+                    ViewModel.CreateNewWorkspace();
                     e.Handled = true;
                     return;
-                case Key.Left:
-                    ViewModel.SelectedWorkspace?.SelectedSurface?.FocusPreviousPane();
+                case Key.B: // Toggle sidebar
+                    ViewModel.ToggleSidebar();
                     e.Handled = true;
                     return;
-                case Key.Down:
-                    ViewModel.SelectedWorkspace?.SelectedSurface?.FocusNextPane();
+                case Key.I: // Notification panel
+                    ViewModel.ToggleNotificationPanel();
                     e.Handled = true;
                     return;
-                case Key.Up:
-                    ViewModel.SelectedWorkspace?.SelectedSurface?.FocusPreviousPane();
+                case Key.T: // New surface
+                    ViewModel.SelectedWorkspace?.CreateNewSurface();
                     e.Handled = true;
                     return;
-                case Key.H: // Open command history picker (Ctrl+Alt+H)
-                    OpenCommandHistoryPicker();
+                case Key.W: // Close surface
+                    var surface = ViewModel.SelectedWorkspace?.SelectedSurface;
+                    if (surface != null)
+                        ViewModel.SelectedWorkspace?.CloseSurface(surface);
+                    e.Handled = true;
+                    return;
+                case Key.D: // Split right
+                    ViewModel.SelectedWorkspace?.SelectedSurface?.SplitRight();
+                    e.Handled = true;
+                    return;
+                // Workspace 1-8
+                case Key.D1: ViewModel.SelectWorkspace(0); e.Handled = true; return;
+                case Key.D2: ViewModel.SelectWorkspace(1); e.Handled = true; return;
+                case Key.D3: ViewModel.SelectWorkspace(2); e.Handled = true; return;
+                case Key.D4: ViewModel.SelectWorkspace(3); e.Handled = true; return;
+                case Key.D5: ViewModel.SelectWorkspace(4); e.Handled = true; return;
+                case Key.D6: ViewModel.SelectWorkspace(5); e.Handled = true; return;
+                case Key.D7: ViewModel.SelectWorkspace(6); e.Handled = true; return;
+                case Key.D8: ViewModel.SelectWorkspace(7); e.Handled = true; return;
+                case Key.D9: // Last workspace
+                    if (ViewModel.Workspaces.Count > 0)
+                        ViewModel.SelectWorkspace(ViewModel.Workspaces.Count - 1);
+                    e.Handled = true;
+                    return;
+                case Key.OemComma: // Settings (Ctrl+,)
+                    OpenSettings();
                     e.Handled = true;
                     return;
             }
-        }
-
-        // Ctrl+Tab / Ctrl+Shift+Tab: cycle surfaces
-        if (ctrl && e.Key == Key.Tab)
-        {
-            if (shift)
-                ViewModel.SelectedWorkspace?.PreviousSurface();
-            else
-                ViewModel.SelectedWorkspace?.NextSurface();
-            e.Handled = true;
         }
     }
 
@@ -585,6 +629,11 @@ public partial class MainWindow : Window
     private void MenuOpenSessionVault_Click(object sender, RoutedEventArgs e) => OpenSessionVault();
     private void MenuToggleAgentChat_Click(object sender, RoutedEventArgs e) => ToggleAgentChat();
     private void MenuOpenSettings_Click(object sender, RoutedEventArgs e) => OpenSettings();
+    private void MenuOpenKeyboardShortcuts_Click(object sender, RoutedEventArgs e)
+    {
+        var settings = new SettingsWindow("Keyboard") { Owner = this };
+        settings.ShowDialog();
+    }
     private void MenuAbout_Click(object sender, RoutedEventArgs e)
     {
         MessageBox.Show(
@@ -611,13 +660,7 @@ public partial class MainWindow : Window
 
     private void ToggleSearch()
     {
-        if (SearchOverlayControl.Visibility == Visibility.Visible)
-            SearchOverlayControl.Visibility = Visibility.Collapsed;
-        else
-        {
-            SearchOverlayControl.Visibility = Visibility.Visible;
-            SearchOverlayControl.FocusInput();
-        }
+        SurfaceTabBarControl.FocusSearch();
     }
 
     private void ToggleSnippetPicker()
@@ -672,6 +715,27 @@ public partial class MainWindow : Window
         else
         {
             FocusTerminal();
+        }
+    }
+
+    private void UpdateSidebarLayout()
+    {
+        if (ViewModel.SidebarVisible)
+        {
+            var width = Math.Clamp(ViewModel.SidebarWidth, 200, 500);
+            SidebarColumn.Width = new GridLength(width);
+            SidebarColumn.MinWidth = 200;
+            SidebarColumn.MaxWidth = 500;
+            SidebarBorder.Visibility = Visibility.Visible;
+            SidebarSplitter.Visibility = Visibility.Visible;
+        }
+        else
+        {
+            SidebarColumn.Width = new GridLength(0);
+            SidebarColumn.MinWidth = 0;
+            SidebarColumn.MaxWidth = 0;
+            SidebarBorder.Visibility = Visibility.Collapsed;
+            SidebarSplitter.Visibility = Visibility.Collapsed;
         }
     }
 
@@ -1020,8 +1084,8 @@ public partial class MainWindow : Window
             new() { Id = "zoom-pane", Label = "Zoom Pane", Icon = "\uE740", Shortcut = "Ctrl+Shift+Z", Category = "Pane", Execute = () => ViewModel.SelectedWorkspace?.SelectedSurface?.ToggleZoom() },
             new() { Id = "focus-next", Label = "Focus Next Pane", Icon = "\uE76C", Shortcut = "Ctrl+Alt+Right", Category = "Pane", Execute = () => ViewModel.SelectedWorkspace?.SelectedSurface?.FocusNextPane() },
             new() { Id = "focus-prev", Label = "Focus Previous Pane", Icon = "\uE76B", Shortcut = "Ctrl+Alt+Left", Category = "Pane", Execute = () => ViewModel.SelectedWorkspace?.SelectedSurface?.FocusPreviousPane() },
-            new() { Id = "next-surface", Label = "Next Surface", Icon = "\uE76C", Shortcut = "Ctrl+Shift+]", Category = "Surface", Execute = () => ViewModel.SelectedWorkspace?.NextSurface() },
-            new() { Id = "prev-surface", Label = "Previous Surface", Icon = "\uE76B", Shortcut = "Ctrl+Shift+[", Category = "Surface", Execute = () => ViewModel.SelectedWorkspace?.PreviousSurface() },
+            new() { Id = "next-surface", Label = "Next Surface", Icon = "\uE76C", Shortcut = "Ctrl+Tab", Category = "Surface", Execute = () => ViewModel.SelectedWorkspace?.NextSurface() },
+            new() { Id = "prev-surface", Label = "Previous Surface", Icon = "\uE76B", Shortcut = "Ctrl+Shift+Tab", Category = "Surface", Execute = () => ViewModel.SelectedWorkspace?.PreviousSurface() },
             new() { Id = "settings", Label = "Settings", Icon = "\uE713", Shortcut = "Ctrl+,", Category = "App", Execute = () => OpenSettings() },
             new() { Id = "equalize", Label = "Equalize Panes", Icon = "\uE9D5", Category = "Pane", Execute = () => ViewModel.SelectedWorkspace?.SelectedSurface?.EqualizePanes() },
             new() { Id = "layout-2col", Label = "Layout: 2 Columns", Icon = "\uE745", Category = "Layout", Execute = () => ApplyLayout(2, 1) },
@@ -1146,7 +1210,7 @@ public partial class MainWindow : Window
         if (string.IsNullOrEmpty(query))
         {
             ClearSearchHighlights();
-            SearchOverlayControl.UpdateMatchCount(0, 0);
+            SurfaceTabBarControl.UpdateMatchCount(0, 0);
             return;
         }
 
@@ -1163,7 +1227,7 @@ public partial class MainWindow : Window
             }
         }
 
-        SearchOverlayControl.UpdateMatchCount(_currentSearchMatch, _searchMatches.Count);
+        SurfaceTabBarControl.UpdateMatchCount(_currentSearchMatch, _searchMatches.Count);
     }
 
     private void OnSearchNext()
@@ -1171,7 +1235,7 @@ public partial class MainWindow : Window
         if (_searchMatches.Count == 0) return;
         _currentSearchMatch = (_currentSearchMatch + 1) % _searchMatches.Count;
         UpdateSearchHighlights();
-        SearchOverlayControl.UpdateMatchCount(_currentSearchMatch, _searchMatches.Count);
+        SurfaceTabBarControl.UpdateMatchCount(_currentSearchMatch, _searchMatches.Count);
     }
 
     private void OnSearchPrevious()
@@ -1179,14 +1243,13 @@ public partial class MainWindow : Window
         if (_searchMatches.Count == 0) return;
         _currentSearchMatch = (_currentSearchMatch - 1 + _searchMatches.Count) % _searchMatches.Count;
         UpdateSearchHighlights();
-        SearchOverlayControl.UpdateMatchCount(_currentSearchMatch, _searchMatches.Count);
+        SurfaceTabBarControl.UpdateMatchCount(_currentSearchMatch, _searchMatches.Count);
     }
 
     private void OnSearchClosed()
     {
         ClearSearchHighlights();
         _searchMatches = [];
-        SearchOverlayControl.Visibility = Visibility.Collapsed;
     }
 
     private void UpdateSearchHighlights()

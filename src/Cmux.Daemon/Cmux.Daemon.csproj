@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <RootNamespace>Cmux.Daemon</RootNamespace>
+    <AssemblyName>cmux-daemon</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Cmux.Core\Cmux.Core.csproj" />
+  </ItemGroup>
+
+</Project>

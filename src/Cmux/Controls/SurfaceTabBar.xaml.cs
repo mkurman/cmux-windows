@@ -10,10 +10,50 @@ public partial class SurfaceTabBar : UserControl
 {
     private SurfaceViewModel? _renamingSurface;
 
+    public event Action<string>? SearchTextChanged;
+    public event Action? NextMatchRequested;
+    public event Action? PreviousMatchRequested;
+
     public SurfaceTabBar()
     {
         InitializeComponent();
     }
+
+    public void FocusSearch()
+    {
+        SearchInput.Focus();
+        SearchInput.SelectAll();
+    }
+
+    public void UpdateMatchCount(int current, int total)
+    {
+        MatchCount.Text = total > 0 ? $"{current + 1}/{total}" : "";
+    }
+
+    private void SearchInput_TextChanged(object sender, TextChangedEventArgs e)
+        => SearchTextChanged?.Invoke(SearchInput.Text);
+
+    private void SearchInput_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter)
+        {
+            if (Keyboard.Modifiers.HasFlag(ModifierKeys.Shift))
+                PreviousMatchRequested?.Invoke();
+            else
+                NextMatchRequested?.Invoke();
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Escape)
+        {
+            SearchInput.Text = "";
+            var window = Window.GetWindow(this);
+            window?.Focus();
+            e.Handled = true;
+        }
+    }
+
+    private void PrevMatch_Click(object sender, RoutedEventArgs e) => PreviousMatchRequested?.Invoke();
+    private void NextMatch_Click(object sender, RoutedEventArgs e) => NextMatchRequested?.Invoke();
 
     private SurfaceViewModel? GetSurfaceFromMenu(object sender)
     {

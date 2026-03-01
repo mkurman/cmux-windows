@@ -20,13 +20,13 @@ public partial class SettingsWindow : Window
     private readonly List<AgentCustomToolConfig> _customToolsDraft = [];
     private readonly List<AgentMcpServerConfig> _mcpServersDraft = [];
 
-    public SettingsWindow()
+    public SettingsWindow(string initialSection = "Appearance")
     {
         InitializeComponent();
         WindowAppearance.Apply(this);
         PopulateThemes();
         LoadSettings();
-        ShowSection("Appearance");
+        ShowSection(initialSection);
     }
 
     private void PopulateThemes()

@@ -1,3 +1,4 @@
+using System.IO;
 using System.Windows;
 using Cmux.Core.Config;
 using Cmux.Core.IPC;
@@ -16,11 +17,13 @@ public partial class App : Application
     public static CommandLogService CommandLogService { get; } = new();
     public static AgentConversationStoreService AgentConversationStore { get; } = new();
     public static AgentRuntimeService AgentRuntime { get; } = new();
+    public static DaemonClient DaemonClient { get; } = new();
+    public static Task<bool> DaemonConnectTask { get; private set; } = Task.FromResult(false);
 
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
-        
+
         // Add global exception handlers to diagnose crashes
         DispatcherUnhandledException += (s, args) =>
         {
@@ -28,7 +31,7 @@ public partial class App : Application
             System.Windows.MessageBox.Show($"Unexpected error: {args.Exception.Message}\n\n{args.Exception.StackTrace}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
             args.Handled = true;
         };
-        
+
         AppDomain.CurrentDomain.UnhandledException += (s, args) =>
         {
             var ex = args.ExceptionObject as Exception;
@@ -40,6 +43,27 @@ public partial class App : Application
         _pipeServer = new NamedPipeServer();
         PipeServer = _pipeServer;
         _pipeServer.Start();
+
+        // Daemon connect: try existing daemon first, then start one if needed.
+        // Sessions wait for this task before deciding local vs daemon mode.
+        DaemonConnectTask = Task.Run(() =>
+        {
+            DaemonLog("[App] Phase 1: Quick daemon check (300ms)...");
+            if (DaemonClient.TryConnect(300))
+            {
+                DaemonLog("[App] Phase 1: Daemon connected!");
+                DaemonClient.RaiseConnected();
+                return true;
+            }
+            DaemonLog("[App] Phase 1: Daemon not available, starting daemon...");
+
+            var connected = DaemonClient.StartDaemonAndConnect();
+            DaemonLog(connected
+                ? "[App] Phase 2: Daemon started and connected"
+                : "[App] Phase 2: Daemon failed to start");
+            if (connected) DaemonClient.RaiseConnected();
+            return connected;
+        });
 
         // Wire up Windows toast notifications
         NotificationService.NotificationAdded += notification =>
@@ -57,7 +81,10 @@ public partial class App : Application
     protected override void OnExit(ExitEventArgs e)
     {
         _pipeServer?.Dispose();
+        DaemonClient.Dispose();
         AgentRuntime.Dispose();
         base.OnExit(e);
     }
+
+    internal static void DaemonLog(string message) => DaemonClient.LogDaemon(message);
 }

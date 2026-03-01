@@ -86,31 +86,48 @@ public class TerminalSelection
 
     /// <summary>
     /// Extracts selected text from the terminal buffer.
+    /// scrollOffset is negative when scrolled back into history, 0 at bottom.
     /// </summary>
-    public string GetSelectedText(TerminalBuffer buffer)
+    public string GetSelectedText(TerminalBuffer buffer, int scrollOffset = 0)
     {
         var range = GetNormalizedRange();
         if (!range.HasValue) return "";
 
         var (s, e) = range.Value;
         var sb = new StringBuilder();
+        int scrollbackCount = buffer.ScrollbackCount;
+        int viewStartLine = scrollbackCount + scrollOffset;
 
-        for (int row = s.Row; row <= e.Row; row++)
+        for (int visRow = s.Row; visRow <= e.Row; visRow++)
         {
-            int startCol = row == s.Row ? s.Col : 0;
-            int endCol = row == e.Row ? e.Col : buffer.Cols - 1;
+            int virtualLine = viewStartLine + visRow;
+            bool isScrollback = virtualLine < scrollbackCount;
+            int bufferRow = virtualLine - scrollbackCount;
+
+            int startCol = visRow == s.Row ? s.Col : 0;
+            int endCol = visRow == e.Row ? e.Col : buffer.Cols - 1;
 
             for (int col = startCol; col <= endCol && col < buffer.Cols; col++)
             {
-                if (row >= 0 && row < buffer.Rows)
+                char ch;
+                if (isScrollback)
                 {
-                    var cell = buffer.CellAt(row, col);
-                    sb.Append(cell.Character == '\0' ? ' ' : cell.Character);
+                    var line = buffer.GetScrollbackLine(virtualLine);
+                    ch = (line != null && col < line.Length) ? line[col].Character : '\0';
                 }
+                else if (bufferRow >= 0 && bufferRow < buffer.Rows)
+                {
+                    ch = buffer.CellAt(bufferRow, col).Character;
+                }
+                else
+                {
+                    ch = '\0';
+                }
+                sb.Append(ch == '\0' ? ' ' : ch);
             }
 
             // Trim trailing spaces on each line
-            if (row < e.Row)
+            if (visRow < e.Row)
             {
                 while (sb.Length > 0 && sb[^1] == ' ')
                     sb.Length--;
@@ -123,16 +140,32 @@ public class TerminalSelection
 
     /// <summary>
     /// Selects the word at the given position (double-click behavior).
+    /// row is a visual screen row; scrollOffset converts to buffer/scrollback coordinates.
     /// </summary>
-    public void SelectWord(TerminalBuffer buffer, int row, int col)
+    public void SelectWord(TerminalBuffer buffer, int row, int col, int scrollOffset = 0)
     {
-        if (row < 0 || row >= buffer.Rows || col < 0 || col >= buffer.Cols)
-            return;
+        if (col < 0 || col >= buffer.Cols) return;
 
-        var cell = buffer.CellAt(row, col);
+        int scrollbackCount = buffer.ScrollbackCount;
+        int virtualLine = scrollbackCount + scrollOffset + row;
+        bool isScrollback = virtualLine < scrollbackCount;
+        int bufferRow = virtualLine - scrollbackCount;
+
+        char GetChar(int c)
+        {
+            if (isScrollback)
+            {
+                var line = buffer.GetScrollbackLine(virtualLine);
+                return (line != null && c < line.Length) ? line[c].Character : '\0';
+            }
+            if (bufferRow >= 0 && bufferRow < buffer.Rows)
+                return buffer.CellAt(bufferRow, c).Character;
+            return '\0';
+        }
+
         bool IsWordChar(char ch) => ch != '\0' && ch != ' ' && (char.IsLetterOrDigit(ch) || ch == '_' || ch == '-');
 
-        if (!IsWordChar(cell.Character))
+        if (!IsWordChar(GetChar(col)))
         {
             _start = new SelectionPoint(row, col);
             _end = new SelectionPoint(row, col);
@@ -143,10 +176,10 @@ public class TerminalSelection
         int startCol = col;
         int endCol = col;
 
-        while (startCol > 0 && IsWordChar(buffer.CellAt(row, startCol - 1).Character))
+        while (startCol > 0 && IsWordChar(GetChar(startCol - 1)))
             startCol--;
 
-        while (endCol < buffer.Cols - 1 && IsWordChar(buffer.CellAt(row, endCol + 1).Character))
+        while (endCol < buffer.Cols - 1 && IsWordChar(GetChar(endCol + 1)))
             endCol++;
 
         _start = new SelectionPoint(row, startCol);

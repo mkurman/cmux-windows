@@ -33,11 +33,15 @@
                     Width="32" Height="28" Padding="0" FontSize="12" />
 
             <!-- Address bar -->
-            <TextBox Grid.Column="3" x:Name="AddressBar"
-                     Background="#FF333333" Foreground="{StaticResource ForegroundBrush}"
-                     BorderThickness="0" FontSize="12" Padding="8,4"
-                     Margin="4" VerticalContentAlignment="Center"
-                     KeyDown="AddressBar_KeyDown" />
+            <Border Grid.Column="3" CornerRadius="6" Margin="4"
+                    Background="{StaticResource SurfaceHighBrush}">
+                <TextBox x:Name="AddressBar"
+                         Background="Transparent" Foreground="{StaticResource ForegroundBrush}"
+                         CaretBrush="{StaticResource AccentBrush}"
+                         BorderThickness="0" FontSize="12" Padding="8,4"
+                         VerticalContentAlignment="Center"
+                         KeyDown="AddressBar_KeyDown" />
+            </Border>
 
             <Button Grid.Column="4" Content="&#xE10A;" FontFamily="Segoe MDL2 Assets"
                     Style="{StaticResource CmuxButton}" Click="CloseBrowser_Click"

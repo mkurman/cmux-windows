@@ -5,7 +5,7 @@
 
     <Grid>
         <Grid.ContextMenu>
-            <ContextMenu Background="#FF141420" BorderBrush="#FF2A2A3C" BorderThickness="1" Padding="4">
+            <ContextMenu>
                 <MenuItem Header="Rename" InputGestureText="F2" Click="Rename_Click">
                     <MenuItem.Icon>
                         <TextBlock Text="&#xE8AC;" FontFamily="Segoe MDL2 Assets" FontSize="12" />
@@ -131,7 +131,7 @@
                                MouseLeftButtonDown="NameDisplay_MouseLeftButtonDown" />
                     <TextBox x:Name="NameEditor" Text="{Binding Name, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                              Foreground="{StaticResource ForegroundBrush}"
-                             Background="#FF1A1A2E" BorderBrush="{StaticResource AccentBrush}" BorderThickness="1"
+                             Background="{StaticResource SidebarItemHoverBrush}" BorderBrush="{StaticResource AccentBrush}" BorderThickness="1"
                              FontSize="13" FontWeight="SemiBold" Padding="2,0"
                              Visibility="Collapsed"
                              LostFocus="NameEditor_LostFocus"

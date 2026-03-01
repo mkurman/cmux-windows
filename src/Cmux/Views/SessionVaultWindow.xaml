@@ -3,7 +3,14 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Session Vault" Height="700" Width="1280"
         WindowStartupLocation="CenterOwner"
-        Background="{StaticResource BackgroundBrush}">
+        WindowStyle="None" AllowsTransparency="True"
+        Background="Transparent"
+        ResizeMode="CanResize">
+
+    <WindowChrome.WindowChrome>
+        <WindowChrome CaptionHeight="34" CornerRadius="0" GlassFrameThickness="0"
+                      ResizeBorderThickness="6" />
+    </WindowChrome.WindowChrome>
 
     <Window.Resources>
         <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="#FF252547" />
@@ -61,89 +68,116 @@
         </Style>
     </Window.Resources>
 
-    <Grid Margin="12">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="*" />
-            <RowDefinition Height="Auto" />
-        </Grid.RowDefinitions>
+    <Border Background="{StaticResource BackgroundBrush}"
+            CornerRadius="{StaticResource WindowCornerRadius}"
+            BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="34" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
 
-        <DockPanel Grid.Row="0" Margin="0,0,0,8">
-            <TextBlock Text="Search" Foreground="{StaticResource ForegroundDimBrush}"
-                       VerticalAlignment="Center" Margin="0,0,8,0" />
-            <TextBox x:Name="SearchBox" Width="320" Padding="8,5"
-                     Background="#FF1A1A1A" Foreground="{StaticResource ForegroundBrush}"
-                     BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
-                     CaretBrush="{StaticResource ForegroundBrush}" SelectionBrush="{StaticResource AccentBrush}"
-                     TextChanged="SearchBox_TextChanged" />
-            <TextBlock x:Name="SummaryText" Margin="16,0,0,0" VerticalAlignment="Center"
-                       Foreground="{StaticResource ForegroundDimBrush}" />
-            <Button Content="Refresh" Style="{StaticResource CmuxButton}" Margin="8,0,0,0" Padding="10,4" Click="Refresh_Click" />
-            <Button Content="Open Folder" Style="{StaticResource CmuxButton}" Margin="8,0,0,0" Padding="10,4" Click="OpenFolder_Click" />
-        </DockPanel>
-
-        <Grid Grid.Row="1">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="420" />
-                <ColumnDefinition Width="8" />
-                <ColumnDefinition Width="*" />
-            </Grid.ColumnDefinitions>
-
-            <Border Grid.Column="0" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Background="#FF141420">
-                <ListView x:Name="EntriesList" ItemContainerStyle="{StaticResource VaultListItem}"
-                          Background="#FF141420" Foreground="{StaticResource ForegroundBrush}" BorderThickness="0"
-                          MouseDoubleClick="EntriesList_MouseDoubleClick"
-                          SelectionChanged="EntriesList_SelectionChanged">
-                    <ListView.Resources>
-                        <Style TargetType="GridViewColumnHeader" BasedOn="{StaticResource VaultHeader}" />
-                    </ListView.Resources>
-                    <ListView.View>
-                        <GridView>
-                            <GridViewColumn Header="Time" Width="120" DisplayMemberBinding="{Binding CapturedAtLocal}" />
-                            <GridViewColumn Header="Workspace" Width="150" DisplayMemberBinding="{Binding WorkspaceDisplay}" />
-                            <GridViewColumn Header="Surface" Width="120" DisplayMemberBinding="{Binding SurfaceDisplay}" />
-                        </GridView>
-                    </ListView.View>
-                </ListView>
+            <!-- Title bar -->
+            <Border Grid.Row="0" Background="{StaticResource SidebarBackgroundBrush}"
+                    CornerRadius="10,10,0,0"
+                    BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1">
+                <Grid>
+                    <TextBlock Text="Session Vault" Foreground="{StaticResource ForegroundDimBrush}"
+                               FontSize="12" VerticalAlignment="Center" Margin="14,0,0,0" />
+                    <Button Style="{StaticResource WindowCloseButton}" HorizontalAlignment="Right"
+                            WindowChrome.IsHitTestVisibleInChrome="True"
+                            Click="Close_Click" Width="38" Height="34">
+                        <TextBlock Text="&#xE8BB;" FontFamily="Segoe MDL2 Assets" FontSize="9" />
+                    </Button>
+                </Grid>
             </Border>
 
-            <GridSplitter Grid.Column="1" Width="8" HorizontalAlignment="Stretch"
-                          Background="{StaticResource DividerBrush}" ShowsPreview="False" />
-
-            <Grid Grid.Column="2">
+            <!-- Content -->
+            <Grid Grid.Row="1" Margin="12">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
-                <Border Grid.Row="0" Background="#FF141420" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Padding="10,8" Margin="0,0,0,8">
-                    <StackPanel>
-                        <TextBlock x:Name="MetaTitleText" Text="Select a capture" FontWeight="SemiBold" Foreground="{StaticResource ForegroundBrush}" />
-                        <TextBlock x:Name="MetaInfoText" Foreground="{StaticResource ForegroundDimBrush}" FontSize="12" Margin="0,4,0,0" />
-                    </StackPanel>
-                </Border>
+                <DockPanel Grid.Row="0" Margin="0,0,0,8">
+                    <TextBlock Text="Search" Foreground="{StaticResource ForegroundDimBrush}"
+                               VerticalAlignment="Center" Margin="0,0,8,0" />
+                    <TextBox x:Name="SearchBox" Width="320" Style="{StaticResource CmuxTextBox}"
+                             TextChanged="SearchBox_TextChanged" />
+                    <TextBlock x:Name="SummaryText" Margin="16,0,0,0" VerticalAlignment="Center"
+                               Foreground="{StaticResource ForegroundDimBrush}" />
+                    <Button Content="Refresh" Style="{StaticResource CmuxButton}" Margin="8,0,0,0" Padding="10,4" Click="Refresh_Click" />
+                    <Button Content="Open Folder" Style="{StaticResource CmuxButton}" Margin="8,0,0,0" Padding="10,4" Click="OpenFolder_Click" />
+                </DockPanel>
 
-                <Border Grid.Row="1" BorderBrush="#FF2A2A3C" BorderThickness="1" Background="#FF0F0F0F" CornerRadius="4">
-                    <TextBox x:Name="TranscriptText"
-                             IsReadOnly="True"
-                             TextWrapping="NoWrap"
-                             AcceptsReturn="True"
-                             HorizontalScrollBarVisibility="Auto"
-                             VerticalScrollBarVisibility="Auto"
-                             Background="#FF0F0F0F"
-                             Foreground="#FFE2E2E9"
-                             BorderThickness="0"
-                             Padding="12"
-                             FontFamily="Cascadia Code"
-                             FontSize="13" />
-                </Border>
+                <Grid Grid.Row="1">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="420" />
+                        <ColumnDefinition Width="8" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <Border Grid.Column="0" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                            Background="{StaticResource SurfaceBrush}">
+                        <ListView x:Name="EntriesList" ItemContainerStyle="{StaticResource VaultListItem}"
+                                  Background="{StaticResource SurfaceBrush}" Foreground="{StaticResource ForegroundBrush}" BorderThickness="0"
+                                  MouseDoubleClick="EntriesList_MouseDoubleClick"
+                                  SelectionChanged="EntriesList_SelectionChanged">
+                            <ListView.Resources>
+                                <Style TargetType="GridViewColumnHeader" BasedOn="{StaticResource VaultHeader}" />
+                            </ListView.Resources>
+                            <ListView.View>
+                                <GridView>
+                                    <GridViewColumn Header="Time" Width="120" DisplayMemberBinding="{Binding CapturedAtLocal}" />
+                                    <GridViewColumn Header="Workspace" Width="150" DisplayMemberBinding="{Binding WorkspaceDisplay}" />
+                                    <GridViewColumn Header="Surface" Width="120" DisplayMemberBinding="{Binding SurfaceDisplay}" />
+                                </GridView>
+                            </ListView.View>
+                        </ListView>
+                    </Border>
+
+                    <GridSplitter Grid.Column="1" Width="8" HorizontalAlignment="Stretch"
+                                  Background="{StaticResource DividerBrush}" ShowsPreview="False" />
+
+                    <Grid Grid.Column="2">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+
+                        <Border Grid.Row="0" Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}"
+                                BorderThickness="1" Padding="10,8" Margin="0,0,0,8">
+                            <StackPanel>
+                                <TextBlock x:Name="MetaTitleText" Text="Select a capture" FontWeight="SemiBold" Foreground="{StaticResource ForegroundBrush}" />
+                                <TextBlock x:Name="MetaInfoText" Foreground="{StaticResource ForegroundDimBrush}" FontSize="12" Margin="0,4,0,0" />
+                            </StackPanel>
+                        </Border>
+
+                        <Border Grid.Row="1" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                Background="{StaticResource BackgroundBrush}" CornerRadius="4">
+                            <TextBox x:Name="TranscriptText"
+                                     IsReadOnly="True"
+                                     TextWrapping="NoWrap"
+                                     AcceptsReturn="True"
+                                     HorizontalScrollBarVisibility="Auto"
+                                     VerticalScrollBarVisibility="Auto"
+                                     Background="{StaticResource BackgroundBrush}"
+                                     Foreground="{StaticResource ForegroundBrush}"
+                                     BorderThickness="0"
+                                     Padding="12"
+                                     FontFamily="Cascadia Code"
+                                     FontSize="13" />
+                        </Border>
+                    </Grid>
+                </Grid>
+
+                <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,8,0,0">
+                    <Button Content="Copy All" Style="{StaticResource CmuxButton}" Margin="0,0,8,0" Padding="12,6" Click="CopyAll_Click" />
+                    <Button Content="Open File" Style="{StaticResource CmuxButton}" Margin="0,0,8,0" Padding="12,6" Click="OpenFile_Click" />
+                    <Button Content="Close" Style="{StaticResource AccentButton}" Padding="12,6" Click="Close_Click" />
+                </StackPanel>
             </Grid>
         </Grid>
-
-        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,8,0,0">
-            <Button Content="Copy All" Style="{StaticResource CmuxButton}" Margin="0,0,8,0" Padding="12,6" Click="CopyAll_Click" />
-            <Button Content="Open File" Style="{StaticResource CmuxButton}" Margin="0,0,8,0" Padding="12,6" Click="OpenFile_Click" />
-            <Button Content="Close" Style="{StaticResource AccentButton}" Padding="12,6" Click="Close_Click" />
-        </StackPanel>
-    </Grid>
+    </Border>
 </Window>

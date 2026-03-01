@@ -4,11 +4,14 @@
              HorizontalAlignment="Center" VerticalAlignment="Top"
              Margin="0,60,0,0" Width="550" MaxHeight="400"
              Visibility="Collapsed">
-    <Border Background="#F2141414" CornerRadius="10"
-            BorderBrush="#FF2A2A2A" BorderThickness="1">
+    <Border Background="{StaticResource OverlayBackgroundBrush}" CornerRadius="12"
+            BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
         <Border.Effect>
-            <DropShadowEffect BlurRadius="30" ShadowDepth="8" Color="#000000" Opacity="0.7" Direction="270" />
+            <DropShadowEffect BlurRadius="20" ShadowDepth="4" Color="#000000" Opacity="0.4" Direction="270" />
         </Border.Effect>
+        <Border.RenderTransform>
+            <ScaleTransform x:Name="PaletteScale" ScaleX="1" ScaleY="1" CenterX="275" CenterY="0" />
+        </Border.RenderTransform>
         <Grid>
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
@@ -16,18 +19,18 @@
             </Grid.RowDefinitions>
 
             <!-- Row 0: Search input -->
-            <Border Grid.Row="0" BorderBrush="#FF2A2A2A" BorderThickness="0,0,0,1" Padding="12,10">
+            <Border Grid.Row="0" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1" Padding="12,10">
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
                     <TextBlock Grid.Column="0" Text="&#xE721;" FontFamily="Segoe MDL2 Assets"
-                               FontSize="14" Foreground="#FF6B7280"
+                               FontSize="14" Foreground="{StaticResource ForegroundDimBrush}"
                                VerticalAlignment="Center" Margin="0,0,10,0" />
                     <TextBox x:Name="SearchInput" Grid.Column="1"
-                             Background="Transparent" Foreground="#FFE0E0E0"
-                             CaretBrush="#FF818CF8" BorderThickness="0"
+                             Background="Transparent" Foreground="{StaticResource ForegroundBrush}"
+                             CaretBrush="{StaticResource AccentBrush}" BorderThickness="0"
                              FontSize="14" VerticalContentAlignment="Center"
                              TextChanged="SearchInput_TextChanged"
                              KeyDown="SearchInput_KeyDown" />
@@ -53,10 +56,10 @@
                                     </Border>
                                     <ControlTemplate.Triggers>
                                         <Trigger Property="IsMouseOver" Value="True">
-                                            <Setter TargetName="ItemBorder" Property="Background" Value="#FF1F1F1F" />
+                                            <Setter TargetName="ItemBorder" Property="Background" Value="{StaticResource SidebarItemHoverBrush}" />
                                         </Trigger>
                                         <Trigger Property="IsSelected" Value="True">
-                                            <Setter TargetName="ItemBorder" Property="Background" Value="#FF1A1A2E" />
+                                            <Setter TargetName="ItemBorder" Property="Background" Value="{StaticResource SidebarItemSelectedBrush}" />
                                         </Trigger>
                                     </ControlTemplate.Triggers>
                                 </ControlTemplate>
@@ -75,20 +78,20 @@
                             <!-- Icon -->
                             <TextBlock Grid.Column="0" Text="{Binding Icon}"
                                        FontFamily="Segoe MDL2 Assets" FontSize="14"
-                                       Foreground="#FF6B7280" VerticalAlignment="Center"
+                                       Foreground="{StaticResource ForegroundDimBrush}" VerticalAlignment="Center"
                                        Margin="0,0,10,0" />
                             <!-- Label + Description -->
                             <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                                <TextBlock Text="{Binding Label}" Foreground="#FFE0E0E0" FontSize="13" />
-                                <TextBlock Text="{Binding Description}" Foreground="#FF6B7280" FontSize="12"
+                                <TextBlock Text="{Binding Label}" Foreground="{StaticResource ForegroundBrush}" FontSize="13" />
+                                <TextBlock Text="{Binding Description}" Foreground="{StaticResource ForegroundDimBrush}" FontSize="12"
                                            Margin="10,0,0,0" VerticalAlignment="Center"
                                            Visibility="{Binding Description, Converter={StaticResource NullToCollapsed}}" />
                             </StackPanel>
                             <!-- Shortcut -->
-                            <Border Grid.Column="2" Background="#FF1F1F1F" CornerRadius="4" Padding="6,2"
+                            <Border Grid.Column="2" Background="{StaticResource SidebarItemHoverBrush}" CornerRadius="4" Padding="6,2"
                                     VerticalAlignment="Center"
                                     Visibility="{Binding Shortcut, Converter={StaticResource NullToCollapsed}}">
-                                <TextBlock Text="{Binding Shortcut}" Foreground="#FF6B7280" FontSize="11" />
+                                <TextBlock Text="{Binding Shortcut}" Foreground="{StaticResource ForegroundDimBrush}" FontSize="11" />
                             </Border>
                         </Grid>
                     </DataTemplate>
@@ -97,7 +100,7 @@
 
             <!-- Empty state -->
             <TextBlock x:Name="EmptyText" Grid.Row="1"
-                       Text="No matching commands" Foreground="#FF6B7280"
+                       Text="No matching commands" Foreground="{StaticResource ForegroundDimBrush}"
                        FontSize="13" HorizontalAlignment="Center"
                        Margin="0,20,0,20" Visibility="Collapsed" />
         </Grid>

@@ -1,6 +1,7 @@
 using System.IO.Pipes;
 using System.Text;
 using System.Diagnostics;
+using Cmux.Core.IPC;
 using Microsoft.Win32.SafeHandles;
 
 namespace Cmux.Core.Terminal;
@@ -19,14 +20,20 @@ public sealed class TerminalSession : IDisposable
     private FileStream? _writeStream;
     private Thread? _readThread;
     private volatile bool _disposed;
+    private volatile bool _daemonWriteLogged;
+    private volatile bool _localWriteNullLogged;
     private readonly object _lock = new();
 
     public TerminalBuffer Buffer { get; }
     public string PaneId { get; }
     public string? Title { get; private set; }
-    public string? WorkingDirectory { get; private set; }
+    public string? WorkingDirectory { get; set; }
     public bool IsRunning => _process != null && !_process.HasExited;
     public int? ProcessId => _process?.ProcessId;
+
+    // Daemon-mode delegates: when set, Write/Resize route through these instead of local ConPTY
+    public Func<byte[], Task>? DaemonWrite { get; set; }
+    public Func<int, int, Task>? DaemonResize { get; set; }
 
     // Events
     public event Action? OutputReceived;
@@ -37,6 +44,7 @@ public sealed class TerminalSession : IDisposable
     public event Action<char, string?>? ShellPromptMarker;
     public event Action? Redraw;
     public event Action? BellReceived;
+    public event Action<byte[]>? RawOutputReceived;
 
     public TerminalSession(string paneId, int cols = 120, int rows = 30)
     {
@@ -186,11 +194,13 @@ public sealed class TerminalSession : IDisposable
                 int bytesRead = _readStream.Read(buffer, 0, buffer.Length);
                 if (bytesRead == 0) break;
 
+                var chunk = buffer.AsSpan(0, bytesRead).ToArray();
+
                 lock (_lock)
                 {
                     try
                     {
-                        _parser.Feed(buffer.AsSpan(0, bytesRead));
+                        _parser.Feed(chunk);
                     }
                     catch (Exception ex)
                     {
@@ -199,6 +209,7 @@ public sealed class TerminalSession : IDisposable
                     }
                 }
 
+                RawOutputReceived?.Invoke(chunk);
                 OutputReceived?.Invoke();
                 Redraw?.Invoke();
             }
@@ -218,7 +229,7 @@ public sealed class TerminalSession : IDisposable
     /// </summary>
     public void Write(string text)
     {
-        if (_disposed || _writeStream == null) return;
+        if (_disposed) return;
         var bytes = Encoding.UTF8.GetBytes(text);
         Write(bytes);
     }
@@ -228,7 +239,29 @@ public sealed class TerminalSession : IDisposable
     /// </summary>
     public void Write(byte[] data)
     {
-        if (_disposed || _writeStream == null) return;
+        if (_disposed) return;
+
+        // Daemon mode: forward to daemon instead of local ConPTY
+        if (DaemonWrite != null)
+        {
+            if (!_daemonWriteLogged)
+            {
+                _daemonWriteLogged = true;
+                DaemonClient.LogDaemon($"[TerminalSession:{PaneId}] First DaemonWrite ({data.Length} bytes)");
+            }
+            _ = DaemonWrite(data);
+            return;
+        }
+
+        if (_writeStream == null)
+        {
+            if (!_localWriteNullLogged)
+            {
+                _localWriteNullLogged = true;
+                DaemonClient.LogDaemon($"[TerminalSession:{PaneId}] Write called but _writeStream is null (no ConPTY started)");
+            }
+            return;
+        }
         try
         {
             _writeStream.Write(data, 0, data.Length);
@@ -253,9 +286,38 @@ public sealed class TerminalSession : IDisposable
         lock (_lock)
         {
             Buffer.Resize(cols, rows);
-            _console?.Resize((short)cols, (short)rows);
+
+            // Daemon mode: forward resize to daemon
+            if (DaemonResize != null)
+                _ = DaemonResize(cols, rows);
+            else
+                _console?.Resize((short)cols, (short)rows);
         }
 
+        Redraw?.Invoke();
+    }
+
+    /// <summary>
+    /// Feeds raw VT output bytes through the parser into the buffer.
+    /// Used by daemon-backed sessions to receive output from the daemon.
+    /// </summary>
+    public void FeedOutput(byte[] data)
+    {
+        if (_disposed) return;
+
+        lock (_lock)
+        {
+            try
+            {
+                _parser.Feed(data);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[TerminalSession:{PaneId}] VT parse error (feed): {ex}");
+            }
+        }
+
+        OutputReceived?.Invoke();
         Redraw?.Invoke();
     }
 
