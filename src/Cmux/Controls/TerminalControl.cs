@@ -392,6 +392,10 @@ public class TerminalControl : FrameworkElement
                 dc.DrawRectangle(null, focusPen, new Rect(0, 0, ActualWidth, ActualHeight));
             }
 
+            // Lock buffer to prevent torn reads from background mutations
+            lock (buffer.SyncRoot)
+            {
+
             // Calculate scrollback offset
             int scrollbackCount = buffer.ScrollbackCount;
             bool isScrolledBack = _scrollOffset < 0;
@@ -418,6 +422,7 @@ public class TerminalControl : FrameworkElement
 
                 // Text run state for batching
                 int runStartCol = -1;
+                int runColSpan = 0;
                 Color runFgColor = default;
                 bool runBold = false, runItalic = false, runDim = false;
                 bool runUnderline = false, runStrikethrough = false;
@@ -462,20 +467,21 @@ public class TerminalControl : FrameworkElement
                     if (isSelected && _theme.SelectionBackground.HasValue)
                         cellBg = _theme.SelectionBackground.Value;
 
-                    // Draw cell background
+                    // Draw cell background (double width for wide chars)
+                    double drawWidth = cell.Width >= 2 ? _cellWidth * 2 : _cellWidth;
                     if (!cellBg.IsDefault)
                     {
                         dc.DrawRectangle(GetCachedBrush(ToWpfColor(cellBg)), null,
-                            new Rect(x, y, _cellWidth, _cellHeight));
+                            new Rect(x, y, drawWidth, _cellHeight));
                     }
 
                     // Search match highlight (behind text)
                     bool isSearchMatch = searchMatchSet.Contains((visRow, c));
                     bool isCurrentMatch = currentMatchSet.Contains((visRow, c));
                     if (isCurrentMatch)
-                        dc.DrawRectangle(currentMatchBrush, null, new Rect(x, y, _cellWidth, _cellHeight));
+                        dc.DrawRectangle(currentMatchBrush, null, new Rect(x, y, drawWidth, _cellHeight));
                     else if (isSearchMatch)
-                        dc.DrawRectangle(searchMatchBrush, null, new Rect(x, y, _cellWidth, _cellHeight));
+                        dc.DrawRectangle(searchMatchBrush, null, new Rect(x, y, drawWidth, _cellHeight));
 
                     // URL hover highlight
                     if (_hoveredUrl is { } url && visRow == url.row && c >= url.startCol && c <= url.endCol)
@@ -483,6 +489,12 @@ public class TerminalControl : FrameworkElement
                         var urlPen = new Pen(GetCachedBrush(Color.FromRgb(0x81, 0x8C, 0xF8)), 1);
                         urlPen.Freeze();
                         dc.DrawLine(urlPen, new Point(x, y + _cellHeight - 1), new Point(x + _cellWidth, y + _cellHeight - 1));
+                    }
+
+                    // Skip padding cells placed by wide characters
+                    if (cell.Width == 0 && cell.Character == '\0')
+                    {
+                        continue;
                     }
 
                     // Text batching: group consecutive characters with same visual style
@@ -501,14 +513,16 @@ public class TerminalControl : FrameworkElement
                             italic != runItalic || dim != runDim ||
                             underline != runUnderline || strikethrough != runStrikethrough))
                         {
-                            FlushTextRun(dc, dpi, y, runStartCol, runFgColor, runBold, runItalic, runDim, runUnderline, runStrikethrough);
+                            FlushTextRun(dc, dpi, y, runStartCol, runColSpan, runFgColor, runBold, runItalic, runDim, runUnderline, runStrikethrough);
                             runStartCol = -1;
+                            runColSpan = 0;
                         }
 
                         // Start new run or continue existing
                         if (runStartCol < 0)
                         {
                             runStartCol = c;
+                            runColSpan = 0;
                             runFgColor = fgColor;
                             runBold = bold;
                             runItalic = italic;
@@ -519,18 +533,20 @@ public class TerminalControl : FrameworkElement
                         }
 
                         _textRunBuffer.Append(cell.Character);
+                        runColSpan += cell.Width >= 2 ? 2 : 1;
                     }
                     else if (runStartCol >= 0)
                     {
                         // Empty cell — flush the current run
-                        FlushTextRun(dc, dpi, y, runStartCol, runFgColor, runBold, runItalic, runDim, runUnderline, runStrikethrough);
+                        FlushTextRun(dc, dpi, y, runStartCol, runColSpan, runFgColor, runBold, runItalic, runDim, runUnderline, runStrikethrough);
                         runStartCol = -1;
+                        runColSpan = 0;
                     }
                 }
 
                 // Flush final run for this row
                 if (runStartCol >= 0)
-                    FlushTextRun(dc, dpi, y, runStartCol, runFgColor, runBold, runItalic, runDim, runUnderline, runStrikethrough);
+                    FlushTextRun(dc, dpi, y, runStartCol, runColSpan, runFgColor, runBold, runItalic, runDim, runUnderline, runStrikethrough);
             }
 
             // Cursor (only when viewing live buffer)
@@ -578,6 +594,8 @@ public class TerminalControl : FrameworkElement
                     new Rect(ix, 6, iw, ih), 4, 4);
                 dc.DrawText(indicatorText, new Point(ix + 6, 8));
             }
+
+            } // lock (buffer.SyncRoot)
         }
         catch (Exception ex)
         {
@@ -588,7 +606,7 @@ public class TerminalControl : FrameworkElement
     /// <summary>
     /// Draws a batched text run and its decorations (underline/strikethrough).
     /// </summary>
-    private void FlushTextRun(DrawingContext dc, double dpi, double y, int startCol,
+    private void FlushTextRun(DrawingContext dc, double dpi, double y, int startCol, int colSpan,
         Color fgColor, bool bold, bool italic, bool dim, bool underline, bool strikethrough)
     {
         if (_textRunBuffer.Length == 0) return;
@@ -609,7 +627,7 @@ public class TerminalControl : FrameworkElement
         double x = startCol * _cellWidth;
         dc.DrawText(text, new Point(x, y));
 
-        double runWidth = _textRunBuffer.Length * _cellWidth;
+        double runWidth = colSpan * _cellWidth;
 
         if (underline)
         {

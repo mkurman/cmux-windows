@@ -146,7 +146,7 @@ public sealed class AgentRuntimeService : IDisposable
         var cts = new CancellationTokenSource();
         _activeRuns[runKey] = cts;
 
-        _ = Task.Run(async () =>
+        var fireTask = Task.Run(async () =>
         {
             var assistantBuffer = new StringBuilder();
             try
@@ -271,6 +271,21 @@ public sealed class AgentRuntimeService : IDisposable
                 }
             }
         });
+
+        // Observe unhandled exceptions from the fire-and-forget task to prevent
+        // UnobservedTaskException and log any unexpected failures.
+        fireTask.ContinueWith(t =>
+        {
+            if (t.Exception != null)
+            {
+                Debug.WriteLine($"[AgentRuntimeService] Unhandled exception in agent run: {t.Exception.InnerException?.Message ?? t.Exception.Message}");
+                EmitUpdate(context, new AgentRuntimeUpdate
+                {
+                    Type = AgentRuntimeUpdateType.Error,
+                    Message = t.Exception.InnerException?.Message ?? t.Exception.Message,
+                });
+            }
+        }, TaskContinuationOptions.OnlyOnFaulted);
 
         return true;
     }

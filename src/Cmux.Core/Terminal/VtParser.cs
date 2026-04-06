@@ -30,12 +30,16 @@ public class VtParser
         SosPmApc,
     }
 
+    private const int MaxOscLength = 65536;   // 64 KB
+    private const int MaxCsiParams = 256;
+
     private State _state = State.Ground;
     private readonly StringBuilder _params = new();
     private readonly StringBuilder _intermediates = new();
     private readonly StringBuilder _oscString = new();
     private readonly List<int> _csiParams = [];
     private byte _collectChar;
+    private bool _oscOverflow;
 
     // UTF-8 decoder state
     private int _utf8Remaining;
@@ -294,7 +298,9 @@ public class VtParser
     {
         if (b is >= 0x30 and <= 0x39 or (byte)';' or (byte)':')
         {
-            _params.Append((char)b);
+            // Limit raw param string length to prevent unbounded growth
+            if (_params.Length < MaxCsiParams * 12)
+                _params.Append((char)b);
             return;
         }
 
@@ -349,30 +355,42 @@ public class VtParser
     {
         if (b == 0x07) // BEL terminates OSC
         {
-            OnOscDispatch?.Invoke(_oscString.ToString());
+            if (!_oscOverflow)
+                OnOscDispatch?.Invoke(_oscString.ToString());
+            _oscOverflow = false;
             _state = State.Ground;
             return;
         }
 
         if (b == 0x9C) // ST (8-bit)
         {
-            OnOscDispatch?.Invoke(_oscString.ToString());
+            if (!_oscOverflow)
+                OnOscDispatch?.Invoke(_oscString.ToString());
+            _oscOverflow = false;
             _state = State.Ground;
             return;
         }
 
         if (b == 0x1B) // Possible ST (ESC \)
         {
-            // Will be handled on next byte — peek ahead not needed,
-            // the ESC handler will fire. But we need to dispatch first.
-            OnOscDispatch?.Invoke(_oscString.ToString());
+            if (!_oscOverflow)
+                OnOscDispatch?.Invoke(_oscString.ToString());
+            _oscOverflow = false;
             _state = State.Escape;
             return;
         }
 
         if (b >= 0x20 || b == 0x09) // Printable or tab
         {
-            _oscString.Append((char)b);
+            if (_oscString.Length < MaxOscLength)
+                _oscString.Append((char)b);
+            else
+            {
+                // OSC too long — stay in OscString state to consume remaining
+                // bytes until the terminator (BEL/ST), but stop accumulating.
+                _oscString.Clear();
+                _oscOverflow = true;
+            }
         }
     }
 
@@ -398,6 +416,9 @@ public class VtParser
         var paramStr = _params.ToString();
         foreach (var part in paramStr.Split(';'))
         {
+            if (_csiParams.Count >= MaxCsiParams)
+                break;
+
             if (int.TryParse(part, out int val))
                 _csiParams.Add(val);
             else

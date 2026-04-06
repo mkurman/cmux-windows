@@ -219,6 +219,7 @@ public partial class MainWindow : Window
     private void OnClosing(object sender, System.ComponentModel.CancelEventArgs e)
     {
         _uiRefreshTimer.Stop();
+        Cmux.Core.Config.SettingsService.SettingsChanged -= OnSettingsChanged;
         ViewModel.PropertyChanged -= ViewModel_PropertyChanged;
         App.AgentRuntime.RuntimeUpdated -= OnAgentRuntimeUpdated;
         App.AgentConversationStore.StoreChanged -= OnAgentConversationStoreChanged;

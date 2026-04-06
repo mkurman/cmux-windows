@@ -9,6 +9,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Cmux.Core\Cmux.Core.csproj" />
+    <ProjectReference Include="..\..\src\Cmux.Cli\Cmux.Cli.csproj" />
   </ItemGroup>
 
   <ItemGroup>

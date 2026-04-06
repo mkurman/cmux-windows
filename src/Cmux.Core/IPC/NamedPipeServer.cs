@@ -1,4 +1,6 @@
 using System.IO.Pipes;
+using System.Security.AccessControl;
+using System.Security.Principal;
 using System.Text;
 using System.Text.Json;
 
@@ -34,18 +36,34 @@ public sealed class NamedPipeServer : IDisposable
         _listenTask = Task.Run(() => ListenLoop(_cts.Token));
     }
 
+    private static PipeSecurity CreatePipeSecurity()
+    {
+        var security = new PipeSecurity();
+        var currentUser = WindowsIdentity.GetCurrent().User!;
+        security.AddAccessRule(new PipeAccessRule(
+            currentUser,
+            PipeAccessRights.FullControl,
+            AccessControlType.Allow));
+        return security;
+    }
+
     private async Task ListenLoop(CancellationToken ct)
     {
+        var pipeSecurity = CreatePipeSecurity();
+
         while (!ct.IsCancellationRequested)
         {
             try
             {
-                var pipe = new NamedPipeServerStream(
+                var pipe = NamedPipeServerStreamAcl.Create(
                     _pipeName,
                     PipeDirection.InOut,
                     NamedPipeServerStream.MaxAllowedServerInstances,
                     PipeTransmissionMode.Byte,
-                    PipeOptions.Asynchronous);
+                    PipeOptions.Asynchronous,
+                    inBufferSize: 0,
+                    outBufferSize: 0,
+                    pipeSecurity);
 
                 await pipe.WaitForConnectionAsync(ct);
 

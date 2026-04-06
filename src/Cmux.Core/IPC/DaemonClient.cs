@@ -16,6 +16,7 @@ public sealed class DaemonClient : IDisposable
 
     // Synchronization: only one request at a time, listen loop feeds response back via TCS
     private readonly SemaphoreSlim _requestLock = new(1, 1);
+    private readonly object _pendingLock = new();
     private TaskCompletionSource<DaemonResponse?>? _pendingResponse;
 
     public bool IsConnected => _pipe?.IsConnected == true && _connected;
@@ -202,20 +203,28 @@ public sealed class DaemonClient : IDisposable
                 if (line == null) break;
 
                 // Try to parse as a DaemonResponse first (if a request is pending)
-                if (_pendingResponse != null)
+                TaskCompletionSource<DaemonResponse?>? pendingTcs;
+                lock (_pendingLock)
+                {
+                    pendingTcs = _pendingResponse;
+                }
+
+                if (pendingTcs != null)
                 {
                     try
                     {
                         var response = JsonSerializer.Deserialize<DaemonResponse>(line);
-                        if (response != null && _pendingResponse != null)
+                        if (response != null)
                         {
                             // Responses have Success property; events have Type property
                             // Check if this looks like a response (has Success field)
                             if (line.Contains("\"Success\"", StringComparison.OrdinalIgnoreCase))
                             {
-                                var tcs = _pendingResponse;
-                                _pendingResponse = null;
-                                tcs.TrySetResult(response);
+                                lock (_pendingLock)
+                                {
+                                    _pendingResponse = null;
+                                }
+                                pendingTcs.TrySetResult(response);
                                 continue;
                             }
                         }
@@ -240,7 +249,13 @@ public sealed class DaemonClient : IDisposable
         finally
         {
             _connected = false; // Prevent new requests from entering SendRequestAsync
-            _pendingResponse?.TrySetResult(null);
+            TaskCompletionSource<DaemonResponse?>? remaining;
+            lock (_pendingLock)
+            {
+                remaining = _pendingResponse;
+                _pendingResponse = null;
+            }
+            remaining?.TrySetResult(null);
             Disconnected?.Invoke();
         }
     }
@@ -303,7 +318,10 @@ public sealed class DaemonClient : IDisposable
         try
         {
             var tcs = new TaskCompletionSource<DaemonResponse?>();
-            _pendingResponse = tcs;
+            lock (_pendingLock)
+            {
+                _pendingResponse = tcs;
+            }
 
             var json = JsonSerializer.Serialize(request);
             if (request.Type != DaemonMessageTypes.SessionWrite)
@@ -316,7 +334,7 @@ public sealed class DaemonClient : IDisposable
             catch (IOException)
             {
                 _connected = false;
-                _pendingResponse = null;
+                lock (_pendingLock) { _pendingResponse = null; }
                 return null;
             }
 
@@ -331,7 +349,7 @@ public sealed class DaemonClient : IDisposable
         catch (Exception ex)
         {
             LogDaemon($"[SendRequest] Exception: {ex.GetType().Name}: {ex.Message}");
-            _pendingResponse = null;
+            lock (_pendingLock) { _pendingResponse = null; }
             return null;
         }
         finally

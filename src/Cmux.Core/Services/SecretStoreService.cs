@@ -1,10 +1,12 @@
 using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 
 namespace Cmux.Core.Services;
 
 /// <summary>
 /// Stores secrets encrypted with Windows DPAPI in %LOCALAPPDATA%/cmux/secrets.json.
+/// DPAPI provides both confidentiality and integrity — no separate MAC is needed.
 /// </summary>
 public static class SecretStoreService
 {
@@ -13,6 +15,9 @@ public static class SecretStoreService
 
     private static readonly string SecretsPath =
         Path.Combine(SecretsDir, "secrets.json");
+
+    // Additional entropy for DPAPI to bind ciphertext to this application
+    private static readonly byte[] Entropy = "cmux-secret-store-v1"u8.ToArray();
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -31,9 +36,37 @@ public static class SecretStoreService
             if (!map.TryGetValue(secretName, out var encoded) || string.IsNullOrWhiteSpace(encoded))
                 return null;
 
-            var encrypted = Convert.FromBase64String(encoded);
-            var plain = ProtectedData.Unprotect(encrypted, optionalEntropy: null, DataProtectionScope.CurrentUser);
-            return System.Text.Encoding.UTF8.GetString(plain);
+            var blob = Convert.FromBase64String(encoded);
+
+            // Try current format: DPAPI with entropy
+            try
+            {
+                var plain = ProtectedData.Unprotect(blob, Entropy, DataProtectionScope.CurrentUser);
+                return Encoding.UTF8.GetString(plain);
+            }
+            catch (CryptographicException)
+            {
+                // Fall through to legacy formats
+            }
+
+            // Try previous format: HMAC(32) || ciphertext (strip the HMAC prefix)
+            if (blob.Length > 32)
+            {
+                try
+                {
+                    var ciphertext = blob[32..];
+                    var plain = ProtectedData.Unprotect(ciphertext, Entropy, DataProtectionScope.CurrentUser);
+                    return Encoding.UTF8.GetString(plain);
+                }
+                catch (CryptographicException)
+                {
+                    // Fall through to oldest format
+                }
+            }
+
+            // Oldest format: DPAPI without entropy
+            var legacyPlain = ProtectedData.Unprotect(blob, optionalEntropy: null, DataProtectionScope.CurrentUser);
+            return Encoding.UTF8.GetString(legacyPlain);
         }
         catch
         {
@@ -56,9 +89,9 @@ public static class SecretStoreService
             }
             else
             {
-                var plain = System.Text.Encoding.UTF8.GetBytes(value);
-                var encrypted = ProtectedData.Protect(plain, optionalEntropy: null, DataProtectionScope.CurrentUser);
-                map[secretName] = Convert.ToBase64String(encrypted);
+                var plain = Encoding.UTF8.GetBytes(value);
+                var ciphertext = ProtectedData.Protect(plain, Entropy, DataProtectionScope.CurrentUser);
+                map[secretName] = Convert.ToBase64String(ciphertext);
             }
 
             SaveRawSecrets(map);

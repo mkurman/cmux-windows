@@ -10,12 +10,14 @@ namespace Cmux.Core.Terminal;
 public sealed class TerminalProcess : IDisposable
 {
     private readonly PROCESS_INFORMATION _processInfo;
+    private readonly bool _processCreated;
     private IntPtr _attributeList;
+    private IntPtr _cancelEvent;
     private bool _disposed;
     private readonly Thread _waitThread;
 
-    public int ProcessId => _processInfo.dwProcessId;
-    public IntPtr ProcessHandle => _processInfo.hProcess;
+    public int ProcessId => _processCreated ? _processInfo.dwProcessId : 0;
+    public IntPtr ProcessHandle => _processCreated ? _processInfo.hProcess : IntPtr.Zero;
 
     public event Action? Exited;
 
@@ -46,7 +48,23 @@ public sealed class TerminalProcess : IDisposable
             out _processInfo);
 
         if (!success)
+        {
+            // Clean up attribute list before throwing — _processInfo is uninitialized
+            if (_attributeList != IntPtr.Zero)
+            {
+                DeleteProcThreadAttributeList(_attributeList);
+                Marshal.FreeHGlobal(_attributeList);
+                _attributeList = IntPtr.Zero;
+            }
             throw new Win32Exception(Marshal.GetLastWin32Error(), "Failed to create process with ConPTY.");
+        }
+
+        _processCreated = true;
+
+        // Create a manual-reset event for signaling the wait thread to stop
+        _cancelEvent = CreateEventW(IntPtr.Zero, bManualReset: true, bInitialState: false, IntPtr.Zero);
+        if (_cancelEvent == IntPtr.Zero)
+            throw new Win32Exception(Marshal.GetLastWin32Error(), "CreateEventW failed.");
 
         // Start a background thread to wait for process exit
         _waitThread = new Thread(WaitForExitThread)
@@ -137,8 +155,18 @@ public sealed class TerminalProcess : IDisposable
 
     private void WaitForExitThread()
     {
-        WaitForSingleObject(_processInfo.hProcess, INFINITE);
-        Exited?.Invoke();
+        var handles = new[] { _processInfo.hProcess, _cancelEvent };
+        uint result = WaitForMultipleObjects(2, handles, bWaitAll: false, INFINITE);
+        // WAIT_OBJECT_0 means process exited; WAIT_OBJECT_0+1 means cancel event signaled
+        if (result == WAIT_OBJECT_0)
+        {
+            Exited?.Invoke();
+        }
+        else if (result == 0xFFFFFFFF) // WAIT_FAILED
+        {
+            // Invalid handle or other failure — treat as exited to avoid silent hang
+            Exited?.Invoke();
+        }
     }
 
     public void WaitForExit()
@@ -150,6 +178,7 @@ public sealed class TerminalProcess : IDisposable
     {
         get
         {
+            if (!_processCreated) return true;
             if (!GetExitCodeProcess(_processInfo.hProcess, out uint exitCode))
                 return true;
             return exitCode != STILL_ACTIVE;
@@ -158,7 +187,7 @@ public sealed class TerminalProcess : IDisposable
 
     public void Kill()
     {
-        if (!_disposed && !HasExited)
+        if (!_disposed && _processCreated && !HasExited)
         {
             TerminateProcess(_processInfo.hProcess, 1);
         }
@@ -171,10 +200,20 @@ public sealed class TerminalProcess : IDisposable
 
         Kill();
 
+        // Signal the cancel event so the wait thread wakes up, then join it
+        if (_cancelEvent != IntPtr.Zero)
+            SetEvent(_cancelEvent);
+        _waitThread.Join(TimeSpan.FromSeconds(3));
+
         if (_processInfo.hProcess != IntPtr.Zero)
             CloseHandle(_processInfo.hProcess);
         if (_processInfo.hThread != IntPtr.Zero)
             CloseHandle(_processInfo.hThread);
+        if (_cancelEvent != IntPtr.Zero)
+        {
+            CloseHandle(_cancelEvent);
+            _cancelEvent = IntPtr.Zero;
+        }
 
         if (_attributeList != IntPtr.Zero)
         {

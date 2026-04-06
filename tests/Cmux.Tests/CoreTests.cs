@@ -1,6 +1,7 @@
 using System.Reflection;
 using System.Text;
 using System.Text.Json;
+using Cmux.Core.IPC;
 using Cmux.Core.Models;
 using Cmux.Core.Services;
 using Cmux.Core.Terminal;
@@ -758,5 +759,242 @@ public class AgentConversationStoreMessageParsingTests
             if (File.Exists(path))
                 File.Delete(path);
         }
+    }
+}
+
+public class CliParseArgsTests
+{
+    [Fact]
+    public void ParseArgs_LongOption_ParsesKeyValue()
+    {
+        var result = Cmux.Cli.Program.ParseArgs(["--title", "Hello"]);
+
+        result.Should().ContainKey("title");
+        result["title"].Should().Be("Hello");
+    }
+
+    [Fact]
+    public void ParseArgs_ShortOption_ParsesKeyValue()
+    {
+        var result = Cmux.Cli.Program.ParseArgs(["-t", "Hello"]);
+
+        result.Should().ContainKey("t");
+        result["t"].Should().Be("Hello");
+    }
+
+    [Fact]
+    public void ParseArgs_BooleanFlag_SetsTrue()
+    {
+        var result = Cmux.Cli.Program.ParseArgs(["--verbose"]);
+
+        result.Should().ContainKey("verbose");
+        result["verbose"].Should().Be("true");
+    }
+
+    [Fact]
+    public void ParseArgs_PositionalArgs_StoredWithPrefix()
+    {
+        var result = Cmux.Cli.Program.ParseArgs(["list", "workspace"]);
+
+        result.Should().ContainKey("_arg0");
+        result["_arg0"].Should().Be("list");
+        result.Should().ContainKey("_arg1");
+        result["_arg1"].Should().Be("workspace");
+    }
+
+    [Fact]
+    public void ParseArgs_MixedArgs_ParsedCorrectly()
+    {
+        var result = Cmux.Cli.Program.ParseArgs(["create", "--name", "My Workspace", "--icon", "star"]);
+
+        result["_arg0"].Should().Be("create");
+        result["name"].Should().Be("My Workspace");
+        result["icon"].Should().Be("star");
+    }
+
+    [Fact]
+    public void ParseArgs_Empty_ReturnsEmptyDictionary()
+    {
+        var result = Cmux.Cli.Program.ParseArgs([]);
+        result.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void ParseArgs_ShortBooleanFlag_SetsTrue()
+    {
+        var result = Cmux.Cli.Program.ParseArgs(["-v"]);
+
+        result.Should().ContainKey("v");
+        result["v"].Should().Be("true");
+    }
+
+    [Fact]
+    public void ParseArgs_MultipleLongOptions_AllParsed()
+    {
+        var result = Cmux.Cli.Program.ParseArgs(["--title", "Test", "--body", "Message body", "--subtitle", "Sub"]);
+
+        result["title"].Should().Be("Test");
+        result["body"].Should().Be("Message body");
+        result["subtitle"].Should().Be("Sub");
+    }
+}
+
+public class CliMainTests
+{
+    [Fact]
+    public async Task Main_NoArgs_ReturnsZero()
+    {
+        var result = await Cmux.Cli.Program.Main([]);
+        result.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Main_Help_ReturnsZero()
+    {
+        var result = await Cmux.Cli.Program.Main(["help"]);
+        result.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Main_Version_ReturnsZero()
+    {
+        var result = await Cmux.Cli.Program.Main(["version"]);
+        result.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Main_UnknownCommand_ReturnsOne()
+    {
+        var result = await Cmux.Cli.Program.Main(["nonexistent"]);
+        result.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Main_WorkspaceNoSubcommand_ReturnsOne()
+    {
+        var result = await Cmux.Cli.Program.Main(["workspace"]);
+        result.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Main_SurfaceNoSubcommand_ReturnsOne()
+    {
+        var result = await Cmux.Cli.Program.Main(["surface"]);
+        result.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Main_SplitNoDirection_ReturnsOne()
+    {
+        var result = await Cmux.Cli.Program.Main(["split"]);
+        result.Should().Be(1);
+    }
+}
+
+public class NamedPipeServerParseArgsTests
+{
+    [Fact]
+    public void ParseArgs_KeyValueFormat_ParsesCorrectly()
+    {
+        var args = new Dictionary<string, string>();
+        var method = typeof(NamedPipeServer).GetMethod("ParseArgs",
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+
+        method!.Invoke(null, ["title=Hello body=World", args]);
+
+        args["title"].Should().Be("Hello");
+        args["body"].Should().Be("World");
+    }
+
+    [Fact]
+    public void ParseArgs_JsonFormat_ParsesCorrectly()
+    {
+        var args = new Dictionary<string, string>();
+        var method = typeof(NamedPipeServer).GetMethod("ParseArgs",
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+
+        method!.Invoke(null, ["{\"title\":\"Hello\",\"body\":\"World\"}", args]);
+
+        args["title"].Should().Be("Hello");
+        args["body"].Should().Be("World");
+    }
+
+    [Fact]
+    public void ParseArgs_QuotedValues_ParsesCorrectly()
+    {
+        var args = new Dictionary<string, string>();
+        var method = typeof(NamedPipeServer).GetMethod("ParseArgs",
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+
+        method!.Invoke(null, ["title=\"Hello World\" body='Test Value'", args]);
+
+        args["title"].Should().Be("Hello World");
+        args["body"].Should().Be("Test Value");
+    }
+
+    [Fact]
+    public void ParseArgs_PositionalArgs_StoredWithPrefix()
+    {
+        var args = new Dictionary<string, string>();
+        var method = typeof(NamedPipeServer).GetMethod("ParseArgs",
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+
+        method!.Invoke(null, ["list workspace", args]);
+
+        args.Should().ContainKey("_arg0");
+        args["_arg0"].Should().Be("list");
+    }
+}
+
+public class VtParserLimitsTests
+{
+    [Fact]
+    public void Feed_OscExceedingMaxLength_AbortsSequence()
+    {
+        var parser = new VtParser();
+        string? receivedOsc = null;
+        parser.OnOscDispatch = osc => receivedOsc = osc;
+
+        // Start an OSC sequence and feed more than 64KB without terminating
+        var sb = new StringBuilder();
+        sb.Append("\x1b]0;");
+        sb.Append(new string('A', 70000));
+        sb.Append('\x07');
+        parser.Feed(sb.ToString());
+
+        // The OSC should NOT have been dispatched — overflow suppresses it entirely
+        receivedOsc.Should().BeNull("overflowed OSC sequences must not be dispatched");
+    }
+
+    [Fact]
+    public void Feed_OscWithinMaxLength_IsDispatched()
+    {
+        var parser = new VtParser();
+        string? receivedOsc = null;
+        parser.OnOscDispatch = osc => receivedOsc = osc;
+
+        var payload = new string('B', 1000);
+        parser.Feed($"\x1b]0;{payload}\x07");
+
+        receivedOsc.Should().NotBeNull();
+        receivedOsc.Should().Contain(payload);
+    }
+
+    [Fact]
+    public void Feed_CsiWithManyParams_LimitsTo256()
+    {
+        var parser = new VtParser();
+        List<int>? receivedParams = null;
+        parser.OnCsiDispatch = (parameters, final, qualifier) =>
+        {
+            receivedParams = new List<int>(parameters);
+        };
+
+        // CSI with 300 parameters
+        var paramStr = string.Join(";", Enumerable.Range(1, 300));
+        parser.Feed($"\x1b[{paramStr}m");
+
+        receivedParams.Should().NotBeNull();
+        receivedParams!.Count.Should().BeLessOrEqualTo(256);
     }
 }

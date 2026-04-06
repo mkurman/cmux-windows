@@ -10,6 +10,10 @@ public class TerminalBuffer
     private TerminalCell[,] _cells;
     private readonly ScrollbackBuffer<TerminalCell[]> _scrollback;
     private readonly int _maxScrollback;
+    private readonly object _syncRoot = new();
+
+    /// <summary>Lock object for external callers that need to synchronize access.</summary>
+    public object SyncRoot => _syncRoot;
 
     public int Cols { get; private set; }
     public int Rows { get; private set; }
@@ -98,8 +102,11 @@ public class TerminalBuffer
 
     public TerminalCell[]? GetScrollbackLine(int index)
     {
-        if (index < 0 || index >= _scrollback.Count) return null;
-        return _scrollback[index];
+        lock (_syncRoot)
+        {
+            if (index < 0 || index >= _scrollback.Count) return null;
+            return _scrollback[index];
+        }
     }
 
     public void SetChar(int row, int col, char ch, TerminalAttribute attr)
@@ -123,6 +130,8 @@ public class TerminalBuffer
         if (!ClampCursorToBounds())
             return;
 
+        int charWidth = UnicodeWidth.GetWidth(c);
+
         if (_wrapPending && AutoWrapMode)
         {
             CarriageReturn();
@@ -130,11 +139,23 @@ public class TerminalBuffer
             _wrapPending = false;
         }
 
+        // Wide character needs 2 columns — wrap early if it won't fit
+        if (charWidth == 2 && CursorCol + 1 >= Cols && AutoWrapMode)
+        {
+            // Fill the remaining single column with a space, then wrap
+            if (CursorCol < Cols)
+            {
+                _cells[CursorRow, CursorCol] = TerminalCell.Empty;
+            }
+            CarriageReturn();
+            LineFeed();
+        }
+
         if (InsertMode)
         {
-            // Shift characters right
-            for (int col = Cols - 1; col > CursorCol; col--)
-                _cells[CursorRow, col] = _cells[CursorRow, col - 1];
+            // Shift characters right by charWidth positions
+            for (int col = Cols - 1; col > CursorCol + charWidth - 1; col--)
+                _cells[CursorRow, col] = _cells[CursorRow, col - charWidth];
         }
 
         if (CursorRow >= 0 && CursorRow < Rows && CursorCol >= 0 && CursorCol < Cols)
@@ -144,17 +165,29 @@ public class TerminalBuffer
                 Character = c,
                 Attribute = CurrentAttribute,
                 IsDirty = true,
-                Width = 1,
+                Width = charWidth,
             };
+
+            // Wide char: place a padding cell in the next column
+            if (charWidth == 2 && CursorCol + 1 < Cols)
+            {
+                _cells[CursorRow, CursorCol + 1] = new TerminalCell
+                {
+                    Character = '\0',
+                    Attribute = CurrentAttribute,
+                    IsDirty = true,
+                    Width = 0, // padding cell for wide char
+                };
+            }
         }
 
-        if (CursorCol + 1 >= Cols)
+        if (CursorCol + charWidth >= Cols)
         {
             _wrapPending = true;
         }
         else
         {
-            CursorCol++;
+            CursorCol += charWidth;
         }
     }
 
@@ -555,20 +588,23 @@ public class TerminalBuffer
 
     public string ExportPlainText(int maxScrollbackLines = 20000)
     {
-        var lines = new List<string>();
+        lock (_syncRoot)
+        {
+            var lines = new List<string>();
 
-        int scrollbackStart = Math.Max(0, _scrollback.Count - Math.Max(0, maxScrollbackLines));
-        for (int i = scrollbackStart; i < _scrollback.Count; i++)
-            lines.Add(LineToText(_scrollback[i], Cols));
+            int scrollbackStart = Math.Max(0, _scrollback.Count - Math.Max(0, maxScrollbackLines));
+            for (int i = scrollbackStart; i < _scrollback.Count; i++)
+                lines.Add(LineToText(_scrollback[i], Cols));
 
-        for (int row = 0; row < Rows; row++)
-            lines.Add(LineToText(GetLine(row), Cols));
+            for (int row = 0; row < Rows; row++)
+                lines.Add(LineToText(GetLine(row), Cols));
 
-        int lastNonEmpty = lines.FindLastIndex(line => !string.IsNullOrWhiteSpace(line));
-        if (lastNonEmpty < 0)
-            return string.Empty;
+            int lastNonEmpty = lines.FindLastIndex(line => !string.IsNullOrWhiteSpace(line));
+            if (lastNonEmpty < 0)
+                return string.Empty;
 
-        return string.Join(Environment.NewLine, lines.Take(lastNonEmpty + 1));
+            return string.Join(Environment.NewLine, lines.Take(lastNonEmpty + 1));
+        }
     }
 
     /// <summary>
@@ -577,22 +613,25 @@ public class TerminalBuffer
     /// </summary>
     public TerminalBufferSnapshot CreateSnapshot(int maxScrollbackLines = 3000)
     {
-        var snapshot = new TerminalBufferSnapshot
+        lock (_syncRoot)
         {
-            Cols = Cols,
-            Rows = Rows,
-            CursorRow = CursorRow,
-            CursorCol = CursorCol,
-        };
+            var snapshot = new TerminalBufferSnapshot
+            {
+                Cols = Cols,
+                Rows = Rows,
+                CursorRow = CursorRow,
+                CursorCol = CursorCol,
+            };
 
-        int scrollbackStart = Math.Max(0, _scrollback.Count - Math.Max(0, maxScrollbackLines));
-        for (int i = scrollbackStart; i < _scrollback.Count; i++)
-            snapshot.ScrollbackLines.Add(LineToText(_scrollback[i], Cols));
+            int scrollbackStart = Math.Max(0, _scrollback.Count - Math.Max(0, maxScrollbackLines));
+            for (int i = scrollbackStart; i < _scrollback.Count; i++)
+                snapshot.ScrollbackLines.Add(LineToText(_scrollback[i], Cols));
 
-        for (int row = 0; row < Rows; row++)
-            snapshot.ScreenLines.Add(LineToText(GetLine(row), Cols));
+            for (int row = 0; row < Rows; row++)
+                snapshot.ScreenLines.Add(LineToText(GetLine(row), Cols));
 
-        return snapshot;
+            return snapshot;
+        }
     }
 
     /// <summary>
@@ -602,33 +641,36 @@ public class TerminalBuffer
     {
         if (snapshot == null) return;
 
-        _scrollback.Clear();
-        foreach (var line in snapshot.ScrollbackLines)
-            _scrollback.Add(TextToLine(line, Cols));
-
-        Clear();
-
-        int rowCount = Math.Min(Rows, snapshot.ScreenLines.Count);
-        for (int row = 0; row < rowCount; row++)
+        lock (_syncRoot)
         {
-            var text = snapshot.ScreenLines[row];
-            int colCount = Math.Min(Cols, text.Length);
-            for (int col = 0; col < colCount; col++)
-            {
-                _cells[row, col] = new TerminalCell
-                {
-                    Character = text[col],
-                    Attribute = TerminalAttribute.Default,
-                    IsDirty = true,
-                    Width = 1,
-                };
-            }
-        }
+            _scrollback.Clear();
+            foreach (var line in snapshot.ScrollbackLines)
+                _scrollback.Add(TextToLine(line, Cols));
 
-        CursorRow = Math.Clamp(snapshot.CursorRow, 0, Rows - 1);
-        CursorCol = Math.Clamp(snapshot.CursorCol, 0, Cols - 1);
-        ResetScrollRegion();
-        MarkAllDirty();
+            Clear();
+
+            int rowCount = Math.Min(Rows, snapshot.ScreenLines.Count);
+            for (int row = 0; row < rowCount; row++)
+            {
+                var text = snapshot.ScreenLines[row];
+                int colCount = Math.Min(Cols, text.Length);
+                for (int col = 0; col < colCount; col++)
+                {
+                    _cells[row, col] = new TerminalCell
+                    {
+                        Character = text[col],
+                        Attribute = TerminalAttribute.Default,
+                        IsDirty = true,
+                        Width = 1,
+                    };
+                }
+            }
+
+            CursorRow = Math.Clamp(snapshot.CursorRow, 0, Rows - 1);
+            CursorCol = Math.Clamp(snapshot.CursorCol, 0, Cols - 1);
+            ResetScrollRegion();
+            MarkAllDirty();
+        }
         RaiseContentChanged();
     }
 

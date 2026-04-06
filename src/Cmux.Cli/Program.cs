@@ -157,7 +157,7 @@ public static class Program
         return 0;
     }
 
-    private static Dictionary<string, string> ParseArgs(string[] args)
+    internal static Dictionary<string, string> ParseArgs(string[] args)
     {
         var result = new Dictionary<string, string>();
         int positional = 0;

@@ -10,8 +10,9 @@ public sealed class ScrollbackBuffer<T>
     private T[] _items;
     private int _head; // Index of the oldest item
     private int _count;
+    private readonly object _syncRoot = new();
 
-    public int Count => _count;
+    public int Count { get { lock (_syncRoot) return _count; } }
     public int Capacity => _items.Length;
 
     public ScrollbackBuffer(int capacity)
@@ -23,9 +24,12 @@ public sealed class ScrollbackBuffer<T>
     {
         get
         {
-            if (index < 0 || index >= _count)
-                throw new ArgumentOutOfRangeException(nameof(index));
-            return _items[(_head + index) % _items.Length];
+            lock (_syncRoot)
+            {
+                if (index < 0 || index >= _count)
+                    throw new ArgumentOutOfRangeException(nameof(index));
+                return _items[(_head + index) % _items.Length];
+            }
         }
     }
 
@@ -34,17 +38,20 @@ public sealed class ScrollbackBuffer<T>
     /// </summary>
     public void Add(T item)
     {
-        int insertIndex = (_head + _count) % _items.Length;
-        _items[insertIndex] = item;
+        lock (_syncRoot)
+        {
+            int insertIndex = (_head + _count) % _items.Length;
+            _items[insertIndex] = item;
 
-        if (_count < _items.Length)
-        {
-            _count++;
-        }
-        else
-        {
-            // Buffer is full — advance head (oldest item is overwritten)
-            _head = (_head + 1) % _items.Length;
+            if (_count < _items.Length)
+            {
+                _count++;
+            }
+            else
+            {
+                // Buffer is full — advance head (oldest item is overwritten)
+                _head = (_head + 1) % _items.Length;
+            }
         }
     }
 
@@ -53,15 +60,29 @@ public sealed class ScrollbackBuffer<T>
     /// </summary>
     public void AddRange(IEnumerable<T> items)
     {
-        foreach (var item in items)
-            Add(item);
+        lock (_syncRoot)
+        {
+            foreach (var item in items)
+            {
+                int insertIndex = (_head + _count) % _items.Length;
+                _items[insertIndex] = item;
+
+                if (_count < _items.Length)
+                    _count++;
+                else
+                    _head = (_head + 1) % _items.Length;
+            }
+        }
     }
 
     public void Clear()
     {
-        Array.Clear(_items, 0, _items.Length);
-        _head = 0;
-        _count = 0;
+        lock (_syncRoot)
+        {
+            Array.Clear(_items, 0, _items.Length);
+            _head = 0;
+            _count = 0;
+        }
     }
 
     /// <summary>
@@ -69,9 +90,12 @@ public sealed class ScrollbackBuffer<T>
     /// </summary>
     public List<T> ToList()
     {
-        var result = new List<T>(_count);
-        for (int i = 0; i < _count; i++)
-            result.Add(_items[(_head + i) % _items.Length]);
-        return result;
+        lock (_syncRoot)
+        {
+            var result = new List<T>(_count);
+            for (int i = 0; i < _count; i++)
+                result.Add(_items[(_head + i) % _items.Length]);
+            return result;
+        }
     }
 }

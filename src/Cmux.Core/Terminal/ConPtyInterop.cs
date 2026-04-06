@@ -146,6 +146,24 @@ internal static partial class ConPtyInterop
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static extern bool TerminateProcess(IntPtr hProcess, uint uExitCode);
 
+    [DllImport("kernel32.dll", SetLastError = true)]
+    internal static extern uint WaitForMultipleObjects(
+        uint nCount,
+        IntPtr[] lpHandles,
+        [MarshalAs(UnmanagedType.Bool)] bool bWaitAll,
+        uint dwMilliseconds);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    internal static extern IntPtr CreateEventW(
+        IntPtr lpEventAttributes,
+        [MarshalAs(UnmanagedType.Bool)] bool bManualReset,
+        [MarshalAs(UnmanagedType.Bool)] bool bInitialState,
+        IntPtr lpName);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool SetEvent(IntPtr hEvent);
+
     internal const uint INFINITE = 0xFFFFFFFF;
     internal const uint WAIT_OBJECT_0 = 0x00000000;
 }

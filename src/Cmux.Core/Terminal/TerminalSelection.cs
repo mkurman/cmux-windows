@@ -23,31 +23,41 @@ public class TerminalSelection
 {
     private SelectionPoint? _start;
     private SelectionPoint? _end;
+    private readonly object _syncRoot = new();
 
-    public bool HasSelection => _start.HasValue && _end.HasValue;
-    public SelectionPoint? Start => _start;
-    public SelectionPoint? End => _end;
+    public bool HasSelection { get { lock (_syncRoot) return _start.HasValue && _end.HasValue; } }
+    public SelectionPoint? Start { get { lock (_syncRoot) return _start; } }
+    public SelectionPoint? End { get { lock (_syncRoot) return _end; } }
 
     public event Action? SelectionChanged;
 
     public void StartSelection(int row, int col)
     {
-        _start = new SelectionPoint(row, col);
-        _end = new SelectionPoint(row, col);
+        lock (_syncRoot)
+        {
+            _start = new SelectionPoint(row, col);
+            _end = new SelectionPoint(row, col);
+        }
         SelectionChanged?.Invoke();
     }
 
     public void ExtendSelection(int row, int col)
     {
-        if (!_start.HasValue) return;
-        _end = new SelectionPoint(row, col);
+        lock (_syncRoot)
+        {
+            if (!_start.HasValue) return;
+            _end = new SelectionPoint(row, col);
+        }
         SelectionChanged?.Invoke();
     }
 
     public void ClearSelection()
     {
-        _start = null;
-        _end = null;
+        lock (_syncRoot)
+        {
+            _start = null;
+            _end = null;
+        }
         SelectionChanged?.Invoke();
     }
 
@@ -56,15 +66,18 @@ public class TerminalSelection
     /// </summary>
     public (SelectionPoint start, SelectionPoint end)? GetNormalizedRange()
     {
-        if (!_start.HasValue || !_end.HasValue) return null;
+        lock (_syncRoot)
+        {
+            if (!_start.HasValue || !_end.HasValue) return null;
 
-        var s = _start.Value;
-        var e = _end.Value;
+            var s = _start.Value;
+            var e = _end.Value;
 
-        if (s.Row > e.Row || (s.Row == e.Row && s.Col > e.Col))
-            (s, e) = (e, s);
+            if (s.Row > e.Row || (s.Row == e.Row && s.Col > e.Col))
+                (s, e) = (e, s);
 
-        return (s, e);
+            return (s, e);
+        }
     }
 
     /// <summary>
@@ -167,8 +180,11 @@ public class TerminalSelection
 
         if (!IsWordChar(GetChar(col)))
         {
-            _start = new SelectionPoint(row, col);
-            _end = new SelectionPoint(row, col);
+            lock (_syncRoot)
+            {
+                _start = new SelectionPoint(row, col);
+                _end = new SelectionPoint(row, col);
+            }
             SelectionChanged?.Invoke();
             return;
         }
@@ -182,8 +198,11 @@ public class TerminalSelection
         while (endCol < buffer.Cols - 1 && IsWordChar(GetChar(endCol + 1)))
             endCol++;
 
-        _start = new SelectionPoint(row, startCol);
-        _end = new SelectionPoint(row, endCol);
+        lock (_syncRoot)
+        {
+            _start = new SelectionPoint(row, startCol);
+            _end = new SelectionPoint(row, endCol);
+        }
         SelectionChanged?.Invoke();
     }
 
@@ -192,8 +211,11 @@ public class TerminalSelection
     /// </summary>
     public void SelectLine(int row, int cols)
     {
-        _start = new SelectionPoint(row, 0);
-        _end = new SelectionPoint(row, cols - 1);
+        lock (_syncRoot)
+        {
+            _start = new SelectionPoint(row, 0);
+            _end = new SelectionPoint(row, cols - 1);
+        }
         SelectionChanged?.Invoke();
     }
 
@@ -202,8 +224,11 @@ public class TerminalSelection
     /// </summary>
     public void SelectAll(int rows, int cols)
     {
-        _start = new SelectionPoint(0, 0);
-        _end = new SelectionPoint(rows - 1, cols - 1);
+        lock (_syncRoot)
+        {
+            _start = new SelectionPoint(0, 0);
+            _end = new SelectionPoint(rows - 1, cols - 1);
+        }
         SelectionChanged?.Invoke();
     }
 }
