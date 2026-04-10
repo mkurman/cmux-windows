@@ -239,24 +239,31 @@ public partial class MainViewModel : ObservableObject
     public void JumpToLatestUnread()
     {
         var latest = _notificationService.GetLatestUnread();
-        if (latest == null) return;
+        if (latest != null)
+            NavigateToNotification(latest);
+    }
 
-        // Find the workspace and surface
-        var workspace = Workspaces.FirstOrDefault(w => w.Workspace.Id == latest.WorkspaceId);
+    public void NavigateToNotification(TerminalNotification notification)
+    {
+        var workspace = Workspaces.FirstOrDefault(w => w.Workspace.Id == notification.WorkspaceId);
         if (workspace != null)
         {
             SelectedWorkspace = workspace;
-            var surface = workspace.Surfaces.FirstOrDefault(s => s.Surface.Id == latest.SurfaceId);
+            var surface = workspace.Surfaces.FirstOrDefault(s => s.Surface.Id == notification.SurfaceId);
             if (surface != null)
             {
                 workspace.SelectedSurface = surface;
-                if (latest.PaneId != null)
+                if (notification.PaneId != null)
                 {
-                    surface.FocusPane(latest.PaneId);
+                    surface.FocusPane(notification.PaneId);
                 }
             }
-            _notificationService.MarkAsRead(latest.Id);
+            _notificationService.MarkAsRead(notification.Id);
         }
+
+        // Close the notification panel after navigating
+        if (NotificationPanelVisible)
+            ToggleNotificationPanel();
     }
 
     [RelayCommand]

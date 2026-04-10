@@ -70,3 +70,6 @@ $RECYCLE.BIN/
 *.log
 [Ll]og/
 [Ll]ogs/
+
+# AI assistant config (developer-specific)
+CLAUDE.md

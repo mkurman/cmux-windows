@@ -36,6 +36,7 @@ public partial class MainWindow : Window
 
         CommandPaletteControl.PaletteClosed += () => FocusTerminal();
         CommandPaletteControl.ItemExecuted += item => FocusTerminal();
+        NotificationPanelControl.NotificationClicked += n => ViewModel.NavigateToNotification(n);
 
 
         // Wire snippet picker events
