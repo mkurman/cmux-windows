@@ -53,7 +53,9 @@
                 <ListBox.ItemTemplate>
                     <DataTemplate>
                         <Border Padding="16,10" BorderBrush="{StaticResource BorderBrush}"
-                                BorderThickness="0,0,0,1">
+                                BorderThickness="0,0,0,1" Cursor="Hand"
+                                MouseLeftButtonUp="NotificationItem_Click"
+                                Background="Transparent">
                             <Grid>
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto" />

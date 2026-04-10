@@ -455,7 +455,8 @@
                     </ContentControl>
 
                     <!-- Notification panel overlay -->
-                    <controls:NotificationPanel Grid.Row="0" Grid.RowSpan="3" Grid.Column="0"
+                    <controls:NotificationPanel x:Name="NotificationPanelControl"
+                        Grid.Row="0" Grid.RowSpan="3" Grid.Column="0"
                         HorizontalAlignment="Right"
                         Visibility="{Binding NotificationPanelVisible, Converter={StaticResource BoolToVisibility}}"
                         DataContext="{Binding}" />

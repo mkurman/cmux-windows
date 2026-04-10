@@ -45,6 +45,7 @@ public sealed class TerminalSession : IDisposable
     public event Action? Redraw;
     public event Action? BellReceived;
     public event Action<byte[]>? RawOutputReceived;
+    public event Action? InputSent;
 
     public TerminalSession(string paneId, int cols = 120, int rows = 30)
     {
@@ -240,6 +241,7 @@ public sealed class TerminalSession : IDisposable
     public void Write(byte[] data)
     {
         if (_disposed) return;
+        InputSent?.Invoke();
 
         // Daemon mode: forward to daemon instead of local ConPTY
         if (DaemonWrite != null)

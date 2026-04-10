@@ -53,6 +53,7 @@ public partial class WorkspaceViewModel : ObservableObject, IDisposable
     private readonly NotificationService _notificationService;
     private System.Threading.Timer? _infoRefreshTimer;
 
+
     public WorkspaceViewModel(Workspace workspace, NotificationService notificationService)
     {
         Workspace = workspace;
@@ -155,7 +156,7 @@ public partial class WorkspaceViewModel : ObservableObject, IDisposable
                 }
             }
 
-            // AI agent detection
+            // AI agent detection (works for local sessions with ShellPid)
             var activeSurface = SelectedSurface;
             if (activeSurface?.ShellPid is int pid and > 0)
             {
@@ -165,6 +166,52 @@ public partial class WorkspaceViewModel : ObservableObject, IDisposable
                     DetectedAgent = agent;
                     OnPropertyChanged(nameof(AgentLabel));
                     OnPropertyChanged(nameof(AgentIcon));
+                }
+            }
+
+            // Output idle detection: works for both daemon and local sessions.
+            // When terminal output has been active for 2+ seconds and then goes
+            // quiet for 5+ seconds, create a notification.
+            if (activeSurface != null)
+            {
+                var lastOutput = activeSurface.LastOutputTicks;
+                var burstStart = activeSurface.OutputBurstStartTicks;
+                if (lastOutput > 0 && burstStart > 0)
+                {
+                    var now = DateTime.UtcNow.Ticks;
+                    var quietSeconds = (now - lastOutput) / TimeSpan.TicksPerSecond;
+                    var burstDuration = (lastOutput - burstStart) / TimeSpan.TicksPerSecond;
+
+                    // Only notify if user has actually sent input to the terminal.
+                    // This prevents false notifications from shell startup, daemon
+                    // reconnect output, terminal redraws, etc.
+                    if (quietSeconds >= 5 && burstDuration >= 2 && !activeSurface.IdleNotified && activeSurface.HasUserInput)
+                    {
+                        activeSurface.IdleNotified = true;
+                        var label = DetectedAgent != AgentType.None
+                            ? AgentDetector.GetLabel(DetectedAgent)
+                            : "Terminal";
+                        // Must dispatch to UI thread — RefreshInfo runs on ThreadPool
+                        System.Windows.Application.Current?.Dispatcher.BeginInvoke(() =>
+                        {
+                            _notificationService.AddNotification(
+                                Workspace.Id,
+                                activeSurface.Surface.Id,
+                                paneId: null,
+                                title: $"{label} ready",
+                                subtitle: null,
+                                body: "Task output has completed.",
+                                source: NotificationSource.AgentCompleted);
+                        });
+                        // Reset tracking so next input→output cycle can trigger again
+                        activeSurface.OutputBurstStartTicks = 0;
+                        activeSurface.HasUserInput = false;
+                    }
+                    else if (quietSeconds < 2)
+                    {
+                        // Still active — reset idle flag
+                        activeSurface.IdleNotified = false;
+                    }
                 }
             }
         }
@@ -193,6 +240,19 @@ public partial class WorkspaceViewModel : ObservableObject, IDisposable
     partial void OnAccentColorChanged(string value)
     {
         Workspace.AccentColor = value;
+    }
+
+    partial void OnSelectedSurfaceChanged(SurfaceViewModel? value)
+    {
+        // Reset idle tracking when switching surfaces/tabs to avoid
+        // false notifications from terminal reconnect/redraw output.
+        if (value != null)
+        {
+            value.OutputBurstStartTicks = 0;
+            value.LastOutputTicks = 0;
+        }
+        if (value != null)
+            value.IdleNotified = false;
     }
 
     private static bool IsPrivateUseGlyph(string? value)

@@ -130,33 +130,86 @@ public class TerminalBuffer
             _wrapPending = false;
         }
 
+        int charWidth = UnicodeWidth.GetWidth(c);
+
         if (InsertMode)
         {
-            // Shift characters right
-            for (int col = Cols - 1; col > CursorCol; col--)
-                _cells[CursorRow, col] = _cells[CursorRow, col - 1];
+            // Shift characters right by charWidth positions
+            for (int col = Cols - 1; col > CursorCol + charWidth - 1; col--)
+                _cells[CursorRow, col] = _cells[CursorRow, col - charWidth];
+        }
+
+        // For wide chars, check if there's room for 2 cells
+        if (charWidth == 2 && CursorCol + 1 >= Cols)
+        {
+            // Not enough room — wrap first
+            if (AutoWrapMode)
+            {
+                CarriageReturn();
+                LineFeed();
+            }
+            else
+            {
+                // Can't wrap — just write in last column as narrow
+                charWidth = 1;
+            }
         }
 
         if (CursorRow >= 0 && CursorRow < Rows && CursorCol >= 0 && CursorCol < Cols)
         {
+            // Clean up any wide character that we're overwriting.
+            // If we're writing over the LEFT half of a wide char, clear its continuation.
+            // If we're writing over the RIGHT half (continuation), clear the left half.
+            var existing = _cells[CursorRow, CursorCol];
+            if (existing.Width == 2 && CursorCol + 1 < Cols)
+            {
+                // Overwriting a wide char — clear its continuation cell
+                _cells[CursorRow, CursorCol + 1] = TerminalCell.Empty;
+            }
+            else if (existing.Width == 0 && CursorCol > 0)
+            {
+                // Overwriting a continuation cell — clear the wide char's left half
+                _cells[CursorRow, CursorCol - 1] = TerminalCell.Empty;
+            }
+
             _cells[CursorRow, CursorCol] = new TerminalCell
             {
                 Character = c,
                 Attribute = CurrentAttribute,
                 IsDirty = true,
-                Width = 1,
+                Width = charWidth,
             };
+
+            // Wide char: mark the next cell as a continuation (Width=0)
+            if (charWidth == 2 && CursorCol + 1 < Cols)
+            {
+                // Also clean up if the continuation slot was the left half of another wide char
+                if (CursorCol + 2 < Cols && _cells[CursorRow, CursorCol + 1].Width == 2)
+                    _cells[CursorRow, CursorCol + 2] = TerminalCell.Empty;
+
+                _cells[CursorRow, CursorCol + 1] = new TerminalCell
+                {
+                    Character = '\0',
+                    Attribute = CurrentAttribute,
+                    IsDirty = true,
+                    Width = 0, // continuation of wide char
+                };
+            }
         }
 
-        if (CursorCol + 1 >= Cols)
+        int advance = charWidth;
+        if (CursorCol + advance >= Cols)
         {
             _wrapPending = true;
+            // Position cursor at the last valid column
+            CursorCol = Cols - 1;
         }
         else
         {
-            CursorCol++;
+            CursorCol += advance;
         }
     }
+
 
     public void WriteString(string text)
     {
@@ -298,15 +351,21 @@ public class TerminalBuffer
 
         switch (mode)
         {
-            case 0:
+            case 0: // Erase from cursor to end of line
+                // If cursor is on a continuation cell, also clear the wide char's left half
+                if (CursorCol > 0 && _cells[CursorRow, CursorCol].Width == 0)
+                    _cells[CursorRow, CursorCol - 1] = TerminalCell.Empty;
                 for (int c = CursorCol; c < Cols; c++)
                     _cells[CursorRow, c] = TerminalCell.Empty;
                 break;
-            case 1:
+            case 1: // Erase from start of line to cursor
                 for (int c = 0; c <= CursorCol; c++)
                     _cells[CursorRow, c] = TerminalCell.Empty;
+                // If we stopped on the left half of a wide char, also clear continuation
+                if (CursorCol + 1 < Cols && _cells[CursorRow, CursorCol + 1].Width == 0)
+                    _cells[CursorRow, CursorCol + 1] = TerminalCell.Empty;
                 break;
-            case 2:
+            case 2: // Erase entire line
                 for (int c = 0; c < Cols; c++)
                     _cells[CursorRow, c] = TerminalCell.Empty;
                 break;
@@ -519,7 +578,13 @@ public class TerminalBuffer
     public void Backspace()
     {
         if (CursorCol > 0)
+        {
             CursorCol--;
+            // If we landed on a continuation cell (right half of wide char),
+            // step back one more to the actual character cell.
+            if (CursorCol > 0 && _cells[CursorRow, CursorCol].Width == 0)
+                CursorCol--;
+        }
         _wrapPending = false;
     }
 

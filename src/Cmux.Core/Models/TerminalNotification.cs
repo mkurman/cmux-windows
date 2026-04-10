@@ -6,6 +6,7 @@ public enum NotificationSource
     Osc99,
     Osc777,
     Cli,
+    AgentCompleted,
 }
 
 public record TerminalNotification
