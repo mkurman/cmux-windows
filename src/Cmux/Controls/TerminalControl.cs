@@ -70,6 +70,9 @@ public class TerminalControl : FrameworkElement
     private readonly StringBuilder _textRunBuffer = new();
     private bool _suppressNextEnterTextInput;
 
+    // Software Hangul composer for CJK IME input on raw FrameworkElement
+    private readonly HangulComposer _hangulComposer = new();
+
     /// <summary>Fired when the pane wants focus.</summary>
     public event Action? FocusRequested;
     public event Action<string>? CommandSubmitted;
@@ -441,7 +444,12 @@ public class TerminalControl : FrameworkElement
                         cell = TerminalCell.Empty;
                     }
 
+                    // Skip continuation cells of wide characters (Width=0)
+                    if (cell.Width == 0)
+                        continue;
+
                     double x = c * _cellWidth;
+                    double cellRenderWidth = cell.Width >= 2 ? _cellWidth * 2 : _cellWidth;
                     var attr = cell.Attribute;
                     bool isSelected = _selection.IsSelected(visRow, c);
                     bool isInverse = attr.Flags.HasFlag(CellFlags.Inverse) != isSelected;
@@ -466,27 +474,30 @@ public class TerminalControl : FrameworkElement
                     if (!cellBg.IsDefault)
                     {
                         dc.DrawRectangle(GetCachedBrush(ToWpfColor(cellBg)), null,
-                            new Rect(x, y, _cellWidth, _cellHeight));
+                            new Rect(x, y, cellRenderWidth, _cellHeight));
                     }
 
                     // Search match highlight (behind text)
                     bool isSearchMatch = searchMatchSet.Contains((visRow, c));
                     bool isCurrentMatch = currentMatchSet.Contains((visRow, c));
                     if (isCurrentMatch)
-                        dc.DrawRectangle(currentMatchBrush, null, new Rect(x, y, _cellWidth, _cellHeight));
+                        dc.DrawRectangle(currentMatchBrush, null, new Rect(x, y, cellRenderWidth, _cellHeight));
                     else if (isSearchMatch)
-                        dc.DrawRectangle(searchMatchBrush, null, new Rect(x, y, _cellWidth, _cellHeight));
+                        dc.DrawRectangle(searchMatchBrush, null, new Rect(x, y, cellRenderWidth, _cellHeight));
 
                     // URL hover highlight
                     if (_hoveredUrl is { } url && visRow == url.row && c >= url.startCol && c <= url.endCol)
                     {
                         var urlPen = new Pen(GetCachedBrush(Color.FromRgb(0x81, 0x8C, 0xF8)), 1);
                         urlPen.Freeze();
-                        dc.DrawLine(urlPen, new Point(x, y + _cellHeight - 1), new Point(x + _cellWidth, y + _cellHeight - 1));
+                        dc.DrawLine(urlPen, new Point(x, y + _cellHeight - 1), new Point(x + cellRenderWidth, y + _cellHeight - 1));
                     }
 
-                    // Text batching: group consecutive characters with same visual style
+                    // Text batching: group consecutive NARROW characters with same visual style.
+                    // Wide characters (Width >= 2) are rendered individually at exact grid
+                    // positions to avoid font-metric misalignment.
                     bool hasChar = cell.Character != '\0' && cell.Character != ' ';
+                    bool isWide = cell.Width >= 2;
                     if (hasChar)
                     {
                         var fgColor = cellFg.IsDefault ? ToWpfColor(_theme.Foreground) : ToWpfColor(cellFg);
@@ -496,29 +507,73 @@ public class TerminalControl : FrameworkElement
                         bool underline = attr.Flags.HasFlag(CellFlags.Underline);
                         bool strikethrough = attr.Flags.HasFlag(CellFlags.Strikethrough);
 
-                        // Style changed? Flush the current run first
-                        if (runStartCol >= 0 && (fgColor != runFgColor || bold != runBold ||
-                            italic != runItalic || dim != runDim ||
-                            underline != runUnderline || strikethrough != runStrikethrough))
+                        if (isWide)
                         {
-                            FlushTextRun(dc, dpi, y, runStartCol, runFgColor, runBold, runItalic, runDim, runUnderline, runStrikethrough);
-                            runStartCol = -1;
-                        }
+                            // Flush any pending narrow run before rendering wide char
+                            if (runStartCol >= 0)
+                            {
+                                FlushTextRun(dc, dpi, y, runStartCol, runFgColor, runBold, runItalic, runDim, runUnderline, runStrikethrough);
+                                runStartCol = -1;
+                            }
 
-                        // Start new run or continue existing
-                        if (runStartCol < 0)
+                            // Render wide character individually at exact grid position
+                            var brush = dim
+                                ? GetCachedBrush(Color.FromArgb(128, fgColor.R, fgColor.G, fgColor.B))
+                                : GetCachedBrush(fgColor);
+                            var tf = GetTypeface(bold, italic);
+                            var charText = new FormattedText(
+                                cell.Character.ToString(),
+                                CultureInfo.CurrentCulture,
+                                FlowDirection.LeftToRight,
+                                tf,
+                                _fontSize,
+                                brush,
+                                dpi);
+                            // Center the glyph within the 2-cell space
+                            double glyphOffset = (cellRenderWidth - charText.WidthIncludingTrailingWhitespace) / 2;
+                            dc.DrawText(charText, new Point(x + Math.Max(0, glyphOffset), y));
+
+                            if (underline)
+                            {
+                                var pen = new Pen(brush, 1);
+                                pen.Freeze();
+                                dc.DrawLine(pen, new Point(x, y + _cellHeight - 1), new Point(x + cellRenderWidth, y + _cellHeight - 1));
+                            }
+                            if (strikethrough)
+                            {
+                                var pen = new Pen(brush, 1);
+                                pen.Freeze();
+                                dc.DrawLine(pen, new Point(x, y + _cellHeight / 2), new Point(x + cellRenderWidth, y + _cellHeight / 2));
+                            }
+                        }
+                        else
                         {
-                            runStartCol = c;
-                            runFgColor = fgColor;
-                            runBold = bold;
-                            runItalic = italic;
-                            runDim = dim;
-                            runUnderline = underline;
-                            runStrikethrough = strikethrough;
-                            _textRunBuffer.Clear();
-                        }
+                            // Narrow character — batch into text run
 
-                        _textRunBuffer.Append(cell.Character);
+                            // Style changed? Flush the current run first
+                            if (runStartCol >= 0 && (fgColor != runFgColor || bold != runBold ||
+                                italic != runItalic || dim != runDim ||
+                                underline != runUnderline || strikethrough != runStrikethrough))
+                            {
+                                FlushTextRun(dc, dpi, y, runStartCol, runFgColor, runBold, runItalic, runDim, runUnderline, runStrikethrough);
+                                runStartCol = -1;
+                            }
+
+                            // Start new run or continue existing
+                            if (runStartCol < 0)
+                            {
+                                runStartCol = c;
+                                runFgColor = fgColor;
+                                runBold = bold;
+                                runItalic = italic;
+                                runDim = dim;
+                                runUnderline = underline;
+                                runStrikethrough = strikethrough;
+                                _textRunBuffer.Clear();
+                            }
+
+                            _textRunBuffer.Append(cell.Character);
+                        }
                     }
                     else if (runStartCol >= 0)
                     {
@@ -831,6 +886,18 @@ public class TerminalControl : FrameworkElement
             return;
         }
 
+        // Flush any pending Hangul composition before processing special keys
+        if (_hangulComposer.IsComposing)
+        {
+            var flushed = _hangulComposer.Flush();
+            if (!string.IsNullOrEmpty(flushed))
+            {
+                EnsureLiveView();
+                TrackInputText(flushed);
+                _session.Write(flushed);
+            }
+        }
+
         bool appCursor = _session.Buffer.ApplicationCursorKeys;
         string? sequence = KeyToVtSequence(e.Key, modifiers, appCursor);
         if (sequence != null)
@@ -894,9 +961,19 @@ public class TerminalControl : FrameworkElement
             return;
         }
 
-        EnsureLiveView();
-        TrackInputText(e.Text);
-        _session.Write(e.Text);
+        // Feed each character through the Hangul composer.
+        // On a raw FrameworkElement, the OS IME delivers decomposed jamo
+        // instead of composed syllables. The composer reassembles them.
+        foreach (char c in e.Text)
+        {
+            var composed = _hangulComposer.Feed(c);
+            if (!string.IsNullOrEmpty(composed))
+            {
+                EnsureLiveView();
+                TrackInputText(composed);
+                _session.Write(composed);
+            }
+        }
         _selection.ClearSelection();
     }
 
