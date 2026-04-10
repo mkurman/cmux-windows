@@ -37,6 +37,21 @@ public partial class SurfaceViewModel : ObservableObject, IDisposable
 
     public event Action<string>? WorkingDirectoryChanged;
 
+    /// <summary>Timestamp of the last terminal output received (UTC ticks).</summary>
+    public long LastOutputTicks { get; set; }
+
+    /// <summary>Timestamp when the current output burst started (UTC ticks). Reset after idle.</summary>
+    public long OutputBurstStartTicks { get; set; }
+
+    /// <summary>Timestamp when this surface was created (UTC ticks). Used to suppress startup notifications.</summary>
+    public long CreatedTicks { get; } = DateTime.UtcNow.Ticks;
+
+    /// <summary>Whether user input has been sent since the last idle notification.</summary>
+    public bool HasUserInput { get; set; }
+
+    /// <summary>Whether an idle notification has been sent for the current burst.</summary>
+    public bool IdleNotified { get; set; }
+
     /// <summary>Gets the shell process PID from the focused pane session.</summary>
     public int? ShellPid
     {
@@ -96,6 +111,10 @@ public partial class SurfaceViewModel : ObservableObject, IDisposable
     private void OnDaemonRawOutput(string paneId, byte[] data)
     {
         if (!_daemonPanes.Contains(paneId)) return;
+        var now = DateTime.UtcNow.Ticks;
+        if (OutputBurstStartTicks == 0)
+            OutputBurstStartTicks = now;
+        LastOutputTicks = now;
         if (_sessions.TryGetValue(paneId, out var session))
             session.FeedOutput(data);
     }
@@ -124,6 +143,8 @@ public partial class SurfaceViewModel : ObservableObject, IDisposable
     private void OnDaemonBellReceived(string paneId)
     {
         if (!_daemonPanes.Contains(paneId)) return;
+        // BEL triggers visual bell only (handled by TerminalControl rendering).
+        // It does NOT create a notification — that's by design.
     }
 
     private void OnDaemonDisconnected()
@@ -401,7 +422,7 @@ public partial class SurfaceViewModel : ObservableObject, IDisposable
             {
                 DaemonLog($"[DaemonSession:{paneId}] Calling CreateSessionAsync ({initCols}x{initRows})...");
                 var result = await daemon.CreateSessionAsync(
-                    paneId, initCols, initRows, effectiveCwd);
+                    paneId, initCols, initRows, effectiveCwd, shell);
 
                 if (result == null)
                 {
@@ -494,6 +515,16 @@ public partial class SurfaceViewModel : ObservableObject, IDisposable
         {
             if (paneId == FocusedPaneId)
                 WorkingDirectoryChanged?.Invoke(dir);
+        };
+
+        session.InputSent += () => HasUserInput = true;
+
+        session.OutputReceived += () =>
+        {
+            var now = DateTime.UtcNow.Ticks;
+            if (OutputBurstStartTicks == 0)
+                OutputBurstStartTicks = now;
+            LastOutputTicks = now;
         };
 
         session.NotificationReceived += (title, subtitle, body) =>
