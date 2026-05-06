@@ -25,6 +25,16 @@ public class TerminalSelection
     private SelectionPoint? _end;
 
     public bool HasSelection => _start.HasValue && _end.HasValue;
+
+    /// <summary>
+    /// True only when the selection covers a non-zero range — i.e. the user
+    /// actually dragged. A bare click-and-release leaves <see cref="HasSelection"/>
+    /// true but produces no copyable text, so use this for auto-copy gating.
+    /// </summary>
+    public bool HasNonEmptySelection =>
+        _start.HasValue && _end.HasValue &&
+        (_start.Value.Row != _end.Value.Row || _start.Value.Col != _end.Value.Col);
+
     public SelectionPoint? Start => _start;
     public SelectionPoint? End => _end;
 

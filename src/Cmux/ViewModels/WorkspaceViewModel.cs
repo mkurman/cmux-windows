@@ -107,6 +107,35 @@ public partial class WorkspaceViewModel : ObservableObject, IDisposable
         }
     }
 
+    /// <summary>
+    /// VM-side detach: drops the surface from the VM list and unwires events.
+    /// The underlying <see cref="Workspace.Surfaces"/> mutation is the caller's
+    /// responsibility (typically <see cref="Cmux.Core.Services.SurfaceMover"/>).
+    /// </summary>
+    internal void DetachSurface(SurfaceViewModel surface)
+    {
+        if (!Surfaces.Contains(surface)) return;
+
+        surface.WorkingDirectoryChanged -= OnSurfaceWorkingDirectoryChanged;
+
+        int index = Surfaces.IndexOf(surface);
+        Surfaces.Remove(surface);
+
+        if (SelectedSurface == surface)
+            SelectedSurface = Surfaces.Count > 0 ? Surfaces[Math.Min(index, Surfaces.Count - 1)] : null;
+    }
+
+    /// <summary>
+    /// VM-side attach: registers the surface VM and re-wires events. The underlying
+    /// <see cref="Workspace.Surfaces"/> mutation is done by the caller.
+    /// </summary>
+    internal void AttachSurface(SurfaceViewModel surface)
+    {
+        surface.WorkspaceId = Workspace.Id;
+        Surfaces.Add(surface);
+        surface.WorkingDirectoryChanged += OnSurfaceWorkingDirectoryChanged;
+    }
+
     [RelayCommand]
     public void NextSurface()
     {

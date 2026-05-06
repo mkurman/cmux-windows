@@ -322,9 +322,16 @@ public class TerminalControl : FrameworkElement
             Brushes.White,
             VisualTreeHelper.GetDpi(this).PixelsPerDip);
 
-        _cellWidth = formattedText.WidthIncludingTrailingWhitespace;
-        _cellHeight = formattedText.Height;
+        // Snap to integer pixels via the tested helper — sub-pixel cell widths
+        // accumulate drift across columns and break box-drawing alignment.
+        var (cw, ch) = TerminalGridMetrics.RoundToPixelGrid(
+            formattedText.WidthIncludingTrailingWhitespace, formattedText.Height);
+        _cellWidth = cw;
+        _cellHeight = ch;
+        _baselineY = formattedText.Baseline;
     }
+
+    private double _baselineY;
 
     private void CalculateTerminalSize()
     {
@@ -625,18 +632,119 @@ public class TerminalControl : FrameworkElement
 
     /// <summary>
     /// Draws a batched text run and its decorations (underline/strikethrough).
+    ///
+    /// Uses <see cref="GlyphRun"/> with explicit per-glyph advance widths locked
+    /// to <see cref="_cellWidth"/> so terminal grid alignment is preserved even
+    /// when individual glyphs (e.g. box-drawing characters from a fallback font)
+    /// have natural advances that differ from the cell width. Characters not in
+    /// the primary glyph typeface are drawn cell-by-cell with FormattedText so
+    /// font fallback still works.
     /// </summary>
     private void FlushTextRun(DrawingContext dc, double dpi, double y, int startCol,
         Color fgColor, bool bold, bool italic, bool dim, bool underline, bool strikethrough)
     {
-        if (_textRunBuffer.Length == 0) return;
+        int len = _textRunBuffer.Length;
+        if (len == 0) return;
 
         var brush = dim
             ? GetCachedBrush(Color.FromArgb(128, fgColor.R, fgColor.G, fgColor.B))
             : GetCachedBrush(fgColor);
         var tf = GetTypeface(bold, italic);
-        var text = new FormattedText(
-            _textRunBuffer.ToString(),
+
+        double startX = startCol * _cellWidth;
+        double baselineY = y + _baselineY;
+
+        if (tf.TryGetGlyphTypeface(out var glyphTypeface))
+        {
+            DrawTextRunWithGlyphs(dc, dpi, len, startX, y, baselineY, brush, tf, glyphTypeface);
+        }
+        else
+        {
+            DrawTextRunWithFormattedText(dc, dpi, len, startX, y, brush, tf);
+        }
+
+        double runWidth = len * _cellWidth;
+
+        if (underline)
+        {
+            var fgPen = dim ? GetCachedPen(Color.FromArgb(128, fgColor.R, fgColor.G, fgColor.B)) : GetCachedPen(fgColor);
+            dc.DrawLine(fgPen, new Point(startX, y + _cellHeight - 1), new Point(startX + runWidth, y + _cellHeight - 1));
+        }
+
+        if (strikethrough)
+        {
+            var fgPen = dim ? GetCachedPen(Color.FromArgb(128, fgColor.R, fgColor.G, fgColor.B)) : GetCachedPen(fgColor);
+            dc.DrawLine(fgPen, new Point(startX, y + _cellHeight / 2), new Point(startX + runWidth, y + _cellHeight / 2));
+        }
+    }
+
+    private void DrawTextRunWithGlyphs(DrawingContext dc, double dpi, int len,
+        double startX, double y, double baselineY, SolidColorBrush brush,
+        Typeface tf, System.Windows.Media.GlyphTypeface glyphTypeface)
+    {
+        var glyphMap = glyphTypeface.CharacterToGlyphMap;
+        var indices = new List<ushort>(len);
+        var advances = new List<double>(len);
+        int chunkStartIdx = 0;
+
+        for (int i = 0; i < len; i++)
+        {
+            char ch = _textRunBuffer[i];
+            if (glyphMap.TryGetValue(ch, out ushort gi) && gi != 0)
+            {
+                if (indices.Count == 0)
+                    chunkStartIdx = i;
+                indices.Add(gi);
+                advances.Add(_cellWidth);
+            }
+            else
+            {
+                if (indices.Count > 0)
+                {
+                    EmitGlyphRun(dc, dpi, glyphTypeface, indices, advances,
+                        new Point(startX + chunkStartIdx * _cellWidth, baselineY), brush);
+                    indices.Clear();
+                    advances.Clear();
+                }
+                DrawSingleCellFallback(dc, dpi, ch, startX + i * _cellWidth, y, brush, tf);
+            }
+        }
+
+        if (indices.Count > 0)
+        {
+            EmitGlyphRun(dc, dpi, glyphTypeface, indices, advances,
+                new Point(startX + chunkStartIdx * _cellWidth, baselineY), brush);
+        }
+    }
+
+    private void EmitGlyphRun(DrawingContext dc, double dpi,
+        System.Windows.Media.GlyphTypeface glyphTypeface,
+        List<ushort> indices, List<double> advances, Point baselineOrigin,
+        SolidColorBrush brush)
+    {
+        var run = new GlyphRun(
+            glyphTypeface,
+            bidiLevel: 0,
+            isSideways: false,
+            renderingEmSize: _fontSize,
+            pixelsPerDip: (float)dpi,
+            glyphIndices: indices.ToArray(),
+            baselineOrigin: baselineOrigin,
+            advanceWidths: advances.ToArray(),
+            glyphOffsets: null,
+            characters: null,
+            deviceFontName: null,
+            clusterMap: null,
+            caretStops: null,
+            language: null);
+        dc.DrawGlyphRun(brush, run);
+    }
+
+    private void DrawSingleCellFallback(DrawingContext dc, double dpi, char ch,
+        double cellX, double y, SolidColorBrush brush, Typeface tf)
+    {
+        var ft = new FormattedText(
+            ch.ToString(),
             CultureInfo.CurrentCulture,
             FlowDirection.LeftToRight,
             tf,
@@ -644,22 +752,18 @@ public class TerminalControl : FrameworkElement
             brush,
             dpi);
 
-        double x = startCol * _cellWidth;
-        dc.DrawText(text, new Point(x, y));
+        // Center horizontally within the cell so half-width fallback glyphs
+        // (e.g. CJK punctuation in a Latin font) don't crowd the left edge.
+        double offX = (_cellWidth - ft.WidthIncludingTrailingWhitespace) * 0.5;
+        if (offX < 0) offX = 0;
+        dc.DrawText(ft, new Point(cellX + offX, y));
+    }
 
-        double runWidth = _textRunBuffer.Length * _cellWidth;
-
-        if (underline)
-        {
-            var fgPen = dim ? GetCachedPen(Color.FromArgb(128, fgColor.R, fgColor.G, fgColor.B)) : GetCachedPen(fgColor);
-            dc.DrawLine(fgPen, new Point(x, y + _cellHeight - 1), new Point(x + runWidth, y + _cellHeight - 1));
-        }
-
-        if (strikethrough)
-        {
-            var fgPen = dim ? GetCachedPen(Color.FromArgb(128, fgColor.R, fgColor.G, fgColor.B)) : GetCachedPen(fgColor);
-            dc.DrawLine(fgPen, new Point(x, y + _cellHeight / 2), new Point(x + runWidth, y + _cellHeight / 2));
-        }
+    private void DrawTextRunWithFormattedText(DrawingContext dc, double dpi, int len,
+        double startX, double y, SolidColorBrush brush, Typeface tf)
+    {
+        for (int i = 0; i < len; i++)
+            DrawSingleCellFallback(dc, dpi, _textRunBuffer[i], startX + i * _cellWidth, y, brush, tf);
     }
 
     private static Color ToWpfColor(TerminalColor c) =>
@@ -797,7 +901,7 @@ public class TerminalControl : FrameworkElement
         if (string.IsNullOrEmpty(text))
             return false;
 
-        Clipboard.SetText(text);
+        try { Clipboard.SetText(text); } catch { /* clipboard may be locked */ }
         _selection.ClearSelection();
         return true;
     }
@@ -857,6 +961,26 @@ public class TerminalControl : FrameworkElement
             return;
         }
 
+        // PageUp/PageDown scroll the scrollback when the main screen is active.
+        // On the alternate screen (vim, less, htop, claude code) we forward the
+        // VT sequence so TUI apps keep their own pagination behavior.
+        if ((e.Key == Key.PageUp || e.Key == Key.PageDown) && !ctrl && !alt
+            && !_session.Buffer.IsAlternateScreen)
+        {
+            int page = ScrollbackNavigator.PageStep(_rows);
+            int delta = e.Key == Key.PageUp ? -page : page;
+            int next = ScrollbackNavigator.Scroll(_scrollOffset, delta, _session.Buffer.ScrollbackCount);
+            if (next != _scrollOffset)
+            {
+                _scrollOffset = next;
+                _followOutput = _scrollOffset == 0;
+                _lastScrollbackCount = _session.Buffer.ScrollbackCount;
+                RequestRender(System.Windows.Threading.DispatcherPriority.Render);
+            }
+            e.Handled = true;
+            return;
+        }
+
         // Forward Ctrl+letter as control bytes (e.g. Ctrl+X => 0x18) for TUI apps like nano.
         if (ctrl && !modifiers.HasFlag(ModifierKeys.Alt) && TryGetCtrlLetterSequence(e.Key, out var ctrlSequence))
         {
@@ -892,41 +1016,23 @@ public class TerminalControl : FrameworkElement
 
     protected override void OnTextInput(TextCompositionEventArgs e)
     {
-        if (_session == null || string.IsNullOrEmpty(e.Text)) return;
+        if (_session == null) return;
 
-        // KeyDown handles Enter; suppress the trailing TextInput CR/LF when
-        // an intercepted command consumed the shell submission.
-        if (_suppressNextEnterTextInput && (e.Text.Contains('\r') || e.Text.Contains('\n')))
+        // Reset the enter-suppression flag so the next CR/LF after a consumed
+        // submission isn't echoed.
+        if (_suppressNextEnterTextInput && (e.Text?.Contains('\r') == true || e.Text?.Contains('\n') == true))
         {
             _suppressNextEnterTextInput = false;
             e.Handled = true;
             return;
         }
 
-        // Prevent duplicate newline writes from TextInput path.
-        if (e.Text.Contains('\r') || e.Text.Contains('\n'))
+        var decision = TerminalTextInputPolicy.Decide(
+            e.Text, ctrlHeld: Keyboard.Modifiers.HasFlag(ModifierKeys.Control));
+
+        if (decision == TextInputDecision.Suppress || string.IsNullOrEmpty(e.Text))
         {
             e.Handled = true;
-            return;
-        }
-
-        // Handle Ctrl+C (copy when selection exists)
-        if (Keyboard.Modifiers.HasFlag(ModifierKeys.Control) && e.Text == "\x03")
-        {
-            if (_selection.HasSelection)
-            {
-                var text = _selection.GetSelectedText(_session.Buffer, _scrollOffset);
-                if (!string.IsNullOrEmpty(text))
-                    Clipboard.SetText(text);
-                _selection.ClearSelection();
-                return;
-            }
-        }
-
-        // Handle Ctrl+V (paste)
-        if (Keyboard.Modifiers.HasFlag(ModifierKeys.Control) && e.Text == "\x16")
-        {
-            PasteFromClipboard();
             return;
         }
 
@@ -1233,10 +1339,14 @@ public class TerminalControl : FrameworkElement
         if (e.ClickCount == 2 && _session != null)
         {
             _selection.SelectWord(_session.Buffer, row, col, _scrollOffset);
+            _mouseDown = true;
+            CaptureMouse();
         }
         else if (e.ClickCount == 3 && _session != null)
         {
             _selection.SelectLine(row, _session.Buffer.Cols);
+            _mouseDown = true;
+            CaptureMouse();
         }
         else
         {
@@ -1336,6 +1446,25 @@ public class TerminalControl : FrameworkElement
         {
             _mouseDown = false;
             ReleaseMouseCapture();
+
+            if (!IsMouseTrackingActive
+                && SettingsService.Current.AutoCopyOnSelect
+                && _session != null
+                && _selection.HasNonEmptySelection)
+            {
+                var text = _selection.GetSelectedText(_session.Buffer, _scrollOffset);
+                if (!string.IsNullOrEmpty(text))
+                {
+                    bool copied = false;
+                    try { Clipboard.SetText(text); copied = true; }
+                    catch { /* clipboard may be locked */ }
+
+                    // Convention: clearing the visual selection on successful copy
+                    // is the user-visible "yes, it landed on the clipboard" cue.
+                    if (copied)
+                        _selection.ClearSelection();
+                }
+            }
         }
     }
 
@@ -1351,6 +1480,14 @@ public class TerminalControl : FrameworkElement
             int col = Math.Clamp((int)(pos.X / _cellWidth), 0, _cols - 1);
             int row = Math.Clamp((int)(pos.Y / _cellHeight), 0, _rows - 1);
             SendMouseReport(2, col, row, true);
+            return;
+        }
+
+        // Right-click paste — bypass the context menu when enabled.
+        if (SettingsService.Current.RightClickPaste)
+        {
+            PasteFromClipboard();
+            e.Handled = true;
             return;
         }
 

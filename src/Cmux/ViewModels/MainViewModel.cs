@@ -161,6 +161,36 @@ public partial class MainViewModel : ObservableObject
         SelectedWorkspace = vm;
     }
 
+    /// <summary>
+    /// Moves a surface (terminal tab) from its current workspace to <paramref name="target"/>
+    /// without disposing or restarting any of its terminal sessions. Daemon-backed sessions
+    /// remain attached because daemon routing is keyed by paneId, not workspace.
+    /// </summary>
+    public void MoveSurfaceToWorkspace(SurfaceViewModel surface, WorkspaceViewModel target)
+    {
+        if (surface == null || target == null) return;
+
+        var source = Workspaces.FirstOrDefault(w => w.Surfaces.Contains(surface));
+        if (source == null) return;
+
+        // Move at the model level via the unit-tested helper so the model and
+        // VM stay in sync. The VM-level detach/attach below mirrors the model
+        // change and re-wires session events.
+        var moveResult = Cmux.Core.Services.SurfaceMover.Move(
+            source.Workspace, target.Workspace, surface.Surface);
+
+        if (!moveResult.Moved) return;
+
+        source.DetachSurface(surface);
+        target.AttachSurface(surface);
+
+        if (moveResult.SourceNeedsReplacementSurface)
+            source.CreateNewSurface();
+
+        SelectedWorkspace = target;
+        target.SelectedSurface = surface;
+    }
+
     [RelayCommand]
     public void CloseWorkspace(WorkspaceViewModel? workspace)
     {

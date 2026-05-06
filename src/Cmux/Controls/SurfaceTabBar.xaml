@@ -28,8 +28,16 @@
                         </Border.Background>
                         <Border.ContextMenu>
                             <ContextMenu Tag="{Binding}">
+                                <ContextMenu.Resources>
+                                    <Style TargetType="MenuItem" BasedOn="{StaticResource {x:Type MenuItem}}">
+                                        <Setter Property="Cursor" Value="Hand" />
+                                    </Style>
+                                </ContextMenu.Resources>
                                 <MenuItem Header="Rename" Click="RenameTab_Click" />
                                 <MenuItem Header="Duplicate" Click="DuplicateTab_Click" />
+                                <MenuItem Header="Move to" SubmenuOpened="MoveToMenu_Opened">
+                                    <MenuItem Header="(loading...)" IsEnabled="False" />
+                                </MenuItem>
                                 <Separator />
                                 <MenuItem Header="Split Right" InputGestureText="Ctrl+D" Click="SplitRight_Click" />
                                 <MenuItem Header="Split Down" InputGestureText="Ctrl+Shift+D" Click="SplitDown_Click" />

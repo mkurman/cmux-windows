@@ -4,6 +4,7 @@ using System.Windows;
 using Cmux.Core.Config;
 using Cmux.Core.IPC;
 using Cmux.Core.Services;
+using Microsoft.Toolkit.Uwp.Notifications;
 
 namespace Cmux;
 
@@ -32,6 +33,15 @@ public partial class App : Application
         }
 
         base.OnStartup(e);
+
+        // Initialize the unified diagnostic logger (Serilog under the hood) as
+        // early as possible so the rest of startup is captured.
+        var logSettings = SettingsService.Current;
+        var logDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "cmux");
+        Directory.CreateDirectory(logDir);
+        Cmux.Core.Logging.Log.Enabled = logSettings.EnableDiagnosticLogging;
+        Cmux.Core.Logging.Log.MinLevel = ParseLogLevel(logSettings.DiagnosticLogLevel);
+        Cmux.Core.Logging.Log.Configure(Path.Combine(logDir, "cmux-.log"));
 
         // Add global exception handlers to diagnose crashes
         DispatcherUnhandledException += (s, args) =>
@@ -74,28 +84,89 @@ public partial class App : Application
             return connected;
         });
 
-        // Wire up Windows toast notifications
+        // Register Windows toast activation. On unpackaged Win10/11 apps, subscribing to
+        // OnActivated is what triggers ToastNotificationManagerCompat to create the Start
+        // Menu shortcut + COM activator registration that the OS requires before any
+        // toast.Show() will actually surface a notification.
+        try
+        {
+            ToastNotificationManagerCompat.OnActivated += OnToastActivated;
+            DaemonLog("[App] Toast activator registered (AUMID: " +
+                ToastNotificationManagerCompat.WasCurrentProcessToastActivated() + ")");
+        }
+        catch (Exception ex)
+        {
+            DaemonLog($"[App] Toast activator registration failed: {ex.Message}");
+        }
+
+        // Wire up Windows toast notifications. Gating rules are tested in
+        // Cmux.Core.Services.ToastDispatchPolicy.
         NotificationService.NotificationAdded += notification =>
         {
-            // Only show toast when the app window is not focused
             var mainWindow = Current.MainWindow;
-            if (mainWindow != null && !mainWindow.IsActive)
+            var settings = Cmux.Core.Config.SettingsService.Current;
+            bool focused = mainWindow?.IsActive == true;
+
+            if (!Cmux.Core.Services.ToastDispatchPolicy.ShouldDispatch(
+                    toastsEnabled: settings.EnableToastNotifications,
+                    showWhileFocused: settings.ShowToastsWhileFocused,
+                    mainWindowFocused: focused))
             {
-                var workspaceName = "Terminal"; // Will be enriched by MainViewModel
-                Services.ToastNotificationHelper.ShowToast(notification, workspaceName);
+                DaemonLog($"[Toast] skipped id={notification.Id} (enabled={settings.EnableToastNotifications}, showWhileFocused={settings.ShowToastsWhileFocused}, focused={focused})");
+                return;
             }
+
+            DaemonLog($"[Toast] dispatching id={notification.Id} title={notification.Title}");
+            var workspaceName = "Terminal"; // Will be enriched by MainViewModel
+            Services.ToastNotificationHelper.ShowToast(notification, workspaceName);
         };
+    }
+
+    private static void OnToastActivated(ToastNotificationActivatedEventArgsCompat e)
+    {
+        // Toast clicked — bring the window forward and jump to the notification's surface.
+        Current.Dispatcher.Invoke(() =>
+        {
+            var mainWindow = Current.MainWindow;
+            if (mainWindow == null) return;
+
+            if (mainWindow.WindowState == WindowState.Minimized)
+                mainWindow.WindowState = WindowState.Normal;
+            mainWindow.Activate();
+            mainWindow.Topmost = true;
+            mainWindow.Topmost = false;
+            mainWindow.Focus();
+
+            var args = ToastArguments.Parse(e.Argument);
+            if (args.TryGetValue("notificationId", out var notificationId))
+                NotificationService.MarkAsRead(notificationId);
+        });
     }
 
     protected override void OnExit(ExitEventArgs e)
     {
         _pipeServer?.Dispose();
         DaemonClient.Dispose();
+        Cmux.Core.Logging.Log.Shutdown();
         if (_ownsMutex)
             _singleInstanceMutex?.ReleaseMutex();
         _singleInstanceMutex?.Dispose();
         base.OnExit(e);
     }
 
-    internal static void DaemonLog(string message) => DaemonClient.LogDaemon(message);
+    /// <summary>
+    /// Legacy entry point — routes through the unified <see cref="Cmux.Core.Logging.Log"/>
+    /// so call sites that haven't been migrated still flow into the ring buffer
+    /// and the in-app diagnostics view. New code should call <c>Log.Info(...)</c>
+    /// directly with a meaningful category.
+    /// </summary>
+    internal static void DaemonLog(string message) => Cmux.Core.Logging.Log.Info("Daemon", message);
+
+    private static Cmux.Core.Logging.LogLevel ParseLogLevel(string raw) => (raw ?? "info").Trim().ToLowerInvariant() switch
+    {
+        "debug" => Cmux.Core.Logging.LogLevel.Debug,
+        "warn" or "warning" => Cmux.Core.Logging.LogLevel.Warn,
+        "error" => Cmux.Core.Logging.LogLevel.Error,
+        _ => Cmux.Core.Logging.LogLevel.Info,
+    };
 }

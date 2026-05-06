@@ -67,7 +67,7 @@ public partial class SettingsWindow : Window
         OpacitySlider.Value = s.Opacity;
         UpdateOpacityText();
         CursorStyleCombo.SelectedItem = s.CursorStyle;
-        CursorBlinkCheck.IsChecked = s.CursorBlink;
+        CursorBlinkCheck.IsOn = s.CursorBlink;
 
         // Shell selection (set after PopulateThemes populates the combo)
         var shellPath = s.DefaultShell;
@@ -76,21 +76,24 @@ public partial class SettingsWindow : Window
         ShellCombo.SelectedIndex = shellIndex >= 0 ? shellIndex : 0;
 
         ShellArgsBox.Text = s.DefaultShellArgs;
-        ScrollbackBox.Text = s.ScrollbackLines.ToString();
-        VisualBellCheck.IsChecked = s.VisualBell;
-        BracketedPasteCheck.IsChecked = s.BracketedPaste;
+        ScrollbackBox.Value = s.ScrollbackLines;
+        VisualBellCheck.IsOn = s.VisualBell;
+        BracketedPasteCheck.IsOn = s.BracketedPaste;
 
-        RestoreSessionCheck.IsChecked = s.RestoreSessionOnStartup;
-        ConfirmCloseCheck.IsChecked = s.ConfirmOnClose;
-        AutoCopyCheck.IsChecked = s.AutoCopyOnSelect;
-        CtrlClickUrlCheck.IsChecked = s.CtrlClickOpensUrls;
-        AutoSaveBox.Text = s.AutoSaveIntervalSeconds.ToString();
-        LogRetentionDaysBox.Text = Math.Clamp(s.CommandLogRetentionDays, 0, 3650).ToString();
-        CaptureOnCloseCheck.IsChecked = s.CaptureTranscriptsOnClose;
-        CaptureOnClearCheck.IsChecked = s.CaptureTranscriptsOnClear;
-        TranscriptRetentionDaysBox.Text = Math.Clamp(s.TranscriptRetentionDays, 0, 3650).ToString();
+        RestoreSessionCheck.IsOn = s.RestoreSessionOnStartup;
+        ConfirmCloseCheck.IsOn = s.ConfirmOnClose;
+        AutoCopyCheck.IsOn = s.AutoCopyOnSelect;
+        RightClickPasteCheck.IsOn = s.RightClickPaste;
+        CtrlClickUrlCheck.IsOn = s.CtrlClickOpensUrls;
+        ToastEnabledCheck.IsOn = s.EnableToastNotifications;
+        ToastWhileFocusedCheck.IsOn = s.ShowToastsWhileFocused;
+        AutoSaveBox.Value = s.AutoSaveIntervalSeconds;
+        LogRetentionDaysBox.Value = Math.Clamp(s.CommandLogRetentionDays, 0, 3650);
+        CaptureOnCloseCheck.IsOn = s.CaptureTranscriptsOnClose;
+        CaptureOnClearCheck.IsOn = s.CaptureTranscriptsOnClear;
+        TranscriptRetentionDaysBox.Value = Math.Clamp(s.TranscriptRetentionDays, 0, 3650);
 
-        UseCustomTerminalColorsCheck.IsChecked = s.UseCustomTerminalColors;
+        UseCustomTerminalColorsCheck.IsOn = s.UseCustomTerminalColors;
 
         var preset = TerminalThemes.Get(s.ThemeName);
         _suppressTerminalColorEvents = true;
@@ -115,27 +118,30 @@ public partial class SettingsWindow : Window
             ?? "Default Dark";
         s.Opacity = OpacitySlider.Value;
         s.CursorStyle = CursorStyleCombo.SelectedItem as string ?? "bar";
-        s.CursorBlink = CursorBlinkCheck.IsChecked == true;
+        s.CursorBlink = CursorBlinkCheck.IsOn;
 
         s.DefaultShell = ShellCombo.SelectedValue as string ?? "";
         s.DefaultShellArgs = ShellArgsBox.Text;
-        if (int.TryParse(ScrollbackBox.Text, out int sb)) s.ScrollbackLines = sb;
-        s.VisualBell = VisualBellCheck.IsChecked == true;
-        s.BracketedPaste = BracketedPasteCheck.IsChecked == true;
+        if (!double.IsNaN(ScrollbackBox.Value)) s.ScrollbackLines = (int)ScrollbackBox.Value;
+        s.VisualBell = VisualBellCheck.IsOn;
+        s.BracketedPaste = BracketedPasteCheck.IsOn;
 
-        s.RestoreSessionOnStartup = RestoreSessionCheck.IsChecked == true;
-        s.ConfirmOnClose = ConfirmCloseCheck.IsChecked == true;
-        s.AutoCopyOnSelect = AutoCopyCheck.IsChecked == true;
-        s.CtrlClickOpensUrls = CtrlClickUrlCheck.IsChecked == true;
-        if (int.TryParse(AutoSaveBox.Text, out int asv)) s.AutoSaveIntervalSeconds = asv;
-        if (int.TryParse(LogRetentionDaysBox.Text, out int retentionDays))
-            s.CommandLogRetentionDays = Math.Clamp(retentionDays, 0, 3650);
-        s.CaptureTranscriptsOnClose = CaptureOnCloseCheck.IsChecked == true;
-        s.CaptureTranscriptsOnClear = CaptureOnClearCheck.IsChecked == true;
-        if (int.TryParse(TranscriptRetentionDaysBox.Text, out int transcriptRetention))
-            s.TranscriptRetentionDays = Math.Clamp(transcriptRetention, 0, 3650);
+        s.RestoreSessionOnStartup = RestoreSessionCheck.IsOn;
+        s.ConfirmOnClose = ConfirmCloseCheck.IsOn;
+        s.AutoCopyOnSelect = AutoCopyCheck.IsOn;
+        s.RightClickPaste = RightClickPasteCheck.IsOn;
+        s.CtrlClickOpensUrls = CtrlClickUrlCheck.IsOn;
+        s.EnableToastNotifications = ToastEnabledCheck.IsOn;
+        s.ShowToastsWhileFocused = ToastWhileFocusedCheck.IsOn;
+        if (!double.IsNaN(AutoSaveBox.Value)) s.AutoSaveIntervalSeconds = (int)AutoSaveBox.Value;
+        if (!double.IsNaN(LogRetentionDaysBox.Value))
+            s.CommandLogRetentionDays = Math.Clamp((int)LogRetentionDaysBox.Value, 0, 3650);
+        s.CaptureTranscriptsOnClose = CaptureOnCloseCheck.IsOn;
+        s.CaptureTranscriptsOnClear = CaptureOnClearCheck.IsOn;
+        if (!double.IsNaN(TranscriptRetentionDaysBox.Value))
+            s.TranscriptRetentionDays = Math.Clamp((int)TranscriptRetentionDaysBox.Value, 0, 3650);
 
-        s.UseCustomTerminalColors = UseCustomTerminalColorsCheck.IsChecked == true;
+        s.UseCustomTerminalColors = UseCustomTerminalColorsCheck.IsOn;
         s.CustomTerminalBackground = NormalizeHexColor(TerminalBackgroundHexBox.Text) ?? string.Empty;
         s.CustomTerminalForeground = NormalizeHexColor(TerminalForegroundHexBox.Text) ?? string.Empty;
         s.CustomTerminalCursor = NormalizeHexColor(TerminalCursorHexBox.Text) ?? string.Empty;
@@ -309,7 +315,7 @@ public partial class SettingsWindow : Window
 
     private void UpdateTerminalColorEditorsEnabledState()
     {
-        var enabled = UseCustomTerminalColorsCheck.IsChecked == true;
+        var enabled = UseCustomTerminalColorsCheck.IsOn;
         TerminalBackgroundColorPanel.IsEnabled = enabled;
         TerminalForegroundColorPanel.IsEnabled = enabled;
         TerminalCursorColorPanel.IsEnabled = enabled;
@@ -318,7 +324,7 @@ public partial class SettingsWindow : Window
 
     private void RefreshCustomColorsFromPresetIfNeeded()
     {
-        if (UseCustomTerminalColorsCheck.IsChecked == true)
+        if (UseCustomTerminalColorsCheck.IsOn)
             return;
 
         if (TerminalThemePresetCombo.SelectedItem is not string presetName)
@@ -338,6 +344,7 @@ public partial class SettingsWindow : Window
 
     private void UseCustomTerminalColorsCheck_Changed(object sender, RoutedEventArgs e)
     {
+        if (!IsLoaded) return; // Toggled fires once during InitializeComponent before fields exist
         UpdateTerminalColorEditorsEnabledState();
         RefreshCustomColorsFromPresetIfNeeded();
     }

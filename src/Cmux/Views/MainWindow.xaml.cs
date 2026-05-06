@@ -201,6 +201,14 @@ public partial class MainWindow : Window
 
         // === App-level shortcuts that always work, even with terminal focus ===
 
+        // F12: open the diagnostics window (cmux's "DevTools").
+        if (e.Key == Key.F12 && !ctrl && !alt && !shift)
+        {
+            OpenDiagnosticsWindow();
+            e.Handled = true;
+            return;
+        }
+
         // Ctrl+Tab / Ctrl+Shift+Tab: cycle surfaces
         if (ctrl && e.Key == Key.Tab)
         {
@@ -640,6 +648,7 @@ public partial class MainWindow : Window
             new() { Id = "system-info", Label = "System Info Panel", Icon = "\uE9D9", Shortcut = "Ctrl+Shift+I", Category = "View", Execute = () => ViewModel.ToggleInfoPanel() },
             new() { Id = "test-notification", Label = "Test Notification", Icon = "\uE7F4", Category = "View", Execute = ShowTestNotification },
             new() { Id = "open-logs", Label = "Open Command Logs", Icon = "\uE7BA", Shortcut = "Ctrl+Shift+L", Category = "Logs", Execute = OpenLogsWindow },
+            new() { Id = "open-diagnostics", Label = "Open Diagnostics (DevTools)", Icon = "\uEBE8", Shortcut = "F12", Category = "Logs", Execute = OpenDiagnosticsWindow },
             new() { Id = "open-session-vault", Label = "Open Session Vault", Icon = "\uE8D1", Shortcut = "Ctrl+Shift+V", Category = "Logs", Execute = OpenSessionVault },
             new() { Id = "open-command-history", Label = "Open Command History", Icon = "\uE81C", Shortcut = "Ctrl+Alt+H", Category = "History", Execute = OpenCommandHistoryPicker },
             new() { Id = "insert-last-command", Label = "Insert Last Command", Icon = "\uE8A7", Shortcut = "Ctrl+Shift+H", Category = "History", Execute = InsertLastCommandFromHistory },
@@ -902,6 +911,13 @@ public partial class MainWindow : Window
     {
         var window = new LogsWindow { Owner = this };
         window.ShowDialog();
+    }
+
+    private void OpenDiagnosticsWindow()
+    {
+        // Modeless so the user can keep the app interactive while watching logs stream.
+        var window = new DiagnosticsWindow { Owner = this };
+        window.Show();
     }
 
     private void OpenSessionVault()

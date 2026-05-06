@@ -40,6 +40,10 @@
     <system:Double x:Key="TitleBarHeight">38</system:Double>
     <CornerRadius x:Key="WindowCornerRadius">10</CornerRadius>
 
+    <!-- Standard control height for inputs/combos/swatches — keeps form rows aligned. -->
+    <system:Double x:Key="ControlHeight">32</system:Double>
+    <CornerRadius x:Key="ControlCornerRadius">6</CornerRadius>
+
     <!-- ═══════════════════════════════════════════════════════════════════
          Brushes (existing keys preserved)
          ═══════════════════════════════════════════════════════════════════ -->
@@ -295,18 +299,20 @@
          CmuxTextBox — dark input with focus ring
          ═══════════════════════════════════════════════════════════════════ -->
     <Style x:Key="CmuxTextBox" TargetType="TextBox">
-        <Setter Property="Background" Value="{StaticResource SurfaceBrush}" />
+        <Setter Property="Background" Value="{StaticResource InputBackgroundBrush}" />
         <Setter Property="Foreground" Value="{StaticResource ForegroundBrush}" />
         <Setter Property="CaretBrush" Value="{StaticResource AccentBrush}" />
         <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
         <Setter Property="BorderThickness" Value="1" />
-        <Setter Property="Padding" Value="8,6" />
+        <Setter Property="Padding" Value="10,6" />
+        <Setter Property="MinHeight" Value="{StaticResource ControlHeight}" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
         <Setter Property="FontSize" Value="{StaticResource FontSizeNormal}" />
         <Setter Property="SelectionBrush" Value="{StaticResource AccentBrush}" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="TextBox">
-                    <Border x:Name="border" CornerRadius="6"
+                    <Border x:Name="border" CornerRadius="{StaticResource ControlCornerRadius}"
                             Background="{TemplateBinding Background}"
                             BorderThickness="{TemplateBinding BorderThickness}"
                             Padding="{TemplateBinding Padding}">
@@ -331,6 +337,327 @@
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
+    </Style>
+
+    <!-- ═══════════════════════════════════════════════════════════════════
+         CmuxPasswordBox — matches CmuxTextBox
+         ═══════════════════════════════════════════════════════════════════ -->
+    <Style x:Key="CmuxPasswordBox" TargetType="PasswordBox">
+        <Setter Property="Background" Value="{StaticResource InputBackgroundBrush}" />
+        <Setter Property="Foreground" Value="{StaticResource ForegroundBrush}" />
+        <Setter Property="CaretBrush" Value="{StaticResource AccentBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Padding" Value="10,6" />
+        <Setter Property="MinHeight" Value="{StaticResource ControlHeight}" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="FontSize" Value="{StaticResource FontSizeNormal}" />
+        <Setter Property="SelectionBrush" Value="{StaticResource AccentBrush}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="PasswordBox">
+                    <Border x:Name="border" CornerRadius="{StaticResource ControlCornerRadius}"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            Padding="{TemplateBinding Padding}">
+                        <ScrollViewer x:Name="PART_ContentHost" Focusable="False"
+                                      HorizontalScrollBarVisibility="Hidden"
+                                      VerticalScrollBarVisibility="Hidden" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="border" Property="BorderBrush" Value="{StaticResource ForegroundDimBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                            <Setter TargetName="border" Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.4" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ═══════════════════════════════════════════════════════════════════
+         CmuxComboBoxItem — modern dark dropdown row
+         ═══════════════════════════════════════════════════════════════════ -->
+    <Style x:Key="CmuxComboBoxItem" TargetType="ComboBoxItem">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Foreground" Value="{StaticResource ForegroundBrush}" />
+        <Setter Property="Padding" Value="10,7" />
+        <Setter Property="FontSize" Value="{StaticResource FontSizeNormal}" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ComboBoxItem">
+                    <Border x:Name="Bd"
+                            Background="{TemplateBinding Background}"
+                            CornerRadius="4"
+                            Margin="2,1"
+                            Padding="{TemplateBinding Padding}">
+                        <ContentPresenter VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsHighlighted" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="#FF1A1A2E" />
+                        </Trigger>
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource SidebarItemSelectedBrush}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ═══════════════════════════════════════════════════════════════════
+         CmuxComboBox — rounded, generous padding, subtle chevron
+         ═══════════════════════════════════════════════════════════════════ -->
+    <Style x:Key="CmuxComboBox" TargetType="ComboBox">
+        <Style.Resources>
+            <SolidColorBrush x:Key="{x:Static SystemColors.WindowBrushKey}" Color="{StaticResource InputBackgroundColor}" />
+            <SolidColorBrush x:Key="{x:Static SystemColors.ControlBrushKey}" Color="{StaticResource InputBackgroundColor}" />
+            <SolidColorBrush x:Key="{x:Static SystemColors.WindowTextBrushKey}" Color="{StaticResource ForegroundColor}" />
+            <SolidColorBrush x:Key="{x:Static SystemColors.ControlTextBrushKey}" Color="{StaticResource ForegroundColor}" />
+            <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="{StaticResource SidebarItemSelectedColor}" />
+            <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" Color="{StaticResource ForegroundColor}" />
+        </Style.Resources>
+        <Setter Property="Background" Value="{StaticResource InputBackgroundBrush}" />
+        <Setter Property="Foreground" Value="{StaticResource ForegroundBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Padding" Value="12,0" />
+        <Setter Property="MinHeight" Value="{StaticResource ControlHeight}" />
+        <Setter Property="FontSize" Value="{StaticResource FontSizeNormal}" />
+        <Setter Property="HorizontalContentAlignment" Value="Left" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="ItemContainerStyle" Value="{StaticResource CmuxComboBoxItem}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ComboBox">
+                    <Grid>
+                        <Border x:Name="Bd"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="{StaticResource ControlCornerRadius}"
+                                MinHeight="{TemplateBinding MinHeight}" />
+
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="32" />
+                            </Grid.ColumnDefinitions>
+
+                            <ContentPresenter x:Name="ContentSite"
+                                              Grid.Column="0"
+                                              Margin="{TemplateBinding Padding}"
+                                              VerticalAlignment="Center"
+                                              HorizontalAlignment="Left"
+                                              Content="{TemplateBinding SelectionBoxItem}"
+                                              ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
+                                              ContentTemplateSelector="{TemplateBinding ItemTemplateSelector}"
+                                              IsHitTestVisible="False" />
+
+                            <TextBox x:Name="PART_EditableTextBox"
+                                     Grid.Column="0"
+                                     Margin="{TemplateBinding Padding}"
+                                     Background="Transparent"
+                                     BorderThickness="0"
+                                     Foreground="{TemplateBinding Foreground}"
+                                     VerticalContentAlignment="Center"
+                                     Visibility="Hidden" />
+
+                            <TextBlock Grid.Column="1"
+                                       x:Name="Chevron"
+                                       Text="&#xE70D;"
+                                       FontFamily="Segoe MDL2 Assets"
+                                       Foreground="{StaticResource ForegroundDimBrush}"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                                       FontSize="9"
+                                       IsHitTestVisible="False" />
+
+                            <ToggleButton Grid.ColumnSpan="2"
+                                          Style="{x:Null}"
+                                          OverridesDefaultStyle="True"
+                                          Background="Transparent"
+                                          BorderThickness="0"
+                                          Focusable="False"
+                                          ClickMode="Press"
+                                          IsChecked="{Binding IsDropDownOpen, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}">
+                                <ToggleButton.Template>
+                                    <ControlTemplate TargetType="ToggleButton">
+                                        <Border Background="Transparent" />
+                                    </ControlTemplate>
+                                </ToggleButton.Template>
+                            </ToggleButton>
+                        </Grid>
+
+                        <Popup x:Name="PART_Popup"
+                               AllowsTransparency="True"
+                               IsOpen="{TemplateBinding IsDropDownOpen}"
+                               Placement="Bottom"
+                               PlacementTarget="{Binding RelativeSource={RelativeSource TemplatedParent}}"
+                               StaysOpen="False"
+                               Focusable="False"
+                               PopupAnimation="Slide">
+                            <Border x:Name="DropDownBorder"
+                                    Margin="0,4,0,0"
+                                    Background="{StaticResource InputBackgroundBrush}"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="8"
+                                    MinWidth="{TemplateBinding ActualWidth}">
+                                <Border.Effect>
+                                    <DropShadowEffect BlurRadius="20" ShadowDepth="4" Color="#000000" Opacity="0.5" Direction="270" />
+                                </Border.Effect>
+                                <ScrollViewer Margin="4" SnapsToDevicePixels="True">
+                                    <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Contained" />
+                                </ScrollViewer>
+                            </Border>
+                        </Popup>
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="HasItems" Value="False">
+                            <Setter TargetName="DropDownBorder" Property="MinHeight" Value="40" />
+                        </Trigger>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource ForegroundDimBrush}" />
+                            <Setter TargetName="Chevron" Property="Foreground" Value="{StaticResource ForegroundBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                            <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsDropDownOpen" Value="True">
+                            <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.5" />
+                        </Trigger>
+                        <Trigger Property="IsEditable" Value="True">
+                            <Setter TargetName="PART_EditableTextBox" Property="Visibility" Value="Visible" />
+                            <Setter TargetName="ContentSite" Property="Visibility" Value="Hidden" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ═══════════════════════════════════════════════════════════════════
+         CmuxCheckBox — iOS-style toggle switch (animated thumb + track color)
+         ═══════════════════════════════════════════════════════════════════ -->
+    <Style x:Key="CmuxCheckBox" TargetType="CheckBox">
+        <Setter Property="Foreground" Value="{StaticResource ForegroundBrush}" />
+        <Setter Property="FontSize" Value="{StaticResource FontSizeNormal}" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="CheckBox">
+                    <StackPanel Orientation="Horizontal" Background="Transparent">
+                        <Border x:Name="Track"
+                                Width="36" Height="20"
+                                CornerRadius="10"
+                                BorderThickness="1"
+                                BorderBrush="{StaticResource BorderBrush}"
+                                Background="#FF2A2A3C"
+                                VerticalAlignment="Center"
+                                SnapsToDevicePixels="True">
+                            <Border x:Name="Thumb"
+                                    Width="14" Height="14"
+                                    CornerRadius="7"
+                                    Background="#FFE2E2E9"
+                                    HorizontalAlignment="Left"
+                                    Margin="2,0,0,0"
+                                    SnapsToDevicePixels="True">
+                                <Border.Effect>
+                                    <DropShadowEffect BlurRadius="4" ShadowDepth="1"
+                                                      Color="#000000" Opacity="0.5" Direction="270" />
+                                </Border.Effect>
+                            </Border>
+                        </Border>
+                        <ContentPresenter Margin="10,0,0,0"
+                                          VerticalAlignment="Center"
+                                          RecognizesAccessKey="True" />
+                    </StackPanel>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="Thumb" Property="Margin" Value="20,0,0,0" />
+                            <Setter TargetName="Track" Property="Background" Value="{StaticResource AccentBrush}" />
+                            <Setter TargetName="Track" Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+                            <Trigger.EnterActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <ThicknessAnimation Storyboard.TargetName="Thumb"
+                                                            Storyboard.TargetProperty="Margin"
+                                                            To="20,0,0,0" Duration="0:0:0.18">
+                                            <ThicknessAnimation.EasingFunction>
+                                                <CubicEase EasingMode="EaseOut" />
+                                            </ThicknessAnimation.EasingFunction>
+                                        </ThicknessAnimation>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </Trigger.EnterActions>
+                            <Trigger.ExitActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <ThicknessAnimation Storyboard.TargetName="Thumb"
+                                                            Storyboard.TargetProperty="Margin"
+                                                            To="2,0,0,0" Duration="0:0:0.18">
+                                            <ThicknessAnimation.EasingFunction>
+                                                <CubicEase EasingMode="EaseOut" />
+                                            </ThicknessAnimation.EasingFunction>
+                                        </ThicknessAnimation>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </Trigger.ExitActions>
+                        </Trigger>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Track" Property="BorderBrush" Value="{StaticResource ForegroundDimBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.4" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ═══════════════════════════════════════════════════════════════════
+         Form labels — left column label in settings rows
+         ═══════════════════════════════════════════════════════════════════ -->
+    <Style x:Key="CmuxFormLabel" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{StaticResource ForegroundDimBrush}" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="FontSize" Value="{StaticResource FontSizeNormal}" />
+    </Style>
+
+    <Style x:Key="CmuxSectionHeader" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{StaticResource ForegroundBrush}" />
+        <Setter Property="FontSize" Value="{StaticResource FontSizeTitle}" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Margin" Value="0,0,0,20" />
+    </Style>
+
+    <!-- ═══════════════════════════════════════════════════════════════════
+         CmuxColorSwatch — fixed-height swatch matching ControlHeight
+         ═══════════════════════════════════════════════════════════════════ -->
+    <Style x:Key="CmuxColorSwatch" TargetType="Border">
+        <Setter Property="Width" Value="{StaticResource ControlHeight}" />
+        <Setter Property="Height" Value="{StaticResource ControlHeight}" />
+        <Setter Property="CornerRadius" Value="{StaticResource ControlCornerRadius}" />
+        <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
     </Style>
 
     <!-- Dark Context Menu -->

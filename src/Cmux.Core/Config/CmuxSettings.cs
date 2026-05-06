@@ -38,7 +38,30 @@ public class CmuxSettings
     public bool RestoreSessionOnStartup { get; set; } = true;
     public bool ConfirmOnClose { get; set; } = true;
     public bool AutoCopyOnSelect { get; set; } = false;
+    public bool RightClickPaste { get; set; } = false;
     public bool CtrlClickOpensUrls { get; set; } = true;
+
+    // ── Notifications ───────────────────────────────────────────
+
+    /// <summary>Whether OSC 9 / pipe-NOTIFY events fire Windows toast notifications.</summary>
+    public bool EnableToastNotifications { get; set; } = true;
+
+    /// <summary>
+    /// When true, toasts surface even when the cmux window itself is focused.
+    /// Default false matches classic behavior (focused = no toast spam).
+    /// </summary>
+    public bool ShowToastsWhileFocused { get; set; } = false;
+
+    // ── Diagnostics ─────────────────────────────────────────────
+
+    /// <summary>Master toggle for the in-app diagnostic logger.</summary>
+    public bool EnableDiagnosticLogging { get; set; } = true;
+
+    /// <summary>
+    /// Minimum log level to record: "debug" | "info" | "warn" | "error".
+    /// Anything below is filtered before hitting the ring buffer or file.
+    /// </summary>
+    public string DiagnosticLogLevel { get; set; } = "info";
     public int AutoSaveIntervalSeconds { get; set; } = 30;
     public bool CaptureTranscriptsOnClose { get; set; } = true;
     public bool CaptureTranscriptsOnClear { get; set; } = true;

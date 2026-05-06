@@ -1,13 +1,24 @@
 <Application x:Class="Cmux.App"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="http://schemas.modernwpf.com/2019"
              xmlns:conv="clr-namespace:Cmux.Converters"
              StartupUri="Views/MainWindow.xaml">
     <Application.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
+                <!-- ModernWpf Fluent base — must come BEFORE DarkTheme so our keyed styles win. -->
+                <ui:ThemeResources RequestedTheme="Dark" />
+                <ui:XamlControlsResources />
                 <ResourceDictionary Source="Themes/DarkTheme.xaml" />
             </ResourceDictionary.MergedDictionaries>
+
+            <!-- ModernWpf accent override — matches our indigo/purple brand. -->
+            <Color x:Key="SystemAccentColor">#FF818CF8</Color>
+            <Color x:Key="SystemAccentColorDark1">#FF6366F1</Color>
+            <Color x:Key="SystemAccentColorDark2">#FF4F46E5</Color>
+            <Color x:Key="SystemAccentColorLight1">#FFA78BFA</Color>
+            <Color x:Key="SystemAccentColorLight2">#FFC4B5FD</Color>
 
             <!-- Value converters -->
             <conv:BoolToVisibilityConverter x:Key="BoolToVisibility" />

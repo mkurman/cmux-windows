@@ -210,6 +210,20 @@ tests/
 
 ---
 
-## License
+## Provenance & Licensing
 
-MIT
+This repository is a fork of [`mkurman/cmux-windows`](https://github.com/mkurman/cmux-windows) (MIT) and additionally incorporates four commits from the intermediate fork [`SickBrains/cmux-windows`](https://github.com/SickBrains/cmux-windows) (MIT).
+
+Upstream commits incorporated:
+
+| Source | Commit | Subject |
+|---|---|---|
+| mkurman (fork point) | `974b7185` | (head of `mkurman/cmux-windows@main` at time of fork) |
+| SickBrains | `8dbe2808` | feat: CLI pane commands, pipe fix, single-instance mutex, agent removal, terminal improvements — v1.1.2 |
+| SickBrains | `9c5addb0` | feat: daemon write latency fix, ConPTY diagnostics, sandbox tooling, publish pipeline |
+| SickBrains | `7e76b8d3` | feat: system info panel, auto-naming terminals, port tracking, performance monitor |
+| SickBrains | `33415625` | feat: cmux MCP server exposes CLI as MCP tools |
+
+The MIT-licensed upstream code is preserved verbatim and remains under MIT — see [`LICENSE-MIT`](LICENSE-MIT). Original copyright notices are retained.
+
+New work in this repository (commits by `steven-ahfu` on top of the merged upstream history) is licensed under the **GNU Affero General Public License v3.0** — see [`LICENSE`](LICENSE).

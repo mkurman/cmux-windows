@@ -13,7 +13,17 @@ namespace Cmux.ViewModels;
 public partial class SurfaceViewModel : ObservableObject, IDisposable
 {
     public Surface Surface { get; }
-    private readonly string _workspaceId;
+    private string _workspaceId;
+
+    /// <summary>
+    /// Workspace this surface currently belongs to. Mutable so a surface can be
+    /// moved between workspaces without restarting its terminal sessions.
+    /// </summary>
+    public string WorkspaceId
+    {
+        get => _workspaceId;
+        internal set => _workspaceId = value;
+    }
     private readonly NotificationService _notificationService;
     private readonly Dictionary<string, TerminalSession> _sessions = [];
     private readonly Dictionary<string, List<string>> _paneCommandHistory = [];

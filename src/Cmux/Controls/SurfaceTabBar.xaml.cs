@@ -171,4 +171,87 @@ public partial class SurfaceTabBar : UserControl
                 ws.CloseSurface(other);
         }
     }
+
+    /// <summary>
+    /// Populates the "Move to" submenu with the other workspaces at the moment the user
+    /// hovers over it. Built lazily so it always reflects the live workspace list.
+    /// </summary>
+    private void MoveToMenu_Opened(object sender, RoutedEventArgs e)
+    {
+        if (sender is not MenuItem moveMenu)
+        {
+            App.DaemonLog($"[MoveTo] sender is not MenuItem: {sender?.GetType().Name}");
+            return;
+        }
+
+        // MenuItem.Parent is not reliable for items that own a submenu — walk the
+        // logical tree until we find the owning ContextMenu.
+        var ctx = FindAncestorContextMenu(moveMenu);
+        if (ctx == null)
+        {
+            App.DaemonLog("[MoveTo] could not locate parent ContextMenu");
+            return;
+        }
+
+        // Tag was bound via {Binding} on the ContextMenu definition; the inherited
+        // DataContext is the SurfaceViewModel for the right-clicked tab.
+        SurfaceViewModel? surface = ctx.Tag as SurfaceViewModel
+            ?? (ctx.PlacementTarget as FrameworkElement)?.DataContext as SurfaceViewModel;
+
+        if (surface == null)
+        {
+            App.DaemonLog($"[MoveTo] ctx.Tag={ctx.Tag?.GetType().Name ?? "null"} placementTarget DataContext lookup failed");
+            return;
+        }
+
+        moveMenu.Items.Clear();
+
+        var main = (Application.Current.MainWindow?.DataContext) as MainViewModel;
+        if (main == null)
+        {
+            App.DaemonLog("[MoveTo] MainWindow.DataContext is not MainViewModel");
+            moveMenu.Items.Add(new MenuItem { Header = "(no workspaces)", IsEnabled = false });
+            return;
+        }
+
+        var sourceWorkspace = DataContext as WorkspaceViewModel;
+        var targets = main.Workspaces.Where(w => w != sourceWorkspace).ToList();
+        if (targets.Count == 0)
+        {
+            moveMenu.Items.Add(new MenuItem { Header = "(create new workspace)", Cursor = System.Windows.Input.Cursors.Hand });
+            ((MenuItem)moveMenu.Items[0]!).Click += (_, _) =>
+            {
+                App.DaemonLog($"[MoveTo] no other workspaces — creating new and moving surface={surface.Name}");
+                main.CreateNewWorkspace();
+                var newWs = main.Workspaces[^1];
+                // The just-created workspace already has an empty surface; remove it so the moved one stands alone.
+                main.MoveSurfaceToWorkspace(surface, newWs);
+            };
+            return;
+        }
+
+        foreach (var target in targets)
+        {
+            var item = new MenuItem { Header = target.Name, Cursor = System.Windows.Input.Cursors.Hand };
+            var capturedSurface = surface;
+            var capturedTarget = target;
+            item.Click += (_, _) =>
+            {
+                App.DaemonLog($"[MoveTo] click → moving surface={capturedSurface.Name} to workspace={capturedTarget.Name}");
+                main.MoveSurfaceToWorkspace(capturedSurface, capturedTarget);
+            };
+            moveMenu.Items.Add(item);
+        }
+    }
+
+    private static ContextMenu? FindAncestorContextMenu(DependencyObject start)
+    {
+        DependencyObject? cur = start;
+        while (cur != null)
+        {
+            if (cur is ContextMenu cm) return cm;
+            cur = System.Windows.LogicalTreeHelper.GetParent(cur);
+        }
+        return null;
+    }
 }

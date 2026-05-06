@@ -26,10 +26,11 @@ public static class ToastNotificationHelper
                 .AddArgument("surfaceId", notification.SurfaceId)
                 .Show();
         }
-        catch
+        catch (Exception ex)
         {
-            // Toast notifications may fail in certain environments
-            // (no UWP support, sandboxed, etc). Non-critical.
+            // Surface the failure in the daemon log so users can diagnose
+            // missing toasts on Win10 (AUMID/COM activator/shortcut issues).
+            App.DaemonLog($"[Toast] ShowToast failed: {ex.GetType().Name}: {ex.Message}");
         }
     }
 
