@@ -24,6 +24,16 @@ public sealed class TerminalSession : IDisposable
     private volatile bool _localWriteNullLogged;
     private readonly object _lock = new();
 
+    // Redraw coalescing. Without this, every PTY chunk fires Redraw → BeginInvoke
+    // → render bookkeeping on the WPF UI thread. Burst output across multiple
+    // workspaces saturates the dispatcher. We allow the leading edge to fire
+    // immediately so latency stays low, then throttle subsequent fires to ~60 Hz
+    // with a trailing-edge timer so the final frame of a burst is always rendered.
+    private static readonly long RedrawIntervalTicks = Stopwatch.Frequency / 60;
+    private long _lastRedrawTicks;
+    private int _redrawTimerArmed;
+    private System.Threading.Timer? _redrawTimer;
+
     /// <summary>Lock object for synchronizing buffer access between read thread and UI thread.</summary>
     public object BufferLock => _lock;
 
@@ -33,6 +43,31 @@ public sealed class TerminalSession : IDisposable
     public string? WorkingDirectory { get; set; }
     public bool IsRunning => _process != null && !_process.HasExited;
     public int? ProcessId => _process?.ProcessId;
+
+    /// <summary>
+    /// If we own the shell process locally, read its actual cwd from the
+    /// PEB and update <see cref="WorkingDirectory"/> when it differs. Used
+    /// at snapshot time so panes reopen in the directory the user last
+    /// cd'd to even when the shell does not emit OSC 7 (cmd, default
+    /// PowerShell prompt). No-op for daemon-attached sessions, where the
+    /// daemon owns the process and reports cwd over IPC.
+    /// </summary>
+    public void RefreshLocalWorkingDirectory()
+    {
+        if (_process == null) return;
+
+        var pid = _process.ProcessId;
+        if (pid <= 0) return;
+
+        var live = ProcessCwdReader.TryRead(pid);
+        if (string.IsNullOrWhiteSpace(live)) return;
+
+        if (!string.Equals(live, WorkingDirectory, StringComparison.Ordinal))
+        {
+            WorkingDirectory = live;
+            WorkingDirectoryChanged?.Invoke(live);
+        }
+    }
     public int ExitCode => _process?.ExitCode ?? -1;
 
     // Daemon-mode delegates: when set, Write/Resize route through these instead of local ConPTY
@@ -214,7 +249,7 @@ public sealed class TerminalSession : IDisposable
                 if (RawOutputReceived != null)
                     RawOutputReceived.Invoke(buffer.AsSpan(0, bytesRead).ToArray());
                 OutputReceived?.Invoke();
-                Redraw?.Invoke();
+                ScheduleRedraw();
             }
         }
         catch (IOException) when (_disposed)
@@ -286,6 +321,9 @@ public sealed class TerminalSession : IDisposable
         cols = Math.Max(1, cols);
         rows = Math.Max(1, rows);
 
+        var oldCols = Buffer.Cols;
+        var oldRows = Buffer.Rows;
+
         lock (_lock)
         {
             Buffer.Resize(cols, rows);
@@ -295,6 +333,20 @@ public sealed class TerminalSession : IDisposable
                 _ = DaemonResize(cols, rows);
             else
                 _console?.Resize((short)cols, (short)rows);
+        }
+
+        // Diagnostic: noisy on first attach (Buffer starts at 80x25 default), but quiet
+        // during steady-state. Helps diagnose phantom-prompt-line bugs caused by repeated
+        // resize-on-reattach triggering the shell to redraw its prompt.
+        if (oldCols != cols || oldRows != rows)
+        {
+            Cmux.Core.Logging.Log.Debug("Terminal",
+                $"[TerminalSession:{PaneId}] Resize {oldCols}x{oldRows} -> {cols}x{rows} (mode={(DaemonResize != null ? "daemon" : "local")})");
+        }
+        else
+        {
+            Cmux.Core.Logging.Log.Debug("Terminal",
+                $"[TerminalSession:{PaneId}] Resize no-op {cols}x{rows} (mode={(DaemonResize != null ? "daemon" : "local")})");
         }
 
         Redraw?.Invoke();
@@ -321,6 +373,47 @@ public sealed class TerminalSession : IDisposable
         }
 
         OutputReceived?.Invoke();
+        ScheduleRedraw();
+    }
+
+    private void ScheduleRedraw()
+    {
+        if (_disposed) return;
+
+        var now = Stopwatch.GetTimestamp();
+        var last = Interlocked.Read(ref _lastRedrawTicks);
+        if (now - last >= RedrawIntervalTicks)
+        {
+            Interlocked.Exchange(ref _lastRedrawTicks, now);
+            Redraw?.Invoke();
+            return;
+        }
+
+        // Inside the throttle window. Arm a one-shot timer so the trailing
+        // chunk of a burst is rendered, but only once until it fires.
+        if (Interlocked.Exchange(ref _redrawTimerArmed, 1) != 0)
+            return;
+
+        var dueTicks = RedrawIntervalTicks - (now - last);
+        var dueMs = (int)(dueTicks * 1000L / Stopwatch.Frequency);
+        if (dueMs < 1) dueMs = 1;
+
+        _redrawTimer ??= new System.Threading.Timer(OnRedrawTimer, null, Timeout.Infinite, Timeout.Infinite);
+        try
+        {
+            _redrawTimer.Change(dueMs, Timeout.Infinite);
+        }
+        catch (ObjectDisposedException)
+        {
+            Interlocked.Exchange(ref _redrawTimerArmed, 0);
+        }
+    }
+
+    private void OnRedrawTimer(object? state)
+    {
+        Interlocked.Exchange(ref _redrawTimerArmed, 0);
+        if (_disposed) return;
+        Interlocked.Exchange(ref _lastRedrawTicks, Stopwatch.GetTimestamp());
         Redraw?.Invoke();
     }
 
@@ -642,6 +735,7 @@ public sealed class TerminalSession : IDisposable
         if (_disposed) return;
         _disposed = true;
 
+        _redrawTimer?.Dispose();
         _readStream?.Dispose();
         _writeStream?.Dispose();
         _process?.Dispose();

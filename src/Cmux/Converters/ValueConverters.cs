@@ -72,6 +72,33 @@ public class InverseBoolConverter : IValueConverter
         value is false;
 }
 
+/// <summary>
+/// Title-cases a string for display (UI labels, combo items, etc.) so we
+/// don't have to remember to capitalize every option site by site. Smart:
+/// only transforms inputs that contain no uppercase letters, leaving proper
+/// names like "JetBrainsMono", "Cascadia Code", or "OpenAI" untouched.
+/// </summary>
+public class TitleCaseConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        if (value is not string s || string.IsNullOrEmpty(s))
+            return value ?? string.Empty;
+
+        bool hasUpper = false;
+        foreach (var ch in s)
+            if (char.IsUpper(ch)) { hasUpper = true; break; }
+
+        if (hasUpper) return s;
+
+        // All-lowercase or no-letter input — title-case each whitespace-separated word.
+        return culture.TextInfo.ToTitleCase(s);
+    }
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) =>
+        value is string s ? s.ToLowerInvariant() : value ?? string.Empty;
+}
+
 /// <summary>Converts a hex color string (e.g. #FF818CF8) to a SolidColorBrush.</summary>
 public class HexToBrushConverter : IValueConverter
 {

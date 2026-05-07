@@ -6,6 +6,45 @@ public record ShellInfo(string Name, string Path);
 
 public static class ShellDetector
 {
+    private static List<ShellInfo>? _cachedShells;
+    private static readonly object _cacheLock = new();
+
+    /// <summary>
+    /// Returns the user-facing label for a shell at the given path — same string the
+    /// Settings → Default Shell dropdown shows. Falls back to a synthesized name based
+    /// on the executable filename if the path isn't in the detected-shell list.
+    /// </summary>
+    public static string FriendlyName(string? exePath)
+    {
+        if (string.IsNullOrWhiteSpace(exePath)) return "Terminal";
+
+        // Cache DetectShells (FS scan is expensive); refreshed once per process.
+        List<ShellInfo> shells;
+        lock (_cacheLock) { shells = _cachedShells ??= DetectShells(); }
+
+        foreach (var s in shells)
+        {
+            if (string.Equals(s.Path, exePath, StringComparison.OrdinalIgnoreCase))
+                return s.Name;
+        }
+
+        // Path didn't match a known shell — synthesize a name. For pwsh.exe, try
+        // FileVersionInfo so unmanaged installs (sandbox, dev builds) still get
+        // "PowerShell 7.6.1" instead of just the filename.
+        var fileName = System.IO.Path.GetFileName(exePath);
+        var lower = fileName.ToLowerInvariant();
+        return lower switch
+        {
+            "pwsh.exe" => LabelFor(exePath, ""),
+            "powershell.exe" => "Windows PowerShell",
+            "cmd.exe" => "Command Prompt",
+            "bash.exe" => "Bash",
+            "wsl.exe" => "WSL",
+            "nu.exe" => "Nushell",
+            _ => System.IO.Path.GetFileNameWithoutExtension(exePath),
+        };
+    }
+
     public static List<ShellInfo> DetectShells()
     {
         var shells = new List<ShellInfo>();

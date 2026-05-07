@@ -72,6 +72,24 @@ public class NotificationService
     }
 
     /// <summary>
+    /// Marks all notifications targeting a specific surface as read — call
+    /// when the user activates the surface tab so the tab indicator clears.
+    /// </summary>
+    public void MarkSurfaceAsRead(string surfaceId)
+    {
+        bool changed = false;
+        lock (_lock)
+        {
+            foreach (var n in _notifications.Where(n => n.SurfaceId == surfaceId && !n.IsRead))
+            {
+                n.IsRead = true;
+                changed = true;
+            }
+        }
+        if (changed) UnreadCountChanged?.Invoke();
+    }
+
+    /// <summary>
     /// Marks all notifications for a workspace as read.
     /// </summary>
     public void MarkWorkspaceAsRead(string workspaceId)
@@ -116,6 +134,33 @@ public class NotificationService
         lock (_lock)
         {
             return _notifications.Count(n => n.WorkspaceId == workspaceId && !n.IsRead);
+        }
+    }
+
+    /// <summary>
+    /// Gets unread count for a specific surface — used to light up the surface
+    /// tab when an agent posts something while the user is on a different tab.
+    /// </summary>
+    public int GetUnreadCountForSurface(string surfaceId)
+    {
+        lock (_lock)
+        {
+            return _notifications.Count(n => n.SurfaceId == surfaceId && !n.IsRead);
+        }
+    }
+
+    /// <summary>
+    /// Gets unread count for a specific pane — used to ring the pane border.
+    /// Notifications without a paneId (e.g. `cmux notify` from outside any
+    /// pane) fall back to matching the surface so the active tab still rings.
+    /// </summary>
+    public int GetUnreadCountForPane(string paneId, string surfaceId)
+    {
+        lock (_lock)
+        {
+            return _notifications.Count(n => !n.IsRead &&
+                ((n.PaneId == paneId) ||
+                 (string.IsNullOrEmpty(n.PaneId) && n.SurfaceId == surfaceId)));
         }
     }
 

@@ -25,6 +25,13 @@ public partial class SurfaceViewModel : ObservableObject, IDisposable
         internal set => _workspaceId = value;
     }
     private readonly NotificationService _notificationService;
+
+    /// <summary>
+    /// The notification service backing this surface. Exposed so per-pane
+    /// controls (TerminalControl) and the surface tab bar can observe unread
+    /// state for ring/badge rendering.
+    /// </summary>
+    public NotificationService NotificationService => _notificationService;
     private readonly Dictionary<string, TerminalSession> _sessions = [];
     private readonly Dictionary<string, List<string>> _paneCommandHistory = [];
     private readonly Dictionary<string, string?> _paneShells = [];
@@ -46,7 +53,45 @@ public partial class SurfaceViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     private bool _isZoomed;
 
+    [ObservableProperty]
+    private bool _hasNotification;
+
     public event Action<string>? WorkingDirectoryChanged;
+
+    /// <summary>
+    /// Returns the live working directory of the focused pane's session, if any.
+    /// Used when opening a new tab so it inherits the current pane's cwd.
+    /// </summary>
+    public string? GetFocusedPaneWorkingDirectory()
+    {
+        if (FocusedPaneId == null)
+        {
+            DaemonLog("[GetFocusedPaneCwd] FocusedPaneId is null");
+            return null;
+        }
+        var session = GetSession(FocusedPaneId);
+
+        // Pull the live cwd from the shell process before reading. This makes
+        // clicks on the tab-bar "+" button (and Ctrl+T) inherit the directory
+        // the user actually cd'd to, even when the shell does not emit OSC 7.
+        // No-op for daemon-attached sessions — the daemon's own poller keeps
+        // their WorkingDirectory fresh over IPC.
+        session?.RefreshLocalWorkingDirectory();
+
+        var live = session?.WorkingDirectory;
+        DaemonLog($"[GetFocusedPaneCwd] paneId={FocusedPaneId} pid={session?.ProcessId} live='{live}'");
+        if (!string.IsNullOrWhiteSpace(live))
+            return live;
+
+        // Fall back to the snapshot we last persisted for this pane.
+        if (Surface.PaneSnapshots.TryGetValue(FocusedPaneId, out var snap)
+            && !string.IsNullOrWhiteSpace(snap.WorkingDirectory))
+        {
+            return snap.WorkingDirectory;
+        }
+
+        return null;
+    }
 
     /// <summary>Gets the shell process PID from the focused pane session.</summary>
     public int? ShellPid
@@ -67,6 +112,10 @@ public partial class SurfaceViewModel : ObservableObject, IDisposable
         _name = surface.Name;
         _rootNode = surface.RootSplitNode;
         _focusedPaneId = surface.FocusedPaneId;
+
+        // Light up tab when an unread notification targets this surface.
+        _notificationService.NotificationAdded += OnNotificationServiceChanged;
+        _notificationService.UnreadCountChanged += RefreshHasNotification;
 
         // Wire daemon events for session persistence
         var daemon = App.DaemonClient;
@@ -196,7 +245,27 @@ public partial class SurfaceViewModel : ObservableObject, IDisposable
         if (Surface.PaneCustomNames.TryGetValue(paneId, out var custom) && !string.IsNullOrWhiteSpace(custom))
             return custom;
 
-        return fallbackTitle ?? "Terminal";
+        return PrettifyShellTitle(fallbackTitle) ?? "Terminal";
+    }
+
+    /// <summary>
+    /// Many shells (notably pwsh) emit OSC 2 with the full path to their executable as the
+    /// initial window title — e.g. <c>C:\Program Files\WindowsApps\Microsoft.PowerShell_7.6.1.0_x64__8wekyb3d8bbwe\pwsh.exe</c>.
+    /// Replace those with the same friendly label the Settings → Default Shell dropdown shows
+    /// so the pane header matches what the user picked the shell as.
+    /// </summary>
+    private static string? PrettifyShellTitle(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return raw;
+
+        // Only treat as a path if it looks like one (drive letter / backslash) and ends in .exe.
+        if (!raw.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) ||
+            (raw.IndexOf('\\') < 0 && raw.IndexOf('/') < 0))
+        {
+            return raw;
+        }
+
+        return ShellDetector.FriendlyName(raw);
     }
 
     public void SetPaneCustomName(string paneId, string name)
@@ -288,6 +357,13 @@ public partial class SurfaceViewModel : ObservableObject, IDisposable
         {
             if (!_sessions.TryGetValue(paneId, out var session))
                 continue;
+
+            // For local sessions, read the live cwd from the shell PEB so we
+            // capture where the user actually cd'd to even if the shell never
+            // emitted OSC 7. Daemon-mode sessions get the same refresh from
+            // the daemon's poller and report it via CwdChanged.
+            session.RefreshLocalWorkingDirectory();
+            DaemonLog($"[CapturePaneSnapshot] paneId={paneId} pid={session.ProcessId} cwd='{session.WorkingDirectory}'");
 
             var state = Surface.PaneSnapshots.TryGetValue(paneId, out var existing)
                 ? existing
@@ -465,11 +541,13 @@ public partial class SurfaceViewModel : ObservableObject, IDisposable
                         DaemonLog($"[DaemonSession:{paneId}] GetSnapshotAsync returned null");
                     }
 
-                    // Send Enter after a brief delay to force the shell to print a fresh prompt.
-                    // The snapshot restores scrollback but the prompt line may be missing
-                    // because the shell already printed it before disconnect.
-                    await Task.Delay(300);
-                    await daemon.WriteAsync(paneId, [0x0d]); // CR = Enter
+                    // (Was: send CR on reattach to "refresh the prompt" — removed because the
+                    // CR caused pwsh to print an empty prompt line that got trapped in the
+                    // daemon-side scrollback, accumulating one phantom `~ )` line per cmux
+                    // launch. The snapshot already contains the prompt; no nudge needed.
+                    // If we ever see a "missing prompt after reattach" regression, replace
+                    // with prompt-detection on the snapshot's last line before sending CR.)
+                    DaemonLog($"[DaemonSession:{paneId}] Reattach complete (no CR sent — see comment).");
                 }
             }
             catch (Exception ex)
@@ -679,9 +757,33 @@ public partial class SurfaceViewModel : ObservableObject, IDisposable
         Surface.Name = value;
     }
 
+    private void OnNotificationServiceChanged(TerminalNotification _) => RefreshHasNotification();
+
+    private void RefreshHasNotification()
+    {
+        var pending = _notificationService.GetUnreadCountForSurface(Surface.Id) > 0;
+        if (HasNotification != pending)
+        {
+            // PropertyChanged must fire on the UI thread because XAML triggers
+            // bind to it. NotificationAdded may arrive from the PTY read thread.
+            if (System.Windows.Application.Current?.Dispatcher is { } dispatcher
+                && !dispatcher.CheckAccess())
+            {
+                dispatcher.BeginInvoke(() => HasNotification = pending);
+            }
+            else
+            {
+                HasNotification = pending;
+            }
+        }
+    }
+
     public void Dispose()
     {
         CapturePaneSnapshotsForPersistence();
+
+        _notificationService.NotificationAdded -= OnNotificationServiceChanged;
+        _notificationService.UnreadCountChanged -= RefreshHasNotification;
 
         // Unwire daemon events
         var daemon = App.DaemonClient;

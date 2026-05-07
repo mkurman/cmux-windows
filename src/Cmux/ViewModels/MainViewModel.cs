@@ -79,8 +79,49 @@ public partial class MainViewModel : ObservableObject
         workspace.SelectedSurface = surface;
 
         var vm = new WorkspaceViewModel(workspace, _notificationService);
+        WireWorkspaceVm(vm);
         Workspaces.Add(vm);
         SelectedWorkspace = vm;
+    }
+
+    /// <summary>
+    /// Hooks MainViewModel-scoped behavior onto a freshly created WorkspaceViewModel.
+    /// Right now: closing the last surface in a workspace prompts to close the workspace.
+    /// </summary>
+    private void WireWorkspaceVm(WorkspaceViewModel vm)
+    {
+        vm.LastSurfaceCloseRequested += OnLastSurfaceCloseRequested;
+    }
+
+    private async void OnLastSurfaceCloseRequested(object? sender, EventArgs e)
+    {
+        if (sender is not WorkspaceViewModel ws) return;
+
+        // If this is the only workspace left, closing it would leave the user with
+        // nothing — refuse rather than nuking the app silently. Match the existing
+        // CloseWorkspace guard.
+        if (Workspaces.Count <= 1)
+        {
+            await new ModernWpf.Controls.ContentDialog
+            {
+                Title = "Can't close last workspace",
+                Content = "This is the last workspace — cmux always keeps at least one open. Close the cmux window to exit.",
+                CloseButtonText = "OK",
+            }.ShowAsync();
+            return;
+        }
+
+        var dialog = new ModernWpf.Controls.ContentDialog
+        {
+            Title = "Close workspace?",
+            Content = $"Closing the last terminal in '{ws.Name}' will close the entire workspace.",
+            PrimaryButtonText = "Close workspace",
+            SecondaryButtonText = "Cancel",
+            DefaultButton = ModernWpf.Controls.ContentDialogButton.Secondary,
+        };
+
+        if (await dialog.ShowAsync() == ModernWpf.Controls.ContentDialogResult.Primary)
+            CloseWorkspace(ws);
     }
 
     public void DuplicateWorkspace(WorkspaceViewModel source)
@@ -157,6 +198,7 @@ public partial class MainViewModel : ObservableObject
         }
 
         var vm = new WorkspaceViewModel(clone, _notificationService);
+        WireWorkspaceVm(vm);
         Workspaces.Add(vm);
         SelectedWorkspace = vm;
     }
@@ -206,6 +248,27 @@ public partial class MainViewModel : ObservableObject
         {
             SelectedWorkspace = Workspaces[Math.Min(index, Workspaces.Count - 1)];
         }
+    }
+
+    /// <summary>
+    /// Toggles a workspace's pinned state. Pinned workspaces sort to the top
+    /// of the sidebar — pin moves to position 0; unpin moves to the first
+    /// non-pinned slot so the relative order of unpinned items is preserved.
+    /// </summary>
+    public void TogglePinWorkspace(WorkspaceViewModel? workspace)
+    {
+        if (workspace == null) return;
+        int current = Workspaces.IndexOf(workspace);
+        if (current < 0) return;
+
+        workspace.IsPinned = !workspace.IsPinned;
+
+        int target = workspace.IsPinned
+            ? 0
+            : Workspaces.Count(w => w.IsPinned && w != workspace);
+
+        if (current != target)
+            Workspaces.Move(current, target);
     }
 
     [RelayCommand]
@@ -333,6 +396,7 @@ public partial class MainViewModel : ObservableObject
                 IconGlyph = string.IsNullOrWhiteSpace(wsState.IconGlyph) ? "\uE8A5" : wsState.IconGlyph,
                 AccentColor = string.IsNullOrWhiteSpace(wsState.AccentColor) ? "#FF818CF8" : wsState.AccentColor,
                 WorkingDirectory = wsState.WorkingDirectory,
+                IsPinned = wsState.IsPinned,
             };
 
             foreach (var surfState in wsState.Surfaces)
@@ -385,6 +449,7 @@ public partial class MainViewModel : ObservableObject
             }
 
             var vm = new WorkspaceViewModel(workspace, _notificationService);
+            WireWorkspaceVm(vm);
             Workspaces.Add(vm);
         }
 

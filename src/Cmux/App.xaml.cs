@@ -5,6 +5,7 @@ using Cmux.Core.Config;
 using Cmux.Core.IPC;
 using Cmux.Core.Services;
 using Microsoft.Toolkit.Uwp.Notifications;
+using ModernWpf;
 
 namespace Cmux;
 
@@ -31,6 +32,10 @@ public partial class App : Application
             Shutdown();
             return;
         }
+
+        // Apply the user-selected app theme BEFORE base.OnStartup creates the StartupUri MainWindow,
+        // so the window inherits the right merged dictionaries on first measure.
+        ApplyAppTheme(SettingsService.Current.AppThemeMode);
 
         base.OnStartup(e);
 
@@ -161,6 +166,80 @@ public partial class App : Application
     /// directly with a meaningful category.
     /// </summary>
     internal static void DaemonLog(string message) => Cmux.Core.Logging.Log.Info("Daemon", message);
+
+    /// <summary>
+    /// Single source of truth for the displayed app version. Reads `<Version>` from the
+    /// running assembly (set in Cmux.csproj) so MainWindow and Settings → About can never
+    /// drift apart from each other.
+    /// </summary>
+    public static string AppVersion
+    {
+        get
+        {
+            var v = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
+            // .NET stamps Version as Major.Minor.Build.Revision; show 3 segments to match
+            // semver-ish conventions used in commit messages and the README.
+            return v == null ? "v?" : $"v{v.Major}.{v.Minor}.{v.Build}";
+        }
+    }
+
+    /// <summary>
+    /// Loads the dark or light brand resource dictionary into Application.Resources and
+    /// flips ModernWpf's <see cref="ThemeManager.ApplicationTheme"/>. Restart-required —
+    /// existing windows already resolved their StaticResources before this point.
+    /// </summary>
+    private static void ApplyAppTheme(string mode)
+    {
+        ApplyAppTheme(mode, SettingsService.Current.AppThemeVariant);
+    }
+
+    private static void ApplyAppTheme(string mode, string variantName)
+    {
+        // This runs before base.OnStartup — i.e. before the unified Log is configured AND
+        // before the DispatcherUnhandledException handler is wired. Any exception bubbles up
+        // as a silent process exit, which looks like "no window opens" with nothing in the log.
+        // Catch + crash-log to a side file so the failure is recoverable.
+        try
+        {
+            var isLight = string.Equals(mode?.Trim(), "Light", StringComparison.OrdinalIgnoreCase);
+            // Pack URI is required for runtime-loaded ResourceDictionaries — a bare relative
+            // path silently fails to resolve assembly-embedded resources after compilation.
+            // No `;component/<asm>` prefix: the running assembly is implied (works regardless
+            // of whether AssemblyName is "Cmux" or "cmuxw").
+            var path = isLight
+                ? "pack://application:,,,/Themes/LightTheme.xaml"
+                : "pack://application:,,,/Themes/DarkTheme.xaml";
+            var dict = new ResourceDictionary { Source = new Uri(path, UriKind.Absolute) };
+            Current.Resources.MergedDictionaries.Add(dict);
+
+            // Variant overlay: redefines a handful of high-impact brushes (background,
+            // foreground, accent, sidebar, surface, border) so non-Default variants like
+            // Catppuccin / Dracula / GitHub repaint the chrome without us authoring a
+            // full XAML dictionary per family. Last-merged-wins; appended after the base.
+            var variant = Cmux.Themes.AppThemeCatalog.Find(variantName);
+            if (variant != null && string.Equals(variant.Mode, isLight ? "Light" : "Dark", StringComparison.OrdinalIgnoreCase))
+            {
+                var overlay = Cmux.Themes.AppThemeCatalog.BuildOverlay(variant);
+                if (overlay != null)
+                    Current.Resources.MergedDictionaries.Add(overlay);
+            }
+
+            ThemeManager.Current.ApplicationTheme = isLight ? ApplicationTheme.Light : ApplicationTheme.Dark;
+        }
+        catch (Exception ex)
+        {
+            try
+            {
+                var crashLog = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                    "cmux", "theme-crash.log");
+                Directory.CreateDirectory(Path.GetDirectoryName(crashLog)!);
+                File.AppendAllText(crashLog, $"{DateTime.UtcNow:O} mode={mode} {ex}\n");
+            }
+            catch { /* last-resort logger; swallow */ }
+            // Fall back to whatever ModernWpf defaults to so the app still launches.
+        }
+    }
 
     private static Cmux.Core.Logging.LogLevel ParseLogLevel(string raw) => (raw ?? "info").Trim().ToLowerInvariant() switch
     {

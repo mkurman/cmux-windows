@@ -1,6 +1,22 @@
 # cmux for Windows
 
-A dark, keyboard-first terminal multiplexer for Windows, inspired by tmux/cmux workflows but built natively with WPF + ConPTY.
+A keyboard-first terminal multiplexer for Windows, inspired by tmux/cmux workflows but built natively with WPF + ConPTY. Ships with both Dark and Light themes plus 22 named palette variants (Catppuccin, Dracula, GitHub, Nord, One, Rose Pine, Tokyo Night, Solarized, Gruvbox, Everforest, Monokai) — flip via Settings → Appearance → Mode + App Theme.
+
+---
+
+## ⚠️ Status: work in progress — lots of stuff is broken
+
+This is an actively evolving fork. Expect rough edges. Known categories of brokenness as of right now:
+
+- **Persistence is unreliable.** Reopening the app does not always restore terminals to the directory they were closed in. `cd`-tracking inside PowerShell relies on a prompt-injection shim that's still being shaken out — if you launch a non-default shell or have a heavily customized `$PROFILE`, your mileage will vary.
+- **Daemon discovery is fragile.** If you run a published build that doesn't have `cmux-daemon.exe` next to `cmuxw.exe`, every terminal silently falls back to in-process ConPTY (you'll see `[Connect] Timeout` in `%LOCALAPPDATA%\cmux\daemon-debug.log`). The "Build `.exe`" section below has the publish commands for all three required binaries.
+- **Custom WPF templates may have gaps that haven't been noticed yet.** A previous version of the brand dictionary defined a custom `MenuItem` template without a `<Popup>`, which silently broke every submenu in the app — that's been swept (ModernWpf now owns menu styling) but similar landmines could exist in other places.
+- **OSC notification handling, command-log capture, transcript persistence** all have edge cases that have eaten data in past sessions. Don't rely on cmux as your only record of anything important.
+- **No installer.** You build it yourself and run the resulting `cmuxw.exe`.
+- **Settings UI** doesn't cover everything the engine supports; some behavior is only configurable by editing `%LOCALAPPDATA%\cmux\settings.json` directly.
+- **Tests are thin.** The xUnit project covers core models and a handful of services, not the WPF layer or the full IPC round-trip.
+
+If you want a stable, finished product, this isn't it yet. If you want a hackable Windows terminal multiplexer with the source right there, welcome.
 
 ---
 
@@ -14,7 +30,7 @@ A dark, keyboard-first terminal multiplexer for Windows, inspired by tmux/cmux w
 | You need auditability of executed commands | Security-conscious / debugging workflows | **Command logs + history picker** | `Ctrl+Shift+L` logs, `Ctrl+Alt+H` command history, insert/run from UI |
 | You want full session recall after crashes/restarts | Long-running sessions | **Session persistence + transcript capture** | Auto restore on startup + open **Session Vault** (`Ctrl+Shift+V`) |
 | You want searchable output history like Termius vault | Anyone reviewing terminal sessions | **Session Vault browser** | Open vault, filter captures, preview transcript, copy/open file |
-| You need dark theme consistency and personalization | Users who care about UX/readability | **Dark UI + terminal theme customization** | Settings (`Ctrl+,`) for colors/font/cursor + workspace accents |
+| You need a UI that fits your light/dark preference and a terminal that fits your eyes | Users who care about UX/readability | **Light/Dark app theme + 24 terminal palettes** | Settings (`Ctrl+,`) → Appearance for app Mode + variant; Terminal for renderer palette + font/cursor; per-workspace accents in the sidebar context menu |
 | You want quick actions without mouse hunting | Keyboard-first power users | **Command palette + shortcuts** | `Ctrl+Shift+P` command palette, menu mirrors key flows |
 | You need automation from scripts/tools | Integrators/agent hooks | **Named pipe CLI API** (`cmux`) | `cmux notify`, `cmux workspace`, `cmux split`, `cmux status` |
 
@@ -29,7 +45,9 @@ A dark, keyboard-first terminal multiplexer for Windows, inspired by tmux/cmux w
 - Command logs/history with filtering and quick replay
 - Terminal transcript capture + Session Vault browsing
 - Persistent sessions (window + workspace/surface/pane state)
-- Dark desktop UI with keyboard-first navigation
+- Light/Dark app theme with 22 named palette variants (Default, Catppuccin, Dracula, GitHub, Nord, One, Rose Pine, Tokyo Night, Solarized, Gruvbox, Everforest, Monokai)
+- 24 built-in terminal renderer palettes, custom-color override, and Ghostty-config-file fallback
+- Keyboard-first navigation with full command palette + customizable shortcuts
 
 ---
 
@@ -76,44 +94,77 @@ dotnet run --project src/Cmux/Cmux.csproj -c Debug
 
 ## Build `.exe` on Windows
 
+> **Important:** cmux ships as **three** executables that must coexist in the same directory:
+> - `cmuxw.exe` — the WPF app
+> - `cmux-daemon.exe` — out-of-process ConPTY host (lets terminals survive a UI crash/restart)
+> - `cmux.exe` — the CLI (`cmux notify`, `cmux split`, etc.)
+>
+> If `cmux-daemon.exe` is missing, the app still launches but every terminal falls back to in-process ConPTY — you'll see `[Connect] Timeout after 300ms` in `%LOCALAPPDATA%\cmux\daemon-debug.log` and lose the daemon's persistence/restart-survival benefits.
+>
+> Each section below publishes all three into the **same** `-o` directory. Run all three commands in the section, in order.
+
 ### 1) Framework-dependent `.exe` (smallest output)
 
 ```powershell
-dotnet publish src/Cmux/Cmux.csproj -c Release -r win-x64 --self-contained false -o publish/cmux-win-x64
+dotnet publish src/Cmux/Cmux.csproj            -c Release -r win-x64 --self-contained false -o publish/cmux-win-x64
+dotnet publish src/Cmux.Daemon/Cmux.Daemon.csproj -c Release -r win-x64 --self-contained false -o publish/cmux-win-x64
+dotnet publish src/Cmux.Cli/Cmux.Cli.csproj    -c Release -r win-x64 --self-contained false -o publish/cmux-win-x64
 ```
 
 Output:
 - `publish/cmux-win-x64/cmuxw.exe`
+- `publish/cmux-win-x64/cmux-daemon.exe`
+- `publish/cmux-win-x64/cmux.exe`
 
-Use this when target machines already have .NET runtime installed.
+Use this when target machines already have the .NET runtime installed.
 
 ### 2) Self-contained `.exe` (no runtime install needed)
 
 ```powershell
-dotnet publish src/Cmux/Cmux.csproj -c Release -r win-x64 --self-contained true -o publish/cmux-win-x64-sc
+dotnet publish src/Cmux/Cmux.csproj            -c Release -r win-x64 --self-contained true -o publish/cmux-win-x64-sc
+dotnet publish src/Cmux.Daemon/Cmux.Daemon.csproj -c Release -r win-x64 --self-contained true -o publish/cmux-win-x64-sc
+dotnet publish src/Cmux.Cli/Cmux.Cli.csproj    -c Release -r win-x64 --self-contained true -o publish/cmux-win-x64-sc
 ```
 
 Output:
 - `publish/cmux-win-x64-sc/cmuxw.exe`
+- `publish/cmux-win-x64-sc/cmux-daemon.exe`
+- `publish/cmux-win-x64-sc/cmux.exe`
 
 ### 3) Single-file self-contained `.exe` (portable artifact)
 
 ```powershell
-dotnet publish src/Cmux/Cmux.csproj -c Release -r win-x64 --self-contained true /p:PublishSingleFile=true /p:PublishTrimmed=false -o publish/cmux-win-x64-single
+dotnet publish src/Cmux/Cmux.csproj            -c Release -r win-x64 --self-contained true /p:PublishSingleFile=true /p:PublishTrimmed=false -o publish/cmux-win-x64-single
+dotnet publish src/Cmux.Daemon/Cmux.Daemon.csproj -c Release -r win-x64 --self-contained true /p:PublishSingleFile=true                       -o publish/cmux-win-x64-single
+dotnet publish src/Cmux.Cli/Cmux.Cli.csproj    -c Release -r win-x64 --self-contained true /p:PublishSingleFile=true                       -o publish/cmux-win-x64-single
 ```
 
 Output:
 - `publish/cmux-win-x64-single/cmuxw.exe`
+- `publish/cmux-win-x64-single/cmux-daemon.exe`
+- `publish/cmux-win-x64-single/cmux.exe`
 
 > Note: WebView2-backed features may require WebView2 Runtime depending on target system state.
 
-### Build CLI executable
+### Using `cmux` from any shell
 
-```powershell
-dotnet publish src/Cmux.Cli/Cmux.Cli.csproj -c Release -r win-x64 --self-contained true -o publish/cmux-cli
-```
+The CLI is published next to the app in every section above. To use it globally, add the publish directory (e.g. `publish\cmux-win-x64`) to your `PATH`.
 
-Add `publish/cmux-cli` to `PATH` to use `cmux` globally.
+---
+
+## Which executable do I actually run?
+
+**`cmuxw.exe`** — that's the GUI app. Double-click it (or pin a shortcut). The `w` suffix is the standard Windows convention for "windowed" (no console window), same as `pythonw.exe` or `pwshw.exe`.
+
+The other two binaries that should be sitting next to it are launched automatically:
+
+| File | Run it directly? | What it does |
+|---|---|---|
+| `cmuxw.exe` | **Yes** — this is the app | The WPF UI. Open this. |
+| `cmux-daemon.exe` | No — auto-started by the app | Out-of-process ConPTY host. `cmuxw.exe` spawns it on first terminal so terminals can outlive a UI crash/restart. |
+| `cmux.exe` | Only when scripting | The CLI. Use it from any shell to drive the running app: `cmux notify`, `cmux split`, `cmux workspace`, etc. Add the publish dir to `PATH` to use it globally. |
+
+If you launch `cmux-daemon.exe` directly, nothing happens that you'll notice — it'll sit on a named pipe waiting for the app. If you launch `cmux.exe` with no args, it prints help.
 
 ---
 

@@ -9,6 +9,30 @@ public sealed class DaemonSessionManager : IDisposable
 {
     private readonly ConcurrentDictionary<string, TerminalSession> _sessions = new();
 
+    // Periodically poll each session's shell-process PEB so cwd stays fresh
+    // even for shells that don't emit OSC 7 (cmd, default PowerShell prompt).
+    // Without this, panes reopen in their start dir instead of where the
+    // user last cd'd to.
+    private readonly System.Threading.Timer _cwdPollTimer;
+
+    public DaemonSessionManager()
+    {
+        _cwdPollTimer = new System.Threading.Timer(
+            _ => PollWorkingDirectories(),
+            state: null,
+            dueTime: TimeSpan.FromSeconds(3),
+            period: TimeSpan.FromSeconds(3));
+    }
+
+    private void PollWorkingDirectories()
+    {
+        foreach (var session in _sessions.Values)
+        {
+            try { session.RefreshLocalWorkingDirectory(); }
+            catch { /* best effort — never let polling kill the daemon */ }
+        }
+    }
+
     public event Action<string>? SessionCreated;
     public event Action<string, int>? SessionExited;
     public event Action<string, string>? TitleChanged;
@@ -128,6 +152,7 @@ public sealed class DaemonSessionManager : IDisposable
 
     public void Dispose()
     {
+        _cwdPollTimer.Dispose();
         foreach (var session in _sessions.Values)
             session.Dispose();
         _sessions.Clear();

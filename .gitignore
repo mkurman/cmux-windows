@@ -70,3 +70,5 @@ $RECYCLE.BIN/
 *.log
 [Ll]og/
 [Ll]ogs/
+
+resources/

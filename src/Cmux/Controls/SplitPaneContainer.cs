@@ -194,6 +194,10 @@ public class SplitPaneContainer : ContentControl
         if (session != null)
             terminal.AttachSession(session);
 
+        // Wire up notification ring for this pane.
+        if (_surface != null)
+            terminal.AttachNotifications(paneId, _surface.Surface.Id, _surface.NotificationService);
+
         // Get pane title (custom name takes precedence over shell title)
         var title = _surface?.GetPaneTitle(paneId, session?.Title) ?? "Terminal";
 

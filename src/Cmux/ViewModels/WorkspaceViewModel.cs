@@ -43,6 +43,9 @@ public partial class WorkspaceViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     private bool _hasNotification;
 
+    [ObservableProperty]
+    private bool _isPinned;
+
     public string IconFontFamily => IsPrivateUseGlyph(IconGlyph) ? "Segoe MDL2 Assets" : "Segoe UI Emoji";
 
     private readonly NotificationService _notificationService;
@@ -54,6 +57,7 @@ public partial class WorkspaceViewModel : ObservableObject, IDisposable
         _name = workspace.Name;
         _iconGlyph = workspace.IconGlyph;
         _accentColor = workspace.AccentColor;
+        _isPinned = workspace.IsPinned;
         _notificationService = notificationService;
 
         // Create surface VMs for existing surfaces
@@ -77,10 +81,37 @@ public partial class WorkspaceViewModel : ObservableObject, IDisposable
         _infoRefreshTimer = new System.Threading.Timer(_ => RefreshInfo(), null, TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(15));
     }
 
+    /// <summary>
+    /// Raised when CloseSurface is called on the last remaining surface in the workspace.
+    /// MainViewModel listens and prompts the user to close the entire workspace.
+    /// </summary>
+    public event EventHandler? LastSurfaceCloseRequested;
+
     [RelayCommand]
     public void CreateNewSurface()
     {
-        var surface = new Surface { Name = $"Terminal {Surfaces.Count + 1}" };
+        var surface = new Surface { Name = NextSurfaceName() };
+
+        // Inherit the working directory from the currently focused pane of the
+        // active surface, so a new tab opens at the same place the user is
+        // currently working. Falls back to the workspace's last-known cwd so
+        // the very first tab in a workspace starts somewhere sensible.
+        var inheritedCwd = SelectedSurface?.GetFocusedPaneWorkingDirectory()
+                           ?? WorkingDirectory
+                           ?? Workspace.WorkingDirectory;
+
+        if (!string.IsNullOrWhiteSpace(inheritedCwd))
+        {
+            var firstLeaf = surface.RootSplitNode.GetLeaves().FirstOrDefault();
+            if (firstLeaf?.PaneId is { } paneId)
+            {
+                surface.PaneSnapshots[paneId] = new PaneStateSnapshot
+                {
+                    WorkingDirectory = inheritedCwd,
+                };
+            }
+        }
+
         Workspace.Surfaces.Add(surface);
 
         var surfaceVm = new SurfaceViewModel(surface, Workspace.Id, _notificationService);
@@ -93,7 +124,15 @@ public partial class WorkspaceViewModel : ObservableObject, IDisposable
     public void CloseSurface(SurfaceViewModel? surface)
     {
         if (surface == null) return;
-        if (Surfaces.Count <= 1) return; // Keep at least one
+
+        // Closing the last surface in a workspace is treated as a request to close the
+        // whole workspace — surface us a confirmation through the parent (MainViewModel)
+        // rather than silently no-op'ing as the old code did.
+        if (Surfaces.Count <= 1)
+        {
+            LastSurfaceCloseRequested?.Invoke(this, EventArgs.Empty);
+            return;
+        }
 
         int index = Surfaces.IndexOf(surface);
         surface.CaptureAllPaneTranscripts("surface-close");
@@ -105,6 +144,30 @@ public partial class WorkspaceViewModel : ObservableObject, IDisposable
         {
             SelectedSurface = Surfaces[Math.Min(index, Surfaces.Count - 1)];
         }
+    }
+
+    /// <summary>
+    /// Picks "Terminal N" with the smallest N that doesn't collide with an existing
+    /// surface name. Falls back to count+1 if no existing names match the pattern —
+    /// preserves the historical default for fresh workspaces.
+    /// </summary>
+    private string NextSurfaceName()
+    {
+        var used = new HashSet<int>();
+        foreach (var s in Surfaces)
+        {
+            var name = s.Name ?? string.Empty;
+            if (name.StartsWith("Terminal ", StringComparison.Ordinal) &&
+                int.TryParse(name.AsSpan("Terminal ".Length), out var n))
+            {
+                used.Add(n);
+            }
+        }
+        var candidate = 1;
+        while (used.Contains(candidate)) candidate++;
+        // If the workspace has no Terminal-N tabs at all, count+1 matches the original
+        // behavior (e.g. first tab in a fresh workspace gets "Terminal 1" via Workspace ctor).
+        return used.Count == 0 ? $"Terminal {Surfaces.Count + 1}" : $"Terminal {candidate}";
     }
 
     /// <summary>
@@ -214,6 +277,19 @@ public partial class WorkspaceViewModel : ObservableObject, IDisposable
     partial void OnAccentColorChanged(string value)
     {
         Workspace.AccentColor = value;
+    }
+
+    partial void OnIsPinnedChanged(bool value)
+    {
+        Workspace.IsPinned = value;
+    }
+
+    partial void OnSelectedSurfaceChanged(SurfaceViewModel? value)
+    {
+        // Activating a tab implicitly clears its unread state — drives the
+        // tab notification dot off and lets the pane ring fade.
+        if (value != null)
+            _notificationService.MarkSurfaceAsRead(value.Surface.Id);
     }
 
     private static bool IsPrivateUseGlyph(string? value)

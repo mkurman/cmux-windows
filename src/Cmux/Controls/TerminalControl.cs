@@ -37,6 +37,22 @@ public class TerminalControl : FrameworkElement
     private bool _followOutput = true;
     private int _lastScrollbackCount;
     private int _renderQueued;
+
+    // Visibility-aware render gating. When the workspace this control belongs
+    // to is not currently shown, the session keeps streaming output. Without
+    // gating, every chunk becomes a Dispatcher.BeginInvoke that competes with
+    // the visible workspace's renders. _isVisibleSnapshot mirrors IsVisible
+    // (UI-thread-only DepProp) so the PTY read thread can check it without
+    // crossing threads. While hidden, a pending-render flag is set; flipping
+    // back to visible fires one catch-up render.
+    private volatile bool _isVisibleSnapshot;
+    private int _renderPendingWhileHidden;
+
+    // Drag-and-drop visual cue. Set in OnDragEnter / OnDragOver when the
+    // dragged payload is droppable, cleared on OnDragLeave / OnDrop. Triggers
+    // a tinted overlay + accent border + "Drop to paste" hint in Render().
+    private bool _isDragOver;
+
     private string _cursorStyle = "bar";
     private bool _cursorBlink = true;
 
@@ -113,6 +129,7 @@ public class TerminalControl : FrameworkElement
         _brushCache.Clear();
         _penCache.Clear();
 
+        DetachNotifications();
         ClearEventHandlers();
     }
 
@@ -141,9 +158,68 @@ public class TerminalControl : FrameworkElement
     /// <summary>Whether the parent surface is currently zoomed.</summary>
     public bool IsSurfaceZoomed { get; set; }
 
+    private string? _paneId;
+    private string? _surfaceId;
+    private Cmux.Core.Services.NotificationService? _notificationService;
+
+    /// <summary>
+    /// Wires this control to a notification service so the pane border rings
+    /// when an unread notification targets this pane (or this pane's surface,
+    /// if the notification has no paneId). Idempotent — calling again with a
+    /// different service swaps the subscription cleanly.
+    /// </summary>
+    public void AttachNotifications(string paneId, string surfaceId, Cmux.Core.Services.NotificationService service)
+    {
+        DetachNotifications();
+        _paneId = paneId;
+        _surfaceId = surfaceId;
+        _notificationService = service;
+        service.NotificationAdded += OnNotificationServiceChanged;
+        service.UnreadCountChanged += RefreshHasNotification;
+        RefreshHasNotification();
+    }
+
+    private void DetachNotifications()
+    {
+        if (_notificationService != null)
+        {
+            _notificationService.NotificationAdded -= OnNotificationServiceChanged;
+            _notificationService.UnreadCountChanged -= RefreshHasNotification;
+        }
+    }
+
+    private void OnNotificationServiceChanged(Cmux.Core.Models.TerminalNotification _) => RefreshHasNotification();
+
+    private void RefreshHasNotification()
+    {
+        if (_notificationService == null || _paneId == null || _surfaceId == null) return;
+        var pending = _notificationService.GetUnreadCountForPane(_paneId, _surfaceId) > 0;
+        if (Dispatcher.CheckAccess())
+            HasNotification = pending;
+        else
+            Dispatcher.BeginInvoke(() => HasNotification = pending);
+    }
+
     public TerminalControl()
     {
-        _theme = GhosttyConfigReader.ReadConfig();
+        // Seed with the user's CmuxSettings so freshly-built terminal controls (e.g. when
+        // switching workspaces and BuildLeaf instantiates a new TerminalControl) inherit
+        // the user's theme/font instead of falling back to Ghostty-config defaults.
+        // Without this, theme/font edits in Settings appear to "disappear" on workspace switch.
+        var settings = SettingsService.Current;
+        var fileTheme = GhosttyConfigReader.ReadConfig();
+        var termTheme = TerminalThemes.GetEffective(settings);
+        _theme = new GhosttyTheme
+        {
+            Background = termTheme.Background,
+            Foreground = termTheme.Foreground,
+            Palette = termTheme.Palette,
+            SelectionBackground = termTheme.SelectionBg,
+            CursorColor = termTheme.CursorColor,
+            FontFamily = string.IsNullOrWhiteSpace(settings.FontFamily) ? fileTheme.FontFamily : settings.FontFamily,
+            FontSize = settings.FontSize > 0 ? settings.FontSize : fileTheme.FontSize,
+        };
+
         _visual = new DrawingVisual();
         AddVisualChild(_visual);
         AddLogicalChild(_visual);
@@ -151,7 +227,6 @@ public class TerminalControl : FrameworkElement
         _fontSize = _theme.FontSize;
         _typeface = new Typeface(new FontFamily(_theme.FontFamily), FontStyles.Normal, FontWeights.Normal, FontStretches.Normal);
 
-        var settings = SettingsService.Current;
         _cursorStyle = settings.CursorStyle;
         _cursorBlink = settings.CursorBlink;
 
@@ -163,6 +238,9 @@ public class TerminalControl : FrameworkElement
         AllowDrop = true;
 
         _selection.SelectionChanged += () => RequestRender(System.Windows.Threading.DispatcherPriority.Render);
+
+        _isVisibleSnapshot = IsVisible;
+        IsVisibleChanged += OnIsVisibleChanged;
 
         // Cursor blink
         _cursorTimer = new System.Windows.Threading.DispatcherTimer
@@ -299,6 +377,16 @@ public class TerminalControl : FrameworkElement
         if (Dispatcher.HasShutdownStarted || Dispatcher.HasShutdownFinished)
             return;
 
+        if (!_isVisibleSnapshot)
+        {
+            // Belongs to a workspace not currently on screen. Skip the
+            // dispatcher round-trip — buffer state is already up to date in
+            // TerminalSession.Buffer; we'll catch up with a single render
+            // when this control becomes visible again.
+            Interlocked.Exchange(ref _renderPendingWhileHidden, 1);
+            return;
+        }
+
         if (Interlocked.Exchange(ref _renderQueued, 1) == 1)
             return;
 
@@ -307,6 +395,20 @@ public class TerminalControl : FrameworkElement
             Interlocked.Exchange(ref _renderQueued, 0);
             Render();
         }, priority);
+    }
+
+    private void OnIsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
+    {
+        var nowVisible = e.NewValue is bool b && b;
+        _isVisibleSnapshot = nowVisible;
+
+        if (nowVisible && Interlocked.Exchange(ref _renderPendingWhileHidden, 0) == 1)
+        {
+            // Catch up — buffer may have advanced significantly while hidden.
+            if (_session != null)
+                _lastScrollbackCount = _session.Buffer.ScrollbackCount;
+            RequestRender(System.Windows.Threading.DispatcherPriority.Render);
+        }
     }
 
     // --- Layout ---
@@ -420,10 +522,18 @@ public class TerminalControl : FrameworkElement
                     new Rect(0, 0, ActualWidth, ActualHeight));
             }
 
-            // Notification ring
+            // Notification ring — soft outer glow + crisp inner ring (cmux style).
             if (HasNotification)
             {
-                dc.DrawRoundedRectangle(null, GetCachedPen(Color.FromArgb(180, 0x63, 0x66, 0xF1)), new Rect(1, 1, ActualWidth - 2, ActualHeight - 2), 4, 4);
+                var glowPen = new Pen(GetCachedBrush(Color.FromArgb(70, 0x81, 0x8C, 0xF8)), 6);
+                glowPen.Freeze();
+                dc.DrawRoundedRectangle(null, glowPen,
+                    new Rect(3, 3, Math.Max(0, ActualWidth - 6), Math.Max(0, ActualHeight - 6)), 6, 6);
+
+                var ringPen = new Pen(GetCachedBrush(Color.FromArgb(220, 0x81, 0x8C, 0xF8)), 2);
+                ringPen.Freeze();
+                dc.DrawRoundedRectangle(null, ringPen,
+                    new Rect(1, 1, Math.Max(0, ActualWidth - 2), Math.Max(0, ActualHeight - 2)), 4, 4);
             }
 
             // Focused pane indicator
@@ -593,6 +703,34 @@ public class TerminalControl : FrameworkElement
                         dc.DrawRectangle(cursorBrush, null, new Rect(cx, cy, 2, _cellHeight));
                         break;
                 }
+            }
+
+            // Drop zone overlay — tinted fill + accent dashed border + hint text.
+            if (_isDragOver)
+            {
+                dc.DrawRectangle(
+                    GetCachedBrush(Color.FromArgb(60, 0x81, 0x8C, 0xF8)), null,
+                    new Rect(0, 0, ActualWidth, ActualHeight));
+
+                var dashPen = new Pen(GetCachedBrush(Color.FromArgb(220, 0x81, 0x8C, 0xF8)), 2)
+                {
+                    DashStyle = new DashStyle(new[] { 4.0, 3.0 }, 0),
+                };
+                dashPen.Freeze();
+                dc.DrawRoundedRectangle(null, dashPen,
+                    new Rect(4, 4, Math.Max(0, ActualWidth - 8), Math.Max(0, ActualHeight - 8)), 6, 6);
+
+                var hint = new FormattedText(
+                    "Drop to insert path",
+                    CultureInfo.CurrentCulture,
+                    FlowDirection.LeftToRight,
+                    _typeface,
+                    13,
+                    GetCachedBrush(Color.FromArgb(240, 0xE5, 0xE5, 0xFF)),
+                    dpi);
+                dc.DrawText(hint,
+                    new Point((ActualWidth - hint.WidthIncludingTrailingWhitespace) / 2,
+                             (ActualHeight - hint.Height) / 2));
             }
 
             // Scrollback indicator
@@ -921,6 +1059,9 @@ public class TerminalControl : FrameworkElement
         if (ctrl && alt) return;
         if (ctrl && shift) return;
         if (ctrl && e.Key == Key.Tab) return;
+        // Ctrl+T (new surface): not a useful shell control byte (DC4) — let it
+        // bubble so the app shortcut fires even with terminal focus.
+        if (ctrl && !alt && !shift && e.Key == Key.T) return;
 
         // Ctrl+Backspace: delete previous word (send Ctrl+W / unix-word-rubout)
         if (ctrl && e.Key == Key.Back)
@@ -997,8 +1138,11 @@ public class TerminalControl : FrameworkElement
         {
             if (e.Key == Key.Back)
                 TrackInputText("\b");
-            else if (e.Key == Key.Enter)
+            else if (e.Key == Key.Enter && !modifiers.HasFlag(ModifierKeys.Shift))
             {
+                // Plain Enter submits — track for command history / interception.
+                // Shift+Enter is a newline-within-input (multi-line agent prompt)
+                // and must not trigger command submission.
                 SubmitBufferedCommand(allowInterception: true);
                 if (_suppressNextEnterToShell)
                 {
@@ -1270,20 +1414,48 @@ public class TerminalControl : FrameworkElement
     protected override void OnDragEnter(DragEventArgs e)
     {
         base.OnDragEnter(e);
-        e.Effects = HasDropContent(e.Data) ? DragDropEffects.Copy : DragDropEffects.None;
+        bool accepts = HasDropContent(e.Data);
+        e.Effects = accepts ? DragDropEffects.Copy : DragDropEffects.None;
+        if (accepts != _isDragOver)
+        {
+            _isDragOver = accepts;
+            InvalidateVisual();
+        }
         e.Handled = true;
     }
 
     protected override void OnDragOver(DragEventArgs e)
     {
         base.OnDragOver(e);
-        e.Effects = HasDropContent(e.Data) ? DragDropEffects.Copy : DragDropEffects.None;
+        bool accepts = HasDropContent(e.Data);
+        e.Effects = accepts ? DragDropEffects.Copy : DragDropEffects.None;
+        if (accepts != _isDragOver)
+        {
+            _isDragOver = accepts;
+            InvalidateVisual();
+        }
         e.Handled = true;
+    }
+
+    protected override void OnDragLeave(DragEventArgs e)
+    {
+        base.OnDragLeave(e);
+        if (_isDragOver)
+        {
+            _isDragOver = false;
+            InvalidateVisual();
+        }
     }
 
     protected override void OnDrop(DragEventArgs e)
     {
         base.OnDrop(e);
+        if (_isDragOver)
+        {
+            _isDragOver = false;
+            InvalidateVisual();
+        }
+
         Focus();
         FocusRequested?.Invoke();
 
@@ -1683,7 +1855,10 @@ public class TerminalControl : FrameworkElement
 
         return key switch
         {
-            Key.Enter => "\r",
+            // Shift+Enter sends ESC+CR (alacritty / wezterm convention) so
+            // multi-line agent CLIs like Claude Code can distinguish it from
+            // a plain Enter (which submits). Bare Enter still sends CR.
+            Key.Enter => modifiers.HasFlag(ModifierKeys.Shift) ? "\x1b\r" : "\r",
             Key.Escape => "\x1b",
             Key.Back => "\x7f",
             Key.Tab => modifiers.HasFlag(ModifierKeys.Shift) ? "\x1b[Z" : "\t",

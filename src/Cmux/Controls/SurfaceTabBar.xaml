@@ -1,8 +1,9 @@
 <UserControl x:Class="Cmux.Controls.SurfaceTabBar"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="http://schemas.modernwpf.com/2019"
              xmlns:vm="clr-namespace:Cmux.ViewModels"
-             Height="38" Background="{StaticResource SurfaceTabBackgroundBrush}">
+             Height="44" Background="{StaticResource SurfaceTabBackgroundBrush}">
 
     <Grid>
         <Grid.ColumnDefinitions>
@@ -20,8 +21,8 @@
             </ItemsControl.ItemsPanel>
             <ItemsControl.ItemTemplate>
                 <DataTemplate DataType="{x:Type vm:SurfaceViewModel}">
-                    <Border x:Name="tabBorder" Padding="14,6" Cursor="Hand"
-                            Margin="2,4,2,4" CornerRadius="6"
+                    <Border x:Name="tabBorder" Padding="14,8" Cursor="Hand"
+                            Margin="3,6" CornerRadius="6"
                             MouseLeftButtonDown="Tab_Click">
                         <Border.Background>
                             <SolidColorBrush x:Name="tabBg" Color="Transparent" />
@@ -51,15 +52,26 @@
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
-                            <TextBlock Grid.Column="0" Text="{Binding Name}" FontSize="12"
-                                       Foreground="{StaticResource ForegroundDimBrush}"
-                                       VerticalAlignment="Center"
-                                       x:Name="tabText" />
-                            <Button Grid.Column="1" Content="&#xE10A;" FontFamily="Segoe MDL2 Assets"
-                                    FontSize="8" Margin="8,0,0,0" Padding="2"
+                            <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                                <Ellipse x:Name="tabNotifDot" Width="6" Height="6" Margin="0,0,6,0"
+                                         Fill="#FF818CF8"
+                                         Visibility="{Binding HasNotification, Converter={StaticResource BoolToVisibility}}">
+                                    <Ellipse.Effect>
+                                        <DropShadowEffect Color="#FF818CF8" BlurRadius="8" ShadowDepth="0" Opacity="0.9" />
+                                    </Ellipse.Effect>
+                                </Ellipse>
+                                <TextBlock Text="{Binding Name}" FontSize="12"
+                                           Foreground="{StaticResource ForegroundDimBrush}"
+                                           VerticalAlignment="Center"
+                                           x:Name="tabText" />
+                            </StackPanel>
+                            <Button Grid.Column="1"
+                                    Margin="8,0,0,0" Padding="2"
                                     Opacity="0" x:Name="closeBtn"
                                     Style="{StaticResource CmuxButton}"
-                                    Click="CloseTab_Click" Tag="{Binding}" />
+                                    Click="CloseTab_Click" Tag="{Binding}">
+                                <ui:FontIcon Glyph="&#xE10A;" FontSize="8" />
+                            </Button>
 
                             <!-- Active tab bottom accent line -->
                             <Rectangle x:Name="activeIndicator" Grid.ColumnSpan="2"
@@ -125,46 +137,45 @@
             </ItemsControl.ItemTemplate>
         </ItemsControl>
 
-        <!-- Inline search bar -->
-        <Border Grid.Column="1" CornerRadius="6" Margin="4"
-                Background="{StaticResource SurfaceHighBrush}" VerticalAlignment="Center"
-                Height="26" Width="220">
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
-                <TextBlock Grid.Column="0" Text="&#xE721;" FontFamily="Segoe MDL2 Assets"
-                           FontSize="11" Foreground="{StaticResource ForegroundDimBrush}"
-                           VerticalAlignment="Center" Margin="6,0,4,0" />
-                <TextBox x:Name="SearchInput" Grid.Column="1"
-                         Background="Transparent" Foreground="{StaticResource ForegroundBrush}"
-                         CaretBrush="{StaticResource AccentBrush}"
-                         BorderThickness="0" FontSize="12" Padding="2,2"
-                         VerticalContentAlignment="Center"
-                         TextChanged="SearchInput_TextChanged"
-                         KeyDown="SearchInput_KeyDown" />
-                <TextBlock x:Name="MatchCount" Grid.Column="2" Text=""
-                           Foreground="{StaticResource ForegroundDimBrush}" FontSize="10"
-                           VerticalAlignment="Center" Margin="4,0" />
-                <StackPanel Grid.Column="3" Orientation="Horizontal" Margin="0,0,2,0">
-                    <Button Content="&#xE010;" FontFamily="Segoe MDL2 Assets"
-                            FontSize="9" Style="{StaticResource IconButton}"
-                            Width="20" Height="20" Click="PrevMatch_Click" ToolTip="Previous (Shift+Enter)" />
-                    <Button Content="&#xE011;" FontFamily="Segoe MDL2 Assets"
-                            FontSize="9" Style="{StaticResource IconButton}"
-                            Width="20" Height="20" Click="NextMatch_Click" ToolTip="Next (Enter)" />
-                </StackPanel>
-            </Grid>
-        </Border>
+        <!-- Inline search bar — uses the shared CmuxSearchBox style so it
+             matches WorkspaceFilterBox 1:1 (rounded wrapper + magnifier +
+             muted placeholder). Match count and prev/next nav are siblings. -->
+        <Grid Grid.Column="1" Margin="4,6" VerticalAlignment="Center" Width="240">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBox x:Name="SearchInput" Grid.Column="0"
+                     Style="{StaticResource CmuxSearchBox}"
+                     ui:ControlHelper.PlaceholderText="Search terminal…"
+                     TextChanged="SearchInput_TextChanged"
+                     KeyDown="SearchInput_KeyDown" />
+            <TextBlock x:Name="MatchCount" Grid.Column="1" Text=""
+                       Foreground="{StaticResource ForegroundDimBrush}" FontSize="10"
+                       VerticalAlignment="Center" Margin="6,0,4,0" />
+            <StackPanel Grid.Column="2" Orientation="Horizontal">
+                <Button Style="{StaticResource IconButton}"
+                        Width="22" Height="22" Click="PrevMatch_Click" ToolTip="Previous (Shift+Enter)">
+                    <ui:FontIcon Glyph="&#xE010;" FontSize="9" />
+                </Button>
+                <Button Style="{StaticResource IconButton}"
+                        Width="22" Height="22" Click="NextMatch_Click" ToolTip="Next (Enter)">
+                    <ui:FontIcon Glyph="&#xE011;" FontSize="9" />
+                </Button>
+            </StackPanel>
+        </Grid>
 
-        <!-- Add surface button -->
-        <Button Grid.Column="2" Content="&#xE710;" FontFamily="Segoe MDL2 Assets" FontSize="12"
-                Style="{StaticResource CmuxButton}"
+        <!-- Add surface button. Opacity removed so hover state is actually visible —
+             the opaque-at-rest + opaque-on-hover progression now provides the affordance. -->
+        <Button Grid.Column="2"
+                Style="{StaticResource IconButton}"
                 Click="AddTab_Click"
-                Padding="8,0" Margin="2,2,4,2" Opacity="0.6" />
+                ToolTip="New tab"
+                Width="28" Height="28"
+                Margin="6,2,4,2">
+            <ui:FontIcon Glyph="&#xE710;" FontSize="12" />
+        </Button>
 
         <!-- Inline rename overlay -->
         <TextBox x:Name="TabRenameBox" Visibility="Collapsed"

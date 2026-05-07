@@ -22,6 +22,7 @@ public sealed class TerminalProcess : IDisposable
     public TerminalProcess(PseudoConsole console, string? command = null, string? workingDirectory = null)
     {
         var shellCommand = command ?? DetectShell();
+        shellCommand = MaybeInjectPwshOsc7(shellCommand);
         IPC.DaemonClient.LogDaemon($"[TerminalProcess] Creating: shell=\"{shellCommand}\" cwd=\"{workingDirectory}\"");
 
         // Initialize thread attribute list for ConPTY
@@ -109,6 +110,60 @@ public sealed class TerminalProcess : IDisposable
             return comspec;
 
         return "cmd.exe";
+    }
+
+    /// <summary>
+    /// PowerShell does not propagate `cd` to the OS-level current directory
+    /// (its <c>$PWD</c> is a provider-aware location stack, not <c>SetCurrentDirectory</c>),
+    /// so reading the shell's PEB always returns the launch dir. To make cwd
+    /// tracking actually work for pwsh/powershell, we launch them with a small
+    /// startup script that wraps the user's prompt to emit OSC 7 each redraw.
+    /// <see cref="OscHandler"/> already understands OSC 7 and feeds it back into
+    /// <see cref="TerminalSession.WorkingDirectory"/>, so persistence and "open
+    /// new tab in current dir" both start working without any other changes.
+    /// </summary>
+    private static string MaybeInjectPwshOsc7(string shellCommand)
+    {
+        // Only wrap when the entire command is a bare shell path. If the user
+        // supplied their own arguments, respect them and skip injection.
+        var trimmed = shellCommand.Trim();
+        var unquoted = trimmed.StartsWith('"') && trimmed.EndsWith('"') && trimmed.Length >= 2
+            ? trimmed[1..^1]
+            : trimmed;
+
+        if (unquoted.Contains(' ') && !File.Exists(unquoted))
+            return shellCommand; // looks like it has args — leave it alone
+
+        var leaf = Path.GetFileName(unquoted);
+        bool isPwshFamily = string.Equals(leaf, "pwsh.exe", StringComparison.OrdinalIgnoreCase)
+                            || string.Equals(leaf, "powershell.exe", StringComparison.OrdinalIgnoreCase);
+        if (!isPwshFamily) return shellCommand;
+
+        // Wrap the user's existing prompt so their customizations still run.
+        // Filesystem-only OSC 7: skip when CurrentLocation is on a non-FileSystem
+        // provider (Registry, Cert, etc.) where a path wouldn't make sense.
+        const string injection = """
+$global:__cmuxOldPrompt = $function:prompt
+function global:prompt {
+    try {
+        $loc = $ExecutionContext.SessionState.Path.CurrentLocation
+        if ($loc.Provider.Name -eq 'FileSystem') {
+            $cwd = $loc.ProviderPath
+            [Console]::Out.Write([char]27 + ']7;file:///' + $cwd.Replace('\','/') + [char]7)
+        }
+    } catch { }
+    if ($global:__cmuxOldPrompt) { & $global:__cmuxOldPrompt } else { "PS $($PWD.Path)> " }
+}
+""";
+
+        var bytes = System.Text.Encoding.Unicode.GetBytes(injection);
+        var b64 = Convert.ToBase64String(bytes);
+
+        // Quote the shell path if it contains spaces. -NoExit so the user's profile
+        // still loads after our -EncodedCommand runs. -EncodedCommand sidesteps all
+        // shell-quoting hazards.
+        var quotedShell = unquoted.Contains(' ') ? $"\"{unquoted}\"" : unquoted;
+        return $"{quotedShell} -NoExit -EncodedCommand {b64}";
     }
 
     private static IntPtr CreateAttributeList(IntPtr conPtyHandle)

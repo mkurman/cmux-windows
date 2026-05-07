@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using System.Threading.Channels;
 using Cmux.Core.Config;
 using Cmux.Core.Models;
 
@@ -32,6 +33,19 @@ public class CommandLogService
 
     private DateOnly? _lastRetentionSweepDate;
     private DateOnly? _lastTranscriptRetentionSweepDate;
+
+    // Persisting completed log entries used to be a synchronous File.AppendAllText
+    // on the PTY read thread (under _lock). Under burst output across multiple
+    // workspaces this stalled the read loop and starved the WPF UI thread.
+    // We now hand entries to a single-reader unbounded channel and let a
+    // background task serialize the disk writes.
+    private readonly Channel<CommandLogEntry> _persistChannel =
+        Channel.CreateUnbounded<CommandLogEntry>(new UnboundedChannelOptions
+        {
+            SingleReader = true,
+            SingleWriter = false,
+            AllowSynchronousContinuations = false,
+        });
 
     private static readonly Regex SecretEnvAssignmentRegex = new(
         @"(\b[A-Za-z0-9_]*(?:PASSWORD|PASSWD|TOKEN|SECRET|API_KEY|ACCESS_KEY)[A-Za-z0-9_]*\s*=\s*)(\""[^\""\r\n]*\""|'[^'\r\n]*'|[^\s\r\n]+)",
@@ -69,6 +83,39 @@ public class CommandLogService
             ApplyRetentionPolicy();
             ApplyTranscriptRetentionPolicy();
         };
+
+        _ = Task.Run(PersistLoopAsync);
+    }
+
+    private async Task PersistLoopAsync()
+    {
+        var reader = _persistChannel.Reader;
+        try
+        {
+            while (await reader.WaitToReadAsync().ConfigureAwait(false))
+            {
+                while (reader.TryRead(out var entry))
+                {
+                    try
+                    {
+                        MaybeApplyRetentionPolicy();
+                        Directory.CreateDirectory(LogsDir);
+                        var date = DateOnly.FromDateTime(entry.StartedAt.ToLocalTime());
+                        var filePath = Path.Combine(LogsDir, $"{date:yyyy-MM-dd}.jsonl");
+                        var line = JsonSerializer.Serialize(entry, JsonOptions);
+                        File.AppendAllText(filePath, line + Environment.NewLine);
+                    }
+                    catch
+                    {
+                        // Best effort persistence — never let a bad write kill the writer.
+                    }
+                }
+            }
+        }
+        catch
+        {
+            // Channel closed or fatal error — writer exits silently.
+        }
     }
 
     public string GetLogsDirectoryPath()
@@ -547,20 +594,9 @@ public class CommandLogService
 
     private void PersistCompletedEntry(CommandLogEntry entry)
     {
-        try
-        {
-            MaybeApplyRetentionPolicy();
-
-            Directory.CreateDirectory(LogsDir);
-            var date = DateOnly.FromDateTime(entry.StartedAt.ToLocalTime());
-            var filePath = Path.Combine(LogsDir, $"{date:yyyy-MM-dd}.jsonl");
-            var line = JsonSerializer.Serialize(entry, JsonOptions);
-            File.AppendAllText(filePath, line + Environment.NewLine);
-        }
-        catch
-        {
-            // Best effort persistence
-        }
+        // Hand off to the background writer so the PTY read thread does not
+        // block on disk I/O while holding _lock.
+        _persistChannel.Writer.TryWrite(entry);
     }
 
     private void LoadRecentFromDisk(int days)

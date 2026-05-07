@@ -110,6 +110,12 @@ public partial class WorkspaceSidebarItem : UserControl
             main.CloseWorkspace(ws);
     }
 
+    private void TogglePin_Click(object sender, RoutedEventArgs e)
+    {
+        if (MainVm is { } main && Vm is { } ws)
+            main.TogglePinWorkspace(ws);
+    }
+
     private void StartRename()
     {
         NameDisplay.Visibility = Visibility.Collapsed;

@@ -23,6 +23,7 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         WindowAppearance.Apply(this);
+        AppVersionLabel.Text = $"cmuxw {App.AppVersion}";
         SetupWorkspaceFilter();
 
         CommandPaletteControl.PaletteClosed += () => FocusTerminal();
@@ -160,7 +161,7 @@ public partial class MainWindow : Window
         WindowBorder.CornerRadius = maximized ? new CornerRadius(0) : (CornerRadius)FindResource("WindowCornerRadius");
         WindowBorder.BorderThickness = maximized ? new Thickness(0) : new Thickness(1);
         // Update maximize/restore icon
-        MaxRestoreIcon.Text = maximized ? "\uE923" : "\uE922";
+        MaxRestoreIcon.Glyph = maximized ? "\uE923" : "\uE922";
         MaxRestoreButton.ToolTip = maximized ? "Restore" : "Maximize";
         UpdateWindowClip();
     }
@@ -296,6 +297,16 @@ public partial class MainWindow : Window
                     e.Handled = true;
                     return;
             }
+        }
+
+        // Ctrl+T (new surface): always handled at the app level. Ctrl+T sends
+        // DC4 (0x14) to the shell, which has no useful effect — let the app
+        // shortcut win even when the terminal owns focus.
+        if (ctrl && !shift && !alt && e.Key == Key.T)
+        {
+            ViewModel.SelectedWorkspace?.CreateNewSurface();
+            e.Handled = true;
+            return;
         }
 
         // === Ctrl-only shortcuts (skip when terminal has focus to let terminal handle them) ===
@@ -752,7 +763,7 @@ public partial class MainWindow : Window
         if (surface == null)
         {
             PaneCountText.Text = "0 panes";
-            ToolbarZoomIcon.Text = "\uE740";
+            ToolbarZoomIcon.Glyph = "\uE740";
             ToolbarZoomButton.ToolTip = "Zoom Pane (Ctrl+Shift+Z)";
             return;
         }
@@ -762,7 +773,7 @@ public partial class MainWindow : Window
             ? $"{paneCount} panes (1 zoomed)"
             : paneCount == 1 ? "1 pane" : $"{paneCount} panes";
 
-        ToolbarZoomIcon.Text = surface.IsZoomed ? "\uE73F" : "\uE740";
+        ToolbarZoomIcon.Glyph = surface.IsZoomed ? "\uE73F" : "\uE740";
         ToolbarZoomButton.ToolTip = surface.IsZoomed
             ? "Unzoom Pane (Ctrl+Shift+Z)"
             : "Zoom Pane (Ctrl+Shift+Z)";

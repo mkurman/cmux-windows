@@ -2,6 +2,7 @@ using System;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Interop;
+using Cmux.Core.Config;
 
 namespace Cmux.Views;
 
@@ -61,7 +62,10 @@ internal static class WindowAppearance
                 if (hwnd == IntPtr.Zero)
                     return;
 
-                var enabled = 1;
+                // Immersive-dark-mode flag is what gives Windows the cue to render the title-bar
+                // and built-in window chrome dark; off when the user picked Light.
+                var isLight = string.Equals(SettingsService.Current.AppThemeMode, "Light", StringComparison.OrdinalIgnoreCase);
+                var enabled = isLight ? 0 : 1;
                 _ = DwmSetWindowAttribute(hwnd, DwmUseImmersiveDarkMode, ref enabled, sizeof(int));
 
                 var borderColor = DwmColorNone;

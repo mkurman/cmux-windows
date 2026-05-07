@@ -1,8 +1,6 @@
-using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
-using Microsoft.Win32;
 using Cmux.Core.Config;
 using Cmux.Core.Services;
 
@@ -10,13 +8,21 @@ namespace Cmux.Views;
 
 public partial class SettingsWindow : Window
 {
+    // Variants are scoped to a mode — picking Dark hides the Light variants and vice versa.
+    // Pulled from Cmux.Themes.AppThemeCatalog so adding a palette there flows here for free.
+    private static IEnumerable<(string Variant, string Mode)> AppThemeCatalog =>
+        Cmux.Themes.AppThemeCatalog.All.Select(v => (v.Name, v.Mode));
+
     private bool _suppressTerminalColorEvents;
-    private bool _suppressThemeSync;
+    private bool _suppressAppThemeSync;
+    private string _initialAppThemeMode = "Dark";
+    private string _initialAppThemeVariant = "Default Dark";
 
     public SettingsWindow(string initialSection = "Appearance")
     {
         InitializeComponent();
         WindowAppearance.Apply(this);
+        AppVersionText.Text = App.AppVersion;
         PopulateThemes();
         LoadSettings();
         ShowSection(initialSection);
@@ -25,7 +31,6 @@ public partial class SettingsWindow : Window
     private void PopulateThemes()
     {
         ThemeCombo.ItemsSource = TerminalThemes.Names;
-        TerminalThemePresetCombo.ItemsSource = TerminalThemes.Names;
         CursorStyleCombo.ItemsSource = new[] { "bar", "block", "underline" };
 
         var fontFamilies = Fonts.SystemFontFamilies
@@ -36,13 +41,29 @@ public partial class SettingsWindow : Window
 
         // Detect available shells
         var shells = ShellDetector.DetectShells();
-        ShellCombo.ItemsSource = shells;
+        ShellCombo.ItemsSource = shells.OrderBy(shell => shell.Name, StringComparer.OrdinalIgnoreCase).ToList();
         ShellCombo.DisplayMemberPath = "Name";
         ShellCombo.SelectedValuePath = "Path";
 
-        // Detect system theme
-        var isLight = IsSystemLightTheme();
-        SystemThemeText.Text = isLight ? "Light" : "Dark";
+        // App-level theme: mode (Light/Dark) + named variant. Restart-required to take effect.
+        // Variant list is filtered in RepopulateAppThemeVariants() based on the selected mode.
+        AppThemeModeCombo.ItemsSource = new[] { "Dark", "Light" };
+    }
+
+    private void RepopulateAppThemeVariants(string mode, string? preferredSelection)
+    {
+        _suppressAppThemeSync = true;
+        // Alphabetical for a scannable list — see feedback_alphabetize-dropdowns.md
+        var variants = AppThemeCatalog
+            .Where(v => string.Equals(v.Mode, mode, StringComparison.OrdinalIgnoreCase))
+            .Select(v => v.Variant)
+            .OrderBy(name => name, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        AppThemeVariantCombo.ItemsSource = variants;
+        AppThemeVariantCombo.SelectedItem = variants.Contains(preferredSelection)
+            ? preferredSelection
+            : variants.FirstOrDefault();
+        _suppressAppThemeSync = false;
     }
 
     private void LoadSettings()
@@ -59,10 +80,7 @@ public partial class SettingsWindow : Window
         FontSizeSlider.Value = Math.Clamp(s.FontSize, 9, 28);
         UpdateFontSizeText();
 
-        _suppressThemeSync = true;
         ThemeCombo.SelectedItem = s.ThemeName;
-        TerminalThemePresetCombo.SelectedItem = s.ThemeName;
-        _suppressThemeSync = false;
 
         OpacitySlider.Value = s.Opacity;
         UpdateOpacityText();
@@ -93,6 +111,16 @@ public partial class SettingsWindow : Window
         CaptureOnClearCheck.IsOn = s.CaptureTranscriptsOnClear;
         TranscriptRetentionDaysBox.Value = Math.Clamp(s.TranscriptRetentionDays, 0, 3650);
 
+        // Snapshot current values so AppThemeSetting_Changed can detect dirty-vs-saved
+        // and only show the restart hint when the user actually changes something.
+        _initialAppThemeMode = NormalizeAppThemeMode(s.AppThemeMode);
+        _initialAppThemeVariant = string.IsNullOrWhiteSpace(s.AppThemeVariant) ? "Default Dark" : s.AppThemeVariant;
+        _suppressAppThemeSync = true;
+        AppThemeModeCombo.SelectedItem = _initialAppThemeMode;
+        _suppressAppThemeSync = false;
+        RepopulateAppThemeVariants(_initialAppThemeMode, _initialAppThemeVariant);
+        AppThemeRestartHint.Visibility = Visibility.Collapsed;
+
         UseCustomTerminalColorsCheck.IsOn = s.UseCustomTerminalColors;
 
         var preset = TerminalThemes.Get(s.ThemeName);
@@ -108,14 +136,30 @@ public partial class SettingsWindow : Window
         UpdateThemePreview();
     }
 
-    private bool SaveSettings()
+    private async System.Threading.Tasks.Task<bool> SaveSettingsAsync()
     {
+        // Guard: Mode/Variant mismatch (e.g., Dark mode + Default Light variant) makes no sense
+        // and would load the wrong dictionary on next launch. The variant combo filters by mode,
+        // so this should never trigger via normal UI flow — but a defensive check is cheap.
+        var pendingMode = NormalizeAppThemeMode(AppThemeModeCombo.SelectedItem as string);
+        var pendingVariant = AppThemeVariantCombo.SelectedItem as string;
+        if (!IsVariantValidForMode(pendingVariant, pendingMode))
+        {
+            await new ModernWpf.Controls.ContentDialog
+            {
+                Title = "Theme mismatch",
+                Content = $"The selected App Theme '{pendingVariant ?? "(none)"}' isn't a {pendingMode} theme. Pick a matching variant before saving.",
+                CloseButtonText = "OK",
+            }.ShowAsync();
+            ShowSection("Appearance");
+            AppThemeVariantCombo.Focus();
+            return false;
+        }
+
         var s = SettingsService.Current;
         s.FontFamily = FontFamilyCombo.SelectedItem as string ?? FontFamilyCombo.Text;
         s.FontSize = (int)Math.Round(FontSizeSlider.Value);
-        s.ThemeName = TerminalThemePresetCombo.SelectedItem as string
-            ?? ThemeCombo.SelectedItem as string
-            ?? "Default Dark";
+        s.ThemeName = ThemeCombo.SelectedItem as string ?? "Default Dark";
         s.Opacity = OpacitySlider.Value;
         s.CursorStyle = CursorStyleCombo.SelectedItem as string ?? "bar";
         s.CursorBlink = CursorBlinkCheck.IsOn;
@@ -140,6 +184,9 @@ public partial class SettingsWindow : Window
         s.CaptureTranscriptsOnClear = CaptureOnClearCheck.IsOn;
         if (!double.IsNaN(TranscriptRetentionDaysBox.Value))
             s.TranscriptRetentionDays = Math.Clamp((int)TranscriptRetentionDaysBox.Value, 0, 3650);
+
+        s.AppThemeMode = NormalizeAppThemeMode(AppThemeModeCombo.SelectedItem as string);
+        s.AppThemeVariant = AppThemeVariantCombo.SelectedItem as string ?? "Default Dark";
 
         s.UseCustomTerminalColors = UseCustomTerminalColorsCheck.IsOn;
         s.CustomTerminalBackground = NormalizeHexColor(TerminalBackgroundHexBox.Text) ?? string.Empty;
@@ -174,13 +221,68 @@ public partial class SettingsWindow : Window
         }
     }
 
-    private void Save_Click(object sender, RoutedEventArgs e)
+    private async void Save_Click(object sender, RoutedEventArgs e)
     {
-        if (!SaveSettings())
+        // Snapshot pre-save values so we can detect restart-required changes after Save.
+        var prevMode = _initialAppThemeMode;
+        var prevVariant = _initialAppThemeVariant;
+
+        if (!await SaveSettingsAsync())
             return;
+
+        var s = SettingsService.Current;
+        var themeChanged =
+            !string.Equals(s.AppThemeMode, prevMode, StringComparison.OrdinalIgnoreCase) ||
+            !string.Equals(s.AppThemeVariant, prevVariant, StringComparison.Ordinal);
+
+        if (themeChanged)
+        {
+            var dialog = new ModernWpf.Controls.ContentDialog
+            {
+                Title = "Restart required",
+                Content = "App theme changes only take effect after a restart. Restart cmux now?",
+                PrimaryButtonText = "Restart now",
+                SecondaryButtonText = "Later",
+                DefaultButton = ModernWpf.Controls.ContentDialogButton.Primary,
+            };
+
+            if (await dialog.ShowAsync() == ModernWpf.Controls.ContentDialogResult.Primary)
+            {
+                RestartApp();
+                return;
+            }
+        }
 
         DialogResult = true;
         Close();
+    }
+
+    private static void RestartApp()
+    {
+        // Spawn a detached cmd that waits briefly for this process to exit (releasing the
+        // single-instance mutex), then relaunches the same EXE. Without the wait the new
+        // instance races us and gets blocked by the "cmux is already running" guard.
+        var exePath = System.Diagnostics.Process.GetCurrentProcess().MainModule?.FileName;
+        if (string.IsNullOrEmpty(exePath))
+        {
+            Application.Current.Shutdown();
+            return;
+        }
+
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = "cmd.exe",
+                Arguments = $"/c timeout /t 2 /nobreak >NUL && start \"\" \"{exePath}\"",
+                CreateNoWindow = true,
+                UseShellExecute = false,
+                WindowStyle = System.Diagnostics.ProcessWindowStyle.Hidden,
+            });
+        }
+        catch { /* fall through to shutdown anyway — user can relaunch manually */ }
+
+        Application.Current.Shutdown();
     }
 
     private void Cancel_Click(object sender, RoutedEventArgs e)
@@ -208,34 +310,13 @@ public partial class SettingsWindow : Window
 
     private void ThemeCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (!_suppressThemeSync)
-        {
-            _suppressThemeSync = true;
-            TerminalThemePresetCombo.SelectedItem = ThemeCombo.SelectedItem;
-            _suppressThemeSync = false;
-        }
-
-        UpdateThemePreview();
-        RefreshCustomColorsFromPresetIfNeeded();
-    }
-
-    private void TerminalThemePresetCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
-    {
-        if (!_suppressThemeSync)
-        {
-            _suppressThemeSync = true;
-            ThemeCombo.SelectedItem = TerminalThemePresetCombo.SelectedItem;
-            _suppressThemeSync = false;
-        }
-
         UpdateThemePreview();
         RefreshCustomColorsFromPresetIfNeeded();
     }
 
     private void UpdateThemePreview()
     {
-        var themeName = TerminalThemePresetCombo.SelectedItem as string
-            ?? ThemeCombo.SelectedItem as string;
+        var themeName = ThemeCombo.SelectedItem as string;
 
         if (themeName is null)
             return;
@@ -316,6 +397,7 @@ public partial class SettingsWindow : Window
     private void UpdateTerminalColorEditorsEnabledState()
     {
         var enabled = UseCustomTerminalColorsCheck.IsOn;
+        TerminalColorOverridesSection.Visibility = enabled ? Visibility.Visible : Visibility.Collapsed;
         TerminalBackgroundColorPanel.IsEnabled = enabled;
         TerminalForegroundColorPanel.IsEnabled = enabled;
         TerminalCursorColorPanel.IsEnabled = enabled;
@@ -327,7 +409,7 @@ public partial class SettingsWindow : Window
         if (UseCustomTerminalColorsCheck.IsOn)
             return;
 
-        if (TerminalThemePresetCombo.SelectedItem is not string presetName)
+        if (ThemeCombo.SelectedItem is not string presetName)
             return;
 
         var theme = TerminalThemes.Get(presetName);
@@ -387,7 +469,7 @@ public partial class SettingsWindow : Window
 
     private void ResetTerminalColors_Click(object sender, RoutedEventArgs e)
     {
-        if (TerminalThemePresetCombo.SelectedItem is not string presetName)
+        if (ThemeCombo.SelectedItem is not string presetName)
             return;
 
         var theme = TerminalThemes.Get(presetName);
@@ -400,26 +482,37 @@ public partial class SettingsWindow : Window
         RefreshTerminalColorPreviews();
     }
 
-    private static bool IsSystemLightTheme()
+    private static string NormalizeAppThemeMode(string? raw)
     {
-        try
-        {
-            using var key = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize");
-            return key?.GetValue("AppsUseLightTheme") is int value && value == 1;
-        }
-        catch { return false; } // Default to dark
+        return string.Equals(raw?.Trim(), "Light", StringComparison.OrdinalIgnoreCase) ? "Light" : "Dark";
     }
 
-    private static int ResolveSubmitKeyComboIndex(string? submitKey)
+    private static bool IsVariantValidForMode(string? variant, string mode)
     {
-        var normalized = (submitKey ?? "auto").Trim().ToLowerInvariant();
-        return normalized switch
+        if (string.IsNullOrWhiteSpace(variant)) return false;
+        var match = Cmux.Themes.AppThemeCatalog.Find(variant);
+        return match != null && string.Equals(match.Mode, mode, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private void AppThemeSetting_Changed(object sender, SelectionChangedEventArgs e)
+    {
+        if (!IsLoaded || _suppressAppThemeSync) return;
+
+        // Mode change → repopulate variant list so the user can't pick a Light variant
+        // while the app is in Dark mode (and vice versa).
+        if (ReferenceEquals(sender, AppThemeModeCombo))
         {
-            "enter" => 1,
-            "linefeed" => 2,
-            "crlf" => 3,
-            _ => 0,
-        };
+            var newMode = NormalizeAppThemeMode(AppThemeModeCombo.SelectedItem as string);
+            RepopulateAppThemeVariants(newMode, _initialAppThemeVariant);
+        }
+
+        var modeChanged = !string.Equals(AppThemeModeCombo.SelectedItem as string,
+            _initialAppThemeMode, StringComparison.OrdinalIgnoreCase);
+        var variantChanged = !string.Equals(AppThemeVariantCombo.SelectedItem as string,
+            _initialAppThemeVariant, StringComparison.Ordinal);
+
+        AppThemeRestartHint.Visibility = (modeChanged || variantChanged)
+            ? Visibility.Visible : Visibility.Collapsed;
     }
 
 }

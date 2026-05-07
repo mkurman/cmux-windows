@@ -11,6 +11,14 @@ public class CmuxSettings
     public string FontFamily { get; set; } = "Cascadia Code";
     public int FontSize { get; set; } = 14;
     public string ThemeName { get; set; } = "Default Dark";
+
+    // App-level WPF chrome theme (separate from the terminal renderer's ThemeName).
+    // AppThemeMode is "Light" or "Dark" — drives ModernWpf's RequestedTheme + which
+    // brand dictionary loads. AppThemeVariant is the named palette within that mode.
+    // Changes require an app restart (no live DynamicResource reflow yet).
+    public string AppThemeMode { get; set; } = "Dark";
+    public string AppThemeVariant { get; set; } = "Default Dark";
+
     public bool UseCustomTerminalColors { get; set; } = false;
     public string CustomTerminalBackground { get; set; } = "";
     public string CustomTerminalForeground { get; set; } = "";

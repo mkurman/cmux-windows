@@ -1,6 +1,7 @@
 <Window x:Class="Cmux.Views.SessionVaultWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ui="http://schemas.modernwpf.com/2019"
         Title="Session Vault" Height="700" Width="1280"
         WindowStartupLocation="CenterOwner"
         WindowStyle="None" AllowsTransparency="True"
@@ -87,7 +88,7 @@
                     <Button Style="{StaticResource WindowCloseButton}" HorizontalAlignment="Right"
                             WindowChrome.IsHitTestVisibleInChrome="True"
                             Click="Close_Click" Width="38" Height="34">
-                        <TextBlock Text="&#xE8BB;" FontFamily="Segoe MDL2 Assets" FontSize="9" />
+                        <ui:FontIcon Glyph="&#xE8BB;" FontSize="9" />
                     </Button>
                 </Grid>
             </Border>
@@ -103,7 +104,7 @@
                 <DockPanel Grid.Row="0" Margin="0,0,0,8">
                     <TextBlock Text="Search" Foreground="{StaticResource ForegroundDimBrush}"
                                VerticalAlignment="Center" Margin="0,0,8,0" />
-                    <TextBox x:Name="SearchBox" Width="320" Style="{StaticResource CmuxTextBox}"
+                    <TextBox x:Name="SearchBox" Width="320"
                              TextChanged="SearchBox_TextChanged" />
                     <TextBlock x:Name="SummaryText" Margin="16,0,0,0" VerticalAlignment="Center"
                                Foreground="{StaticResource ForegroundDimBrush}" />

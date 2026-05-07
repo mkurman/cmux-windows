@@ -9,15 +9,8 @@
         ResizeMode="NoResize">
 
     <Window.Resources>
-        <!-- Force dark system brush overrides inside settings window -->
-        <SolidColorBrush x:Key="{x:Static SystemColors.WindowBrushKey}" Color="#FF1A1A1A" />
-        <SolidColorBrush x:Key="{x:Static SystemColors.ControlBrushKey}" Color="#FF1A1A1A" />
-        <SolidColorBrush x:Key="{x:Static SystemColors.WindowTextBrushKey}" Color="#FFE2E2E9" />
-        <SolidColorBrush x:Key="{x:Static SystemColors.ControlTextBrushKey}" Color="#FFE2E2E9" />
-        <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="#FF252547" />
-        <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" Color="#FFE2E2E9" />
-
         <!-- Sidebar nav-button style — local because it's nav-specific. -->
+        <!-- Per-window SystemColors overrides removed (AGENTS.md UI rule 3): ThemeResources routes them. -->
         <Style x:Key="NavButton" TargetType="Button">
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="Foreground" Value="{StaticResource ForegroundDimBrush}" />
@@ -70,8 +63,9 @@
                                VerticalAlignment="Center" Margin="18,0,0,0" />
                     <Button x:Name="CloseBtn" HorizontalAlignment="Right" VerticalAlignment="Center"
                             Margin="0,0,10,0" Click="CloseButton_Click"
-                            Style="{StaticResource IconButton}" Content="&#xE8BB;"
-                            FontFamily="Segoe MDL2 Assets" FontSize="12" />
+                            Style="{StaticResource IconButton}">
+                        <ui:FontIcon Glyph="&#xE8BB;" FontSize="12" />
+                    </Button>
                 </Grid>
             </Border>
 
@@ -88,40 +82,40 @@
                     <Button x:Name="NavAppearance" Style="{StaticResource NavButton}"
                             Click="NavButton_Click">
                         <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="&#xE790;" FontFamily="Segoe MDL2 Assets" FontSize="14"
-                                       VerticalAlignment="Center" Margin="0,0,10,0" />
+                            <ui:FontIcon Glyph="&#xE790;" FontSize="14"
+                                         VerticalAlignment="Center" Margin="0,0,10,0" />
                             <TextBlock Text="Appearance" VerticalAlignment="Center" />
                         </StackPanel>
                     </Button>
                     <Button x:Name="NavTerminal" Style="{StaticResource NavButton}"
                             Click="NavButton_Click">
                         <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="&#xE756;" FontFamily="Segoe MDL2 Assets" FontSize="14"
-                                       VerticalAlignment="Center" Margin="0,0,10,0" />
+                            <ui:FontIcon Glyph="&#xE756;" FontSize="14"
+                                         VerticalAlignment="Center" Margin="0,0,10,0" />
                             <TextBlock Text="Terminal" VerticalAlignment="Center" />
                         </StackPanel>
                     </Button>
                     <Button x:Name="NavBehavior" Style="{StaticResource NavButton}"
                             Click="NavButton_Click">
                         <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="&#xE713;" FontFamily="Segoe MDL2 Assets" FontSize="14"
-                                       VerticalAlignment="Center" Margin="0,0,10,0" />
+                            <ui:FontIcon Glyph="&#xE713;" FontSize="14"
+                                         VerticalAlignment="Center" Margin="0,0,10,0" />
                             <TextBlock Text="Behavior" VerticalAlignment="Center" />
                         </StackPanel>
                     </Button>
                     <Button x:Name="NavKeyboard" Style="{StaticResource NavButton}"
                             Click="NavButton_Click">
                         <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="&#xE765;" FontFamily="Segoe MDL2 Assets" FontSize="14"
-                                       VerticalAlignment="Center" Margin="0,0,10,0" />
+                            <ui:FontIcon Glyph="&#xE765;" FontSize="14"
+                                         VerticalAlignment="Center" Margin="0,0,10,0" />
                             <TextBlock Text="Keyboard" VerticalAlignment="Center" />
                         </StackPanel>
                     </Button>
                     <Button x:Name="NavAbout" Style="{StaticResource NavButton}"
                             Click="NavButton_Click">
                         <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="&#xE946;" FontFamily="Segoe MDL2 Assets" FontSize="14"
-                                       VerticalAlignment="Center" Margin="0,0,10,0" />
+                            <ui:FontIcon Glyph="&#xE946;" FontSize="14"
+                                         VerticalAlignment="Center" Margin="0,0,10,0" />
                             <TextBlock Text="About" VerticalAlignment="Center" />
                         </StackPanel>
                     </Button>
@@ -147,7 +141,6 @@
                             </Grid.ColumnDefinitions>
                             <TextBlock Text="Font Family" Style="{StaticResource CmuxFormLabel}" />
                             <ComboBox x:Name="FontFamilyCombo" Grid.Column="1"
-                                      Style="{StaticResource CmuxComboBox}"
                                       Width="320" HorizontalAlignment="Left"
                                       IsTextSearchEnabled="True" />
                         </Grid>
@@ -166,26 +159,6 @@
                                         ValueChanged="FontSizeSlider_ValueChanged" />
                                 <TextBlock x:Name="FontSizeValueText" Foreground="{StaticResource ForegroundDimBrush}"
                                            VerticalAlignment="Center" Margin="10,0,0,0" FontSize="12" />
-                            </StackPanel>
-                        </Grid>
-
-                        <!-- Theme -->
-                        <Grid Margin="0,0,0,10">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="160" />
-                                <ColumnDefinition Width="*" />
-                            </Grid.ColumnDefinitions>
-                            <TextBlock Text="Theme" Style="{StaticResource CmuxFormLabel}" />
-                            <StackPanel Grid.Column="1" Orientation="Horizontal">
-                                <ComboBox x:Name="ThemeCombo" Style="{StaticResource CmuxComboBox}"
-                                              Width="200" SelectionChanged="ThemeCombo_SelectionChanged" />
-                                <Border x:Name="ThemePreview" Width="64" Height="{StaticResource ControlHeight}" Margin="12,0,0,0"
-                                        CornerRadius="{StaticResource ControlCornerRadius}" BorderThickness="1"
-                                        BorderBrush="{StaticResource BorderBrush}">
-                                    <TextBlock x:Name="ThemePreviewText" Text="Aa" FontSize="13"
-                                               FontWeight="SemiBold" HorizontalAlignment="Center"
-                                               VerticalAlignment="Center" />
-                                </Border>
                             </StackPanel>
                         </Grid>
 
@@ -214,8 +187,13 @@
                             </Grid.ColumnDefinitions>
                             <TextBlock Text="Cursor Style" Style="{StaticResource CmuxFormLabel}" />
                             <ComboBox x:Name="CursorStyleCombo" Grid.Column="1"
-                                      Style="{StaticResource CmuxComboBox}"
-                                      Width="140" HorizontalAlignment="Left" />
+                                      Width="140" HorizontalAlignment="Left">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding Converter={StaticResource TitleCase}}" />
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
                         </Grid>
 
                         <!-- Cursor Blink -->
@@ -229,17 +207,32 @@
                                              OffContent="" OnContent="" MinWidth="0" />
                         </Grid>
 
-                        <!-- System Theme (detected) -->
+                        <!-- App Theme Mode — drives ModernWpf RequestedTheme + which brand dictionary loads -->
                         <Grid Margin="0,0,0,10">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="160" />
                                 <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
-                            <TextBlock Text="System Theme" Style="{StaticResource CmuxFormLabel}" />
+                            <TextBlock Text="Mode" Style="{StaticResource CmuxFormLabel}" />
+                            <ComboBox x:Name="AppThemeModeCombo" Grid.Column="1"
+                                      Width="200" HorizontalAlignment="Left"
+                                      SelectionChanged="AppThemeSetting_Changed" />
+                        </Grid>
+
+                        <!-- App Theme Variant — named palette within the chosen mode -->
+                        <Grid Margin="0,0,0,10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="160" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="App Theme" Style="{StaticResource CmuxFormLabel}" />
                             <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                                <TextBlock x:Name="SystemThemeText" Text="Dark" FontSize="13"
-                                           Foreground="{StaticResource ForegroundBrush}" />
-                                <TextBlock Text=" (detected)" FontSize="12" Foreground="#FF6B7280" />
+                                <ComboBox x:Name="AppThemeVariantCombo" Width="240"
+                                          SelectionChanged="AppThemeSetting_Changed" />
+                                <TextBlock x:Name="AppThemeRestartHint" Text="(restart required)"
+                                           FontSize="12" Foreground="{StaticResource WarningBrush}"
+                                           VerticalAlignment="Center" Margin="10,0,0,0"
+                                           Visibility="Collapsed" />
                             </StackPanel>
                         </Grid>
                     </StackPanel>
@@ -249,20 +242,26 @@
                         <TextBlock Text="Terminal" FontSize="18" FontWeight="SemiBold"
                                    Foreground="{StaticResource ForegroundBrush}" Margin="0,0,0,20" />
 
-                        <!-- Color Preset -->
+                        <!-- Terminal Theme (renderer palette — distinct from the App Theme on the Appearance tab) -->
                         <Grid Margin="0,0,0,10">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="160" />
                                 <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
-                            <TextBlock Text="Color Preset" Style="{StaticResource CmuxFormLabel}" />
-                            <ComboBox x:Name="TerminalThemePresetCombo" Grid.Column="1"
-                                      Style="{StaticResource CmuxComboBox}"
-                                      Width="240" HorizontalAlignment="Left"
-                                      SelectionChanged="TerminalThemePresetCombo_SelectionChanged" />
+                            <TextBlock Text="Terminal Theme" Style="{StaticResource CmuxFormLabel}" />
+                            <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                <ComboBox x:Name="ThemeCombo"
+                                          Width="200" SelectionChanged="ThemeCombo_SelectionChanged" />
+                                <Border x:Name="ThemePreview" Width="64" Height="{StaticResource ControlHeight}" Margin="12,0,0,0"
+                                        CornerRadius="{StaticResource ControlCornerRadius}" BorderThickness="1"
+                                        BorderBrush="{StaticResource BorderBrush}">
+                                    <TextBlock x:Name="ThemePreviewText" Text="Aa" FontSize="13"
+                                               FontWeight="SemiBold" HorizontalAlignment="Center"
+                                               VerticalAlignment="Center" />
+                                </Border>
+                            </StackPanel>
                         </Grid>
 
-                        <!-- Use custom colors -->
                         <Grid Margin="0,0,0,10">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="160" />
@@ -275,68 +274,69 @@
                                              Toggled="UseCustomTerminalColorsCheck_Changed" />
                         </Grid>
 
-                        <!-- Terminal color swatches -->
-                        <Grid Margin="0,0,0,10">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="160" />
-                                <ColumnDefinition Width="*" />
-                            </Grid.ColumnDefinitions>
-                            <TextBlock Text="Background" Style="{StaticResource CmuxFormLabel}" />
-                            <StackPanel Grid.Column="1" Orientation="Horizontal" x:Name="TerminalBackgroundColorPanel" VerticalAlignment="Center">
-                                <Border x:Name="TerminalBackgroundPreview" Style="{StaticResource CmuxColorSwatch}" Margin="0,0,10,0" />
-                                <TextBox x:Name="TerminalBackgroundHexBox" Style="{StaticResource CmuxTextBox}" Width="120" Margin="0,0,8,0"
-                                         TextChanged="TerminalColorHexBox_TextChanged" />
-                                <Button Content="Pick" Style="{StaticResource CmuxButton}" Padding="14,7"
-                                        Click="PickTerminalBackgroundColor_Click" />
-                            </StackPanel>
-                        </Grid>
+                        <StackPanel x:Name="TerminalColorOverridesSection" Visibility="Collapsed">
+                            <Grid Margin="0,0,0,10">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="160" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="Background" Style="{StaticResource CmuxFormLabel}" />
+                                <StackPanel Grid.Column="1" Orientation="Horizontal" x:Name="TerminalBackgroundColorPanel" VerticalAlignment="Center">
+                                    <Border x:Name="TerminalBackgroundPreview" Style="{StaticResource CmuxColorSwatch}" Margin="0,0,10,0" />
+                                    <TextBox x:Name="TerminalBackgroundHexBox" Width="120" Margin="0,0,8,0"
+                                             TextChanged="TerminalColorHexBox_TextChanged" />
+                                    <Button Content="Pick" Style="{StaticResource CmuxButton}" Padding="14,7"
+                                            Click="PickTerminalBackgroundColor_Click" />
+                                </StackPanel>
+                            </Grid>
 
-                        <Grid Margin="0,0,0,10">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="160" />
-                                <ColumnDefinition Width="*" />
-                            </Grid.ColumnDefinitions>
-                            <TextBlock Text="Foreground" Style="{StaticResource CmuxFormLabel}" />
-                            <StackPanel Grid.Column="1" Orientation="Horizontal" x:Name="TerminalForegroundColorPanel" VerticalAlignment="Center">
-                                <Border x:Name="TerminalForegroundPreview" Style="{StaticResource CmuxColorSwatch}" Margin="0,0,10,0" />
-                                <TextBox x:Name="TerminalForegroundHexBox" Style="{StaticResource CmuxTextBox}" Width="120" Margin="0,0,8,0"
-                                         TextChanged="TerminalColorHexBox_TextChanged" />
-                                <Button Content="Pick" Style="{StaticResource CmuxButton}" Padding="14,7"
-                                        Click="PickTerminalForegroundColor_Click" />
-                            </StackPanel>
-                        </Grid>
+                            <Grid Margin="0,0,0,10">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="160" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="Foreground" Style="{StaticResource CmuxFormLabel}" />
+                                <StackPanel Grid.Column="1" Orientation="Horizontal" x:Name="TerminalForegroundColorPanel" VerticalAlignment="Center">
+                                    <Border x:Name="TerminalForegroundPreview" Style="{StaticResource CmuxColorSwatch}" Margin="0,0,10,0" />
+                                    <TextBox x:Name="TerminalForegroundHexBox" Width="120" Margin="0,0,8,0"
+                                             TextChanged="TerminalColorHexBox_TextChanged" />
+                                    <Button Content="Pick" Style="{StaticResource CmuxButton}" Padding="14,7"
+                                            Click="PickTerminalForegroundColor_Click" />
+                                </StackPanel>
+                            </Grid>
 
-                        <Grid Margin="0,0,0,10">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="160" />
-                                <ColumnDefinition Width="*" />
-                            </Grid.ColumnDefinitions>
-                            <TextBlock Text="Cursor" Style="{StaticResource CmuxFormLabel}" />
-                            <StackPanel Grid.Column="1" Orientation="Horizontal" x:Name="TerminalCursorColorPanel" VerticalAlignment="Center">
-                                <Border x:Name="TerminalCursorPreview" Style="{StaticResource CmuxColorSwatch}" Margin="0,0,10,0" />
-                                <TextBox x:Name="TerminalCursorHexBox" Style="{StaticResource CmuxTextBox}" Width="120" Margin="0,0,8,0"
-                                         TextChanged="TerminalColorHexBox_TextChanged" />
-                                <Button Content="Pick" Style="{StaticResource CmuxButton}" Padding="14,7"
-                                        Click="PickTerminalCursorColor_Click" />
-                            </StackPanel>
-                        </Grid>
+                            <Grid Margin="0,0,0,10">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="160" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="Cursor" Style="{StaticResource CmuxFormLabel}" />
+                                <StackPanel Grid.Column="1" Orientation="Horizontal" x:Name="TerminalCursorColorPanel" VerticalAlignment="Center">
+                                    <Border x:Name="TerminalCursorPreview" Style="{StaticResource CmuxColorSwatch}" Margin="0,0,10,0" />
+                                    <TextBox x:Name="TerminalCursorHexBox" Width="120" Margin="0,0,8,0"
+                                             TextChanged="TerminalColorHexBox_TextChanged" />
+                                    <Button Content="Pick" Style="{StaticResource CmuxButton}" Padding="14,7"
+                                            Click="PickTerminalCursorColor_Click" />
+                                </StackPanel>
+                            </Grid>
 
-                        <Grid Margin="0,0,0,10">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="160" />
-                                <ColumnDefinition Width="*" />
-                            </Grid.ColumnDefinitions>
-                            <TextBlock Text="Selection" Style="{StaticResource CmuxFormLabel}" />
-                            <StackPanel Grid.Column="1" Orientation="Horizontal" x:Name="TerminalSelectionColorPanel" VerticalAlignment="Center">
-                                <Border x:Name="TerminalSelectionPreview" Style="{StaticResource CmuxColorSwatch}" Margin="0,0,10,0" />
-                                <TextBox x:Name="TerminalSelectionHexBox" Style="{StaticResource CmuxTextBox}" Width="120" Margin="0,0,8,0"
-                                         TextChanged="TerminalColorHexBox_TextChanged" />
-                                <Button Content="Pick" Style="{StaticResource CmuxButton}" Padding="14,7"
-                                        Click="PickTerminalSelectionColor_Click" />
-                                <Button Content="Reset" Style="{StaticResource CmuxButton}" Padding="14,7" Margin="8,0,0,0"
-                                        Click="ResetTerminalColors_Click" />
-                            </StackPanel>
-                        </Grid>
+                            <Grid Margin="0,0,0,10">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="160" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="Selection" Style="{StaticResource CmuxFormLabel}" />
+                                <StackPanel Grid.Column="1" Orientation="Horizontal" x:Name="TerminalSelectionColorPanel" VerticalAlignment="Center">
+                                    <Border x:Name="TerminalSelectionPreview" Style="{StaticResource CmuxColorSwatch}" Margin="0,0,10,0" />
+                                    <TextBox x:Name="TerminalSelectionHexBox" Width="120" Margin="0,0,8,0"
+                                             TextChanged="TerminalColorHexBox_TextChanged" />
+                                    <Button Content="Pick" Style="{StaticResource CmuxButton}" Padding="14,7"
+                                            Click="PickTerminalSelectionColor_Click" />
+                                    <Button Content="Reset" Style="{StaticResource CmuxButton}" Padding="14,7" Margin="8,0,0,0"
+                                            Click="ResetTerminalColors_Click" />
+                                </StackPanel>
+                            </Grid>
+                        </StackPanel>
 
                         <!-- Default Shell -->
                         <Grid Margin="0,0,0,10">
@@ -345,9 +345,7 @@
                                 <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
                             <TextBlock Text="Default Shell" Style="{StaticResource CmuxFormLabel}" />
-                            <ComboBox x:Name="ShellCombo" Grid.Column="1"
-                                      Style="{StaticResource CmuxComboBox}"
-                                      Background="#FF1A1A1A" Foreground="{StaticResource ForegroundBrush}" />
+                            <ComboBox x:Name="ShellCombo" Grid.Column="1" />
                         </Grid>
 
                         <!-- Shell Arguments -->
@@ -357,8 +355,7 @@
                                 <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
                             <TextBlock Text="Shell Arguments" Style="{StaticResource CmuxFormLabel}" />
-                            <TextBox x:Name="ShellArgsBox" Grid.Column="1"
-                                     Style="{StaticResource CmuxTextBox}" />
+                            <TextBox x:Name="ShellArgsBox" Grid.Column="1" />
                         </Grid>
 
                         <!-- Scrollback Lines -->
@@ -557,7 +554,7 @@
                         <TextBlock Text="Keyboard Shortcuts" FontSize="18" FontWeight="SemiBold"
                                    Foreground="{StaticResource ForegroundBrush}" Margin="0,0,0,20" />
 
-                        <Border Background="#FF1A1A1A" CornerRadius="6" Padding="16,12" Margin="0,0,0,6">
+                        <Border Background="{DynamicResource SurfaceBrush}" CornerRadius="6" Padding="16,12" Margin="0,0,0,6">
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="160" />
@@ -700,11 +697,11 @@
                         <TextBlock Text="About" FontSize="18" FontWeight="SemiBold"
                                    Foreground="{StaticResource ForegroundBrush}" Margin="0,0,0,20" />
 
-                        <Border Background="#FF1A1A1A" CornerRadius="6" Padding="20,16" Margin="0,0,0,12">
+                        <Border Background="{DynamicResource SurfaceBrush}" CornerRadius="6" Padding="20,16" Margin="0,0,0,12">
                             <StackPanel>
                                 <TextBlock Text="cmux for Windows" FontSize="20" FontWeight="Bold"
                                            Foreground="{StaticResource ForegroundBrush}" Margin="0,0,0,4" />
-                                <TextBlock Text="v1.0.6" FontSize="13"
+                                <TextBlock x:Name="AppVersionText" FontSize="13"
                                            Foreground="{StaticResource AccentBrush}" Margin="0,0,0,12" />
                                 <TextBlock Text="A modern terminal multiplexer designed for AI coding agents. Split panes, workspaces, command palette, and intelligent terminal management."
                                            Foreground="{StaticResource ForegroundDimBrush}" FontSize="13"
@@ -724,15 +721,18 @@
 
             <!-- Bottom Bar -->
             <Border Grid.Row="2" BorderThickness="0,1,0,0" BorderBrush="{StaticResource BorderBrush}"
-                    Padding="18,12">
+                    Padding="18,14">
                 <Grid>
                     <Button Content="Reset to Defaults" Style="{StaticResource CmuxButton}"
-                            Click="Reset_Click" HorizontalAlignment="Left" Padding="14,7" />
+                            Click="Reset_Click" HorizontalAlignment="Left"
+                            Padding="14,8" MinHeight="34" />
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                         <Button Content="Cancel" Style="{StaticResource CmuxButton}"
-                                Click="Cancel_Click" Padding="16,7" Margin="0,0,8,0" />
+                                Click="Cancel_Click"
+                                Padding="18,8" MinHeight="34" Margin="0,0,10,0" />
                         <Button Content="Save" Style="{StaticResource AccentButton}"
-                                Click="Save_Click" Padding="20,7" />
+                                Click="Save_Click"
+                                Padding="22,8" MinHeight="34" />
                     </StackPanel>
                 </Grid>
             </Border>

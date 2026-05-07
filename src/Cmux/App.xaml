@@ -7,10 +7,11 @@
     <Application.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
-                <!-- ModernWpf Fluent base — must come BEFORE DarkTheme so our keyed styles win. -->
-                <ui:ThemeResources RequestedTheme="Dark" />
+                <!-- ModernWpf Fluent base — must come BEFORE the brand dictionary so our keyed styles win.
+                     RequestedTheme + the Dark/Light brand dictionary are appended at runtime by App.xaml.cs
+                     based on CmuxSettings.AppThemeMode. -->
+                <ui:ThemeResources />
                 <ui:XamlControlsResources />
-                <ResourceDictionary Source="Themes/DarkTheme.xaml" />
             </ResourceDictionary.MergedDictionaries>
 
             <!-- ModernWpf accent override — matches our indigo/purple brand. -->
@@ -27,6 +28,7 @@
             <conv:EqualityConverter x:Key="EqualityConverter" />
             <conv:InverseBoolConverter x:Key="InverseBool" />
             <conv:HexToBrushConverter x:Key="HexToBrush" />
+            <conv:TitleCaseConverter x:Key="TitleCase" />
         </ResourceDictionary>
     </Application.Resources>
 </Application>

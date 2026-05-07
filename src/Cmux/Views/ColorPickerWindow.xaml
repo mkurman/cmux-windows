@@ -1,6 +1,7 @@
 <Window x:Class="Cmux.Views.ColorPickerWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ui="http://schemas.modernwpf.com/2019"
         Title="Accent Color" Height="360" Width="420"
         WindowStartupLocation="CenterOwner"
         WindowStyle="None" AllowsTransparency="True"
@@ -34,7 +35,7 @@
                     <Button Style="{StaticResource WindowCloseButton}" HorizontalAlignment="Right"
                             WindowChrome.IsHitTestVisibleInChrome="True"
                             Click="Cancel_Click" Width="38" Height="32">
-                        <TextBlock Text="&#xE8BB;" FontFamily="Segoe MDL2 Assets" FontSize="9" />
+                        <ui:FontIcon Glyph="&#xE8BB;" FontSize="9" />
                     </Button>
                 </Grid>
             </Border>
@@ -98,7 +99,7 @@
 
                 <StackPanel Grid.Row="5" Orientation="Horizontal" Margin="0,12,0,0" VerticalAlignment="Top">
                     <TextBlock Text="Hex" Foreground="{StaticResource ForegroundDimBrush}" VerticalAlignment="Center" Margin="0,0,8,0" />
-                    <TextBox x:Name="HexBox" Width="160" Style="{StaticResource CmuxTextBox}"
+                    <TextBox x:Name="HexBox" Width="160"
                              TextChanged="HexBox_TextChanged" />
                 </StackPanel>
 

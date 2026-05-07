@@ -3,42 +3,40 @@
                     xmlns:ui="http://schemas.modernwpf.com/2019"
                     xmlns:system="clr-namespace:System;assembly=mscorlib">
 
-    <!-- cmux Dark Theme — design tokens + brand-keyed styles only.
-         ModernWpf provides implicit defaults for TextBox / ComboBox / CheckBox /
-         ScrollBar / MenuItem / ContextMenu / Separator. Don't reintroduce keyed
-         overrides for those here. -->
+    <!-- cmux Light Theme — same key surface as DarkTheme.xaml, light palette.
+         Activated when CmuxSettings.AppThemeMode = "Light". Restart-required. -->
 
     <!-- ═══════════════════════════════════════════════════════════════════
-         Base Colors
+         Base Colors (light)
          ═══════════════════════════════════════════════════════════════════ -->
-    <Color x:Key="BackgroundColor">#FF0F0F0F</Color>
-    <Color x:Key="SidebarBackgroundColor">#FF0A0A0A</Color>
-    <Color x:Key="SidebarItemHoverColor">#FF1A1A2E</Color>
-    <Color x:Key="SidebarItemSelectedColor">#FF252547</Color>
-    <Color x:Key="ForegroundColor">#FFE2E2E9</Color>
-    <Color x:Key="ForegroundDimColor">#FF6B6B80</Color>
-    <Color x:Key="AccentColor">#FF818CF8</Color>
-    <Color x:Key="NotificationColor">#FF6366F1</Color>
-    <Color x:Key="BorderColor">#FF2A2A3C</Color>
-    <Color x:Key="SurfaceTabBackgroundColor">#FF161622</Color>
-    <Color x:Key="SurfaceTabSelectedColor">#FF1E1E32</Color>
-    <Color x:Key="DividerColor">#FF2E2E42</Color>
-    <Color x:Key="ErrorColor">#FFEF4444</Color>
-    <Color x:Key="SuccessColor">#FF34D399</Color>
-    <Color x:Key="WarningColor">#FFFBBF24</Color>
+    <Color x:Key="BackgroundColor">#FFF7F7FA</Color>
+    <Color x:Key="SidebarBackgroundColor">#FFEDEDF2</Color>
+    <Color x:Key="SidebarItemHoverColor">#FFE0E0EC</Color>
+    <Color x:Key="SidebarItemSelectedColor">#FFD8D8F0</Color>
+    <Color x:Key="ForegroundColor">#FF1A1A1F</Color>
+    <Color x:Key="ForegroundDimColor">#FF6B7280</Color>
+    <Color x:Key="AccentColor">#FF6366F1</Color>
+    <Color x:Key="NotificationColor">#FF4F46E5</Color>
+    <Color x:Key="BorderColor">#FFD4D4DB</Color>
+    <Color x:Key="SurfaceTabBackgroundColor">#FFE5E5EC</Color>
+    <Color x:Key="SurfaceTabSelectedColor">#FFFFFFFF</Color>
+    <Color x:Key="DividerColor">#FFE0E0E6</Color>
+    <Color x:Key="ErrorColor">#FFDC2626</Color>
+    <Color x:Key="SuccessColor">#FF059669</Color>
+    <Color x:Key="WarningColor">#FFD97706</Color>
 
-    <Color x:Key="AccentGlowColor">#80818CF8</Color>
-    <Color x:Key="SurfaceColor">#FF141420</Color>
-    <Color x:Key="SurfaceHighColor">#FF1C1C30</Color>
-    <Color x:Key="PurpleAccent">#FFA78BFA</Color>
-    <Color x:Key="TealAccent">#FF2DD4BF</Color>
-    <Color x:Key="PinkAccent">#FFF472B6</Color>
-    <Color x:Key="OrangeAccent">#FFFB923C</Color>
-    <Color x:Key="InputBackgroundColor">#FF1A1A1A</Color>
+    <Color x:Key="AccentGlowColor">#806366F1</Color>
+    <Color x:Key="SurfaceColor">#FFFFFFFF</Color>
+    <Color x:Key="SurfaceHighColor">#FFFAFAFC</Color>
+    <Color x:Key="PurpleAccent">#FF7C3AED</Color>
+    <Color x:Key="TealAccent">#FF0D9488</Color>
+    <Color x:Key="PinkAccent">#FFDB2777</Color>
+    <Color x:Key="OrangeAccent">#FFEA580C</Color>
+    <Color x:Key="InputBackgroundColor">#FFFFFFFF</Color>
     <Color x:Key="CloseButtonHoverColor">#FFE81123</Color>
 
     <!-- ═══════════════════════════════════════════════════════════════════
-         Layout Tokens
+         Layout Tokens (identical to dark)
          ═══════════════════════════════════════════════════════════════════ -->
     <system:Double x:Key="TitleBarHeight">38</system:Double>
     <CornerRadius x:Key="WindowCornerRadius">10</CornerRadius>
@@ -67,15 +65,13 @@
     <SolidColorBrush x:Key="SurfaceBrush" Color="{StaticResource SurfaceColor}" />
     <SolidColorBrush x:Key="SurfaceHighBrush" Color="{StaticResource SurfaceHighColor}" />
     <SolidColorBrush x:Key="InputBackgroundBrush" Color="{StaticResource InputBackgroundColor}" />
-    <SolidColorBrush x:Key="OverlayBackgroundBrush" Color="#F2141414" />
+    <SolidColorBrush x:Key="OverlayBackgroundBrush" Color="#F2FFFFFF" />
 
-    <!-- ModernWpf input chrome overrides — keeps placeholder text and input
-         backgrounds aligned with brand tokens across the app. Placeholder uses
-         a 60%-alpha ForegroundDim to match the muted look of the terminal
-         search bar overlay (ForegroundDimBrush + Opacity=0.6). -->
-    <SolidColorBrush x:Key="TextControlPlaceholderForeground" Color="#996B6B80" />
-    <SolidColorBrush x:Key="TextControlPlaceholderForegroundPointerOver" Color="#996B6B80" />
-    <SolidColorBrush x:Key="TextControlPlaceholderForegroundFocused" Color="#996B6B80" />
+    <!-- ModernWpf input chrome overrides (mirror of DarkTheme).
+         60%-alpha ForegroundDim for muted placeholder text. -->
+    <SolidColorBrush x:Key="TextControlPlaceholderForeground" Color="#996B7280" />
+    <SolidColorBrush x:Key="TextControlPlaceholderForegroundPointerOver" Color="#996B7280" />
+    <SolidColorBrush x:Key="TextControlPlaceholderForegroundFocused" Color="#996B7280" />
     <SolidColorBrush x:Key="TextControlBackground" Color="{StaticResource InputBackgroundColor}" />
     <SolidColorBrush x:Key="TextControlBackgroundPointerOver" Color="{StaticResource InputBackgroundColor}" />
     <SolidColorBrush x:Key="TextControlBackgroundFocused" Color="{StaticResource InputBackgroundColor}" />
@@ -84,38 +80,38 @@
     <SolidColorBrush x:Key="TextControlForegroundFocused" Color="{StaticResource ForegroundColor}" />
 
     <LinearGradientBrush x:Key="AccentGradientBrush" StartPoint="0,0" EndPoint="1,1">
-        <GradientStop Color="#FF6366F1" Offset="0.0" />
-        <GradientStop Color="#FF818CF8" Offset="0.5" />
-        <GradientStop Color="#FFA78BFA" Offset="1.0" />
+        <GradientStop Color="#FF4F46E5" Offset="0.0" />
+        <GradientStop Color="#FF6366F1" Offset="0.5" />
+        <GradientStop Color="#FF818CF8" Offset="1.0" />
     </LinearGradientBrush>
 
     <LinearGradientBrush x:Key="SidebarGradientBrush" StartPoint="0,0" EndPoint="0,1">
-        <GradientStop Color="#FF0A0A0A" Offset="0.0" />
-        <GradientStop Color="#FF0F0F1A" Offset="1.0" />
+        <GradientStop Color="#FFEDEDF2" Offset="0.0" />
+        <GradientStop Color="#FFE5E5EC" Offset="1.0" />
     </LinearGradientBrush>
 
     <RadialGradientBrush x:Key="SelectedTabGlow" GradientOrigin="0.5,0.5" Center="0.5,0.5" RadiusX="0.8" RadiusY="0.8">
-        <GradientStop Color="#30818CF8" Offset="0.0" />
-        <GradientStop Color="#00818CF8" Offset="1.0" />
+        <GradientStop Color="#306366F1" Offset="0.0" />
+        <GradientStop Color="#006366F1" Offset="1.0" />
     </RadialGradientBrush>
 
     <!-- ═══════════════════════════════════════════════════════════════════
          Effects
          ═══════════════════════════════════════════════════════════════════ -->
     <DropShadowEffect x:Key="FloatingShadow" BlurRadius="20" ShadowDepth="4"
-                      Direction="270" Color="#CC000000" Opacity="0.6" />
+                      Direction="270" Color="#33000000" Opacity="0.5" />
 
     <DropShadowEffect x:Key="SubtleShadow" BlurRadius="8" ShadowDepth="2"
-                      Direction="270" Color="#99000000" Opacity="0.4" />
+                      Direction="270" Color="#22000000" Opacity="0.4" />
 
     <DropShadowEffect x:Key="GlowEffect" BlurRadius="16" ShadowDepth="0"
                       Direction="0" Color="{StaticResource AccentColor}" Opacity="0.5" />
 
     <DropShadowEffect x:Key="OverlayShadow" BlurRadius="20" ShadowDepth="4"
-                      Direction="270" Color="#000000" Opacity="0.4" />
+                      Direction="270" Color="#000000" Opacity="0.2" />
 
     <!-- ═══════════════════════════════════════════════════════════════════
-         Font Sizes
+         Font Sizes (identical to dark)
          ═══════════════════════════════════════════════════════════════════ -->
     <system:Double x:Key="FontSizeSmall">11</system:Double>
     <system:Double x:Key="FontSizeNormal">13</system:Double>
@@ -130,10 +126,7 @@
     <Duration x:Key="SlowAnimation">0:0:0.4</Duration>
 
     <!-- ═══════════════════════════════════════════════════════════════════
-         CmuxButton — ghost button. BasedOn ModernWpf's implicit Button so we
-         get its template, focus visual, and hover state machine; we just
-         override the per-state brushes via Style.Resources to paint the
-         ghost-button look. No hand-rolled triggers = no flash bugs.
+         CmuxButton — ghost button (BasedOn ModernWpf, mirror of DarkTheme)
          ═══════════════════════════════════════════════════════════════════ -->
     <Style x:Key="CmuxButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
         <Style.Resources>
@@ -155,10 +148,7 @@
     </Style>
 
     <!-- ═══════════════════════════════════════════════════════════════════
-         AccentButton — gradient CTA. BasedOn ModernWpf Button; we override
-         the per-state brushes (rest/hover/pressed) all to the AccentGradient
-         so the gradient stays through every state, then add GlowEffect on
-         hover via trigger. ModernWpf still owns the state machine + focus.
+         AccentButton — gradient CTA (BasedOn ModernWpf, mirror of DarkTheme)
          ═══════════════════════════════════════════════════════════════════ -->
     <Style x:Key="AccentButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
         <Style.Resources>
@@ -168,23 +158,22 @@
             <SolidColorBrush x:Key="ButtonForeground" Color="#FFFFFFFF" />
             <SolidColorBrush x:Key="ButtonForegroundPointerOver" Color="#FFFFFFFF" />
             <SolidColorBrush x:Key="ButtonForegroundPressed" Color="#FFFFFFFF" />
-            <!-- Keep the indigo gradient on every state (rest/hover/pressed) — ModernWpf
-                 would otherwise swap to its default gray-tinted hover brush, killing the
-                 gradient mid-interaction. Inline duplicates of AccentGradientBrush. -->
+            <!-- Keep gradient on every state (matches DarkTheme). Light variant uses a
+                 slightly darker base gradient for sufficient contrast on white. -->
             <LinearGradientBrush x:Key="ButtonBackground" StartPoint="0,0" EndPoint="1,1">
-                <GradientStop Color="#FF6366F1" Offset="0.0" />
-                <GradientStop Color="#FF818CF8" Offset="0.5" />
-                <GradientStop Color="#FFA78BFA" Offset="1.0" />
+                <GradientStop Color="#FF4F46E5" Offset="0.0" />
+                <GradientStop Color="#FF6366F1" Offset="0.5" />
+                <GradientStop Color="#FF818CF8" Offset="1.0" />
             </LinearGradientBrush>
             <LinearGradientBrush x:Key="ButtonBackgroundPointerOver" StartPoint="0,0" EndPoint="1,1">
-                <GradientStop Color="#FF7376F8" Offset="0.0" />
-                <GradientStop Color="#FF919BFF" Offset="0.5" />
-                <GradientStop Color="#FFB89AFF" Offset="1.0" />
+                <GradientStop Color="#FF5F56F5" Offset="0.0" />
+                <GradientStop Color="#FF7376FF" Offset="0.5" />
+                <GradientStop Color="#FF919BFF" Offset="1.0" />
             </LinearGradientBrush>
             <LinearGradientBrush x:Key="ButtonBackgroundPressed" StartPoint="0,0" EndPoint="1,1">
-                <GradientStop Color="#FF5358D8" Offset="0.0" />
-                <GradientStop Color="#FF7178D8" Offset="0.5" />
-                <GradientStop Color="#FF9077D8" Offset="1.0" />
+                <GradientStop Color="#FF3F36C5" Offset="0.0" />
+                <GradientStop Color="#FF5356D1" Offset="0.5" />
+                <GradientStop Color="#FF7176E8" Offset="1.0" />
             </LinearGradientBrush>
         </Style.Resources>
         <Setter Property="Background" Value="{StaticResource AccentGradientBrush}" />
@@ -208,9 +197,7 @@
     </Style>
 
     <!-- ═══════════════════════════════════════════════════════════════════
-         IconButton — minimal 28x28 toolbar icon. BasedOn ModernWpf Button so
-         the state machine, focus visual, and ripple come from the kit; we
-         override the per-state brushes to paint the brand chrome.
+         IconButton — minimal toolbar icon (light hover)
          ═══════════════════════════════════════════════════════════════════ -->
     <Style x:Key="IconButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
         <Style.Resources>
@@ -230,15 +217,12 @@
         <Setter Property="Height" Value="28" />
         <Setter Property="BorderThickness" Value="0" />
         <Setter Property="Padding" Value="4" />
-        <!-- 2px horizontal margin so adjacent icon buttons don't crowd. -->
         <Setter Property="Margin" Value="2,0" />
         <Setter Property="Cursor" Value="Hand" />
     </Style>
 
     <!-- ═══════════════════════════════════════════════════════════════════
-         Form labels — BasedOn ModernWpf's BodyTextBlockStyle so the type
-         ramp comes from the kit; we just re-paint with brand foreground.
-         CmuxSectionHeader uses SubtitleTextBlockStyle for the same reason.
+         Form labels (BasedOn ModernWpf type ramp — mirror of DarkTheme)
          ═══════════════════════════════════════════════════════════════════ -->
     <Style x:Key="CmuxFormLabel" TargetType="TextBlock" BasedOn="{StaticResource BodyTextBlockStyle}">
         <Setter Property="Foreground" Value="{StaticResource ForegroundDimBrush}" />
@@ -254,10 +238,8 @@
     </Style>
 
     <!-- ═══════════════════════════════════════════════════════════════════
-         CmuxSearchBox — brand search input. Rounded SurfaceHigh wrapper +
-         leading magnifier + theme-aware placeholder. One style applied to
-         every search/filter input in the app so they look identical.
-         Brand-keyed and explicitly opt-in (Style="{StaticResource CmuxSearchBox}").
+         CmuxSearchBox — mirror of DarkTheme. One style for every search input.
+         Placeholder color is the muted-60%-alpha brand foreground.
          ═══════════════════════════════════════════════════════════════════ -->
     <Style x:Key="CmuxSearchBox" TargetType="TextBox">
         <Setter Property="Background" Value="Transparent" />
@@ -290,11 +272,8 @@
                                               HorizontalScrollBarVisibility="Hidden"
                                               VerticalScrollBarVisibility="Hidden"
                                               VerticalAlignment="Center" />
-                                <!-- Placeholder overlay; binds to TemplatedParent's
-                                     ControlHelper.PlaceholderText so callers stay
-                                     consistent with stock ModernWpf TextBox API. -->
                                 <TextBlock Text="{Binding (ui:ControlHelper.PlaceholderText), RelativeSource={RelativeSource TemplatedParent}}"
-                                           Foreground="#996B6B80"
+                                           Foreground="#996B7280"
                                            FontSize="12" VerticalAlignment="Center"
                                            IsHitTestVisible="False">
                                     <TextBlock.Style>
@@ -320,7 +299,7 @@
     </Style>
 
     <!-- ═══════════════════════════════════════════════════════════════════
-         CmuxColorSwatch — fixed-height swatch matching ControlHeight
+         CmuxColorSwatch
          ═══════════════════════════════════════════════════════════════════ -->
     <Style x:Key="CmuxColorSwatch" TargetType="Border">
         <Setter Property="Width" Value="{StaticResource ControlHeight}" />
@@ -332,7 +311,7 @@
     </Style>
 
     <!-- ═══════════════════════════════════════════════════════════════════
-         WindowChromeButton — flat title bar buttons (min/max)
+         WindowChromeButton — light hover (subtle dark wash)
          ═══════════════════════════════════════════════════════════════════ -->
     <Style x:Key="WindowChromeButton" TargetType="Button">
         <Setter Property="Width" Value="46" />
@@ -352,11 +331,11 @@
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="border" Property="Background" Value="#20FFFFFF" />
+                            <Setter TargetName="border" Property="Background" Value="#15000000" />
                             <Setter Property="Foreground" Value="{StaticResource ForegroundBrush}" />
                         </Trigger>
                         <Trigger Property="IsPressed" Value="True">
-                            <Setter TargetName="border" Property="Background" Value="#30FFFFFF" />
+                            <Setter TargetName="border" Property="Background" Value="#25000000" />
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>

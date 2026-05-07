@@ -1,6 +1,7 @@
 <Window x:Class="Cmux.Views.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ui="http://schemas.modernwpf.com/2019"
         xmlns:vm="clr-namespace:Cmux.ViewModels"
         xmlns:views="clr-namespace:Cmux.Views"
         xmlns:controls="clr-namespace:Cmux.Controls"
@@ -18,20 +19,7 @@
     </WindowChrome.WindowChrome>
 
     <Window.Resources>
-        <SolidColorBrush x:Key="{x:Static SystemColors.MenuBrushKey}" Color="#FF141420" />
-        <SolidColorBrush x:Key="{x:Static SystemColors.MenuTextBrushKey}" Color="#FFE2E2E9" />
-        <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="#FF252547" />
-        <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" Color="#FFE2E2E9" />
-        <SolidColorBrush x:Key="{x:Static SystemColors.ControlBrushKey}" Color="#FF141420" />
-        <SolidColorBrush x:Key="{x:Static SystemColors.WindowBrushKey}" Color="#FF141420" />
-
-        <SolidColorBrush x:Key="{x:Static SystemColors.MenuBarBrushKey}" Color="#FF141420" />
-        <SolidColorBrush x:Key="{x:Static SystemColors.MenuHighlightBrushKey}" Color="#FF252547" />
-        <SolidColorBrush x:Key="{x:Static SystemColors.ControlLightBrushKey}" Color="#FF2A2A3C" />
-        <SolidColorBrush x:Key="{x:Static SystemColors.ControlLightLightBrushKey}" Color="#FF2A2A3C" />
-        <SolidColorBrush x:Key="{x:Static SystemColors.ControlDarkBrushKey}" Color="#FF2A2A3C" />
-        <SolidColorBrush x:Key="{x:Static SystemColors.ControlDarkDarkBrushKey}" Color="#FF2A2A3C" />
-
+        <!-- Per-window SystemColors overrides removed (AGENTS.md UI rule 3): ThemeResources routes them. -->
         <Style x:Key="AppMenuStyle" TargetType="Menu">
             <Setter Property="Background" Value="{StaticResource SidebarBackgroundBrush}" />
             <Setter Property="BorderBrush" Value="Transparent" />
@@ -60,17 +48,17 @@
                                    Focusable="False"
                                    PopupAnimation="None"
                                    IsOpen="{TemplateBinding IsSubmenuOpen}">
-                                <Border Background="#FF141420" BorderBrush="#FF2A2A3C" BorderThickness="1" Padding="4" SnapsToDevicePixels="True">
+                                <Border Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" Padding="4" SnapsToDevicePixels="True">
                                     <StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Cycle" />
                                 </Border>
                             </Popup>
                         </Grid>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsHighlighted" Value="True">
-                                <Setter TargetName="TopItemBg" Property="Background" Value="#FF1A1A2E" />
+                                <Setter TargetName="TopItemBg" Property="Background" Value="{DynamicResource SidebarItemHoverBrush}" />
                             </Trigger>
                             <Trigger Property="IsSubmenuOpen" Value="True">
-                                <Setter TargetName="TopItemBg" Property="Background" Value="#FF1A1A2E" />
+                                <Setter TargetName="TopItemBg" Property="Background" Value="{DynamicResource SidebarItemHoverBrush}" />
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -100,7 +88,7 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsHighlighted" Value="True">
-                                <Setter TargetName="SubItemBg" Property="Background" Value="#FF252547" />
+                                <Setter TargetName="SubItemBg" Property="Background" Value="{DynamicResource SidebarItemSelectedBrush}" />
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
                                 <Setter Property="Foreground" Value="{StaticResource ForegroundDimBrush}" />
@@ -116,7 +104,7 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Separator">
-                        <Border Height="1" Margin="6,4" Background="#FF2A2A3C" />
+                        <Border Height="1" Margin="6,4" Background="{DynamicResource BorderBrush}" />
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
@@ -152,7 +140,7 @@
                     <!-- Menu items (left side) -->
                     <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center"
                                 WindowChrome.IsHitTestVisibleInChrome="True">
-                        <TextBlock Text="cmuxw v1.1.2" FontSize="13" FontWeight="SemiBold"
+                        <TextBlock x:Name="AppVersionLabel" FontSize="13" FontWeight="SemiBold"
                                    Foreground="{StaticResource AccentBrush}"
                                    VerticalAlignment="Center" Margin="14,0,12,0" />
                         <Menu Style="{StaticResource AppMenuStyle}" VerticalAlignment="Center">
@@ -198,15 +186,15 @@
                                 WindowChrome.IsHitTestVisibleInChrome="True">
                         <Button Style="{StaticResource WindowChromeButton}" Click="MinimizeButton_Click"
                                 ToolTip="Minimize">
-                            <TextBlock Text="&#xE921;" FontFamily="Segoe MDL2 Assets" FontSize="10" />
+                            <ui:FontIcon Glyph="&#xE921;" FontSize="10" />
                         </Button>
                         <Button x:Name="MaxRestoreButton" Style="{StaticResource WindowChromeButton}"
                                 Click="MaximizeButton_Click" ToolTip="Maximize">
-                            <TextBlock x:Name="MaxRestoreIcon" Text="&#xE922;" FontFamily="Segoe MDL2 Assets" FontSize="10" />
+                            <ui:FontIcon x:Name="MaxRestoreIcon" Glyph="&#xE922;" FontSize="10" />
                         </Button>
                         <Button Style="{StaticResource WindowCloseButton}" Click="CloseButton_Click"
                                 ToolTip="Close">
-                            <TextBlock Text="&#xE8BB;" FontFamily="Segoe MDL2 Assets" FontSize="10" />
+                            <ui:FontIcon Glyph="&#xE8BB;" FontSize="10" />
                         </Button>
                     </StackPanel>
                 </Grid>
@@ -251,24 +239,23 @@
                                 <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                                     <Button Style="{StaticResource IconButton}" ToolTip="New Workspace (Ctrl+N)"
                                             Width="24" Height="24" Command="{Binding CreateNewWorkspaceCommand}">
-                                        <TextBlock Text="&#xE710;" FontFamily="Segoe MDL2 Assets" FontSize="10" />
+                                        <ui:FontIcon Glyph="&#xE710;" FontSize="10" />
                                     </Button>
                                     <Button Style="{StaticResource IconButton}" ToolTip="Session Vault (Ctrl+Shift+V)"
                                             Width="24" Height="24" Click="MenuOpenSessionVault_Click">
-                                        <TextBlock Text="&#xE8D1;" FontFamily="Segoe MDL2 Assets" FontSize="10" />
+                                        <ui:FontIcon Glyph="&#xE8D1;" FontSize="10" />
                                     </Button>
                                     <Button Style="{StaticResource IconButton}" ToolTip="Command Logs (Ctrl+Shift+L)"
                                             Width="24" Height="24" Click="MenuOpenLogs_Click">
-                                        <TextBlock Text="&#xE7BA;" FontFamily="Segoe MDL2 Assets" FontSize="10" />
+                                        <ui:FontIcon Glyph="&#xE7BA;" FontSize="10" />
                                     </Button>
                                 </StackPanel>
 
                                 <TextBox x:Name="WorkspaceFilterBox"
                                          Grid.Row="1" Grid.ColumnSpan="2"
-                                         Margin="0,8,0,0" Padding="8,5"
-                                         Background="#FF141420" Foreground="{StaticResource ForegroundBrush}"
-                                         BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
-                                         CaretBrush="{StaticResource ForegroundBrush}" SelectionBrush="{StaticResource AccentBrush}"
+                                         Style="{StaticResource CmuxSearchBox}"
+                                         Margin="0,10,0,6"
+                                         ui:ControlHelper.PlaceholderText="Filter workspaces…"
                                          ToolTip="Filter workspaces by name, branch, or directory"
                                          TextChanged="WorkspaceFilterBox_TextChanged" />
                             </Grid>
@@ -292,6 +279,10 @@
                                     <Setter Property="Padding" Value="0" />
                                     <Setter Property="Margin" Value="0,1" />
                                     <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                                    <!-- Hand cursor on the ListBoxItem itself so the entire row
+                                         (including the inner Border padding outside the
+                                         WorkspaceSidebarItem child) shows the pointer. -->
+                                    <Setter Property="Cursor" Value="Hand" />
                                     <Setter Property="Template">
                                         <Setter.Value>
                                             <ControlTemplate TargetType="ListBoxItem">
@@ -341,19 +332,19 @@
                                         Style="{StaticResource CmuxButton}"
                                         HorizontalAlignment="Stretch" Margin="0,1">
                                     <StackPanel Orientation="Horizontal">
-                                        <TextBlock Text="&#xE710;" FontFamily="Segoe MDL2 Assets" FontSize="12"
-                                                   Margin="0,0,8,0" Opacity="0.6" />
+                                        <ui:FontIcon Glyph="&#xE710;" FontSize="12"
+                                                     Margin="0,0,8,0" Opacity="0.6" />
                                         <TextBlock Text="New Workspace" FontSize="12" />
                                     </StackPanel>
                                 </Button>
 
                                 <Button Command="{Binding ToggleNotificationPanelCommand}"
                                         Style="{StaticResource CmuxButton}"
-                                        HorizontalAlignment="Stretch" Margin="0,1">
+                                        HorizontalAlignment="Stretch" Margin="0,8,0,1">
                                     <Grid>
                                         <StackPanel Orientation="Horizontal">
-                                            <TextBlock Text="&#xEA8F;" FontFamily="Segoe MDL2 Assets" FontSize="12"
-                                                       Margin="0,0,8,0" Opacity="0.6" />
+                                            <ui:FontIcon Glyph="&#xEA8F;" FontSize="12"
+                                                         Margin="0,0,8,0" Opacity="0.6" />
                                             <TextBlock Text="Notifications" FontSize="12" />
                                         </StackPanel>
                                         <Border CornerRadius="10"
@@ -402,46 +393,46 @@
                         <StackPanel Orientation="Horizontal">
                             <Button Style="{StaticResource IconButton}" ToolTip="Split Right (Ctrl+D)"
                                     Click="ToolbarSplitRight_Click">
-                                <TextBlock Text="&#xE26B;" FontFamily="Segoe MDL2 Assets" FontSize="12" />
+                                <ui:FontIcon Glyph="&#xE26B;" FontSize="12" />
                             </Button>
                             <Button Style="{StaticResource IconButton}" ToolTip="Split Down (Ctrl+Shift+D)"
                                     Click="ToolbarSplitDown_Click">
-                                <TextBlock Text="&#xE74B;" FontFamily="Segoe MDL2 Assets" FontSize="12" />
+                                <ui:FontIcon Glyph="&#xE74B;" FontSize="12" />
                             </Button>
                             <Button x:Name="ShellSelectorButton" Style="{StaticResource IconButton}"
                                     ToolTip="Open pane with shell..."
                                     Click="ShellSelector_Click">
                                 <StackPanel Orientation="Horizontal">
-                                    <TextBlock Text="&#xE756;" FontFamily="Segoe MDL2 Assets" FontSize="12" />
-                                    <TextBlock Text="&#xE70D;" FontFamily="Segoe MDL2 Assets" FontSize="7" Margin="2,0,0,0" />
+                                    <ui:FontIcon Glyph="&#xE756;" FontSize="12" />
+                                    <ui:FontIcon Glyph="&#xE70D;" FontSize="7" Margin="2,0,0,0" />
                                 </StackPanel>
                             </Button>
                             <Rectangle Width="1" Height="16" Fill="{StaticResource BorderBrush}" Margin="4,0" />
                             <Button Style="{StaticResource IconButton}" ToolTip="Layout: 2 Columns"
                                     Click="ToolbarLayout2Col_Click">
-                                <TextBlock Text="&#xE8A1;" FontFamily="Segoe MDL2 Assets" FontSize="11" />
+                                <ui:FontIcon Glyph="&#xE8A1;" FontSize="11" />
                             </Button>
                             <Button Style="{StaticResource IconButton}" ToolTip="Layout: Grid 2x2"
                                     Click="ToolbarLayoutGrid_Click">
-                                <TextBlock Text="&#xE8A9;" FontFamily="Segoe MDL2 Assets" FontSize="11" />
+                                <ui:FontIcon Glyph="&#xE8A9;" FontSize="11" />
                             </Button>
                             <Button Style="{StaticResource IconButton}" ToolTip="Layout: Main + Stack"
                                     Click="ToolbarLayoutMainStack_Click">
-                                <TextBlock Text="&#xE89F;" FontFamily="Segoe MDL2 Assets" FontSize="11" />
+                                <ui:FontIcon Glyph="&#xE89F;" FontSize="11" />
                             </Button>
                             <Rectangle Width="1" Height="16" Fill="{StaticResource BorderBrush}" Margin="4,0" />
                             <Button Style="{StaticResource IconButton}" ToolTip="Equalize Panes"
                                     Click="ToolbarEqualize_Click">
-                                <TextBlock Text="&#xE9D5;" FontFamily="Segoe MDL2 Assets" FontSize="11" />
+                                <ui:FontIcon Glyph="&#xE9D5;" FontSize="11" />
                             </Button>
                             <Button x:Name="ToolbarZoomButton" Style="{StaticResource IconButton}" ToolTip="Zoom Pane (Ctrl+Shift+Z)"
                                     Click="ToolbarZoom_Click">
-                                <TextBlock x:Name="ToolbarZoomIcon" Text="&#xE740;" FontFamily="Segoe MDL2 Assets" FontSize="12" />
+                                <ui:FontIcon x:Name="ToolbarZoomIcon" Glyph="&#xE740;" FontSize="12" />
                             </Button>
                             <Rectangle Width="1" Height="16" Fill="{StaticResource BorderBrush}" Margin="4,0" />
                             <Button Style="{StaticResource IconButton}" ToolTip="System Info (Ctrl+Shift+I)"
                                     Command="{Binding ToggleInfoPanelCommand}">
-                                <TextBlock Text="&#xE9D9;" FontFamily="Segoe MDL2 Assets" FontSize="12" />
+                                <ui:FontIcon Glyph="&#xE9D9;" FontSize="12" />
                             </Button>
                         </StackPanel>
                     </Border>
@@ -485,16 +476,16 @@
                             </Grid.ColumnDefinitions>
                             <StackPanel Grid.Column="0" Orientation="Horizontal">
                                 <!-- Git branch -->
-                                <TextBlock Text="&#xE8AD;" FontFamily="Segoe MDL2 Assets" FontSize="10"
-                                           Foreground="{StaticResource ForegroundDimBrush}" VerticalAlignment="Center"
-                                           Margin="0,0,4,0" />
+                                <ui:FontIcon Glyph="&#xE8AD;" FontSize="10"
+                                             Foreground="{StaticResource ForegroundDimBrush}" VerticalAlignment="Center"
+                                             Margin="0,0,4,0" />
                                 <TextBlock Text="{Binding SelectedWorkspace.GitBranch, FallbackValue=''}" FontSize="11"
                                            Foreground="{StaticResource AccentBrush}" VerticalAlignment="Center"
                                            Margin="0,0,16,0" />
                                 <!-- Working directory -->
-                                <TextBlock Text="&#xE8B7;" FontFamily="Segoe MDL2 Assets" FontSize="10"
-                                           Foreground="{StaticResource ForegroundDimBrush}" VerticalAlignment="Center"
-                                           Margin="0,0,4,0" />
+                                <ui:FontIcon Glyph="&#xE8B7;" FontSize="10"
+                                             Foreground="{StaticResource ForegroundDimBrush}" VerticalAlignment="Center"
+                                             Margin="0,0,4,0" />
                                 <TextBlock Text="{Binding SelectedWorkspace.WorkingDirectory, FallbackValue=''}" FontSize="11"
                                            Foreground="{StaticResource ForegroundDimBrush}" VerticalAlignment="Center"
                                            TextTrimming="CharacterEllipsis" MaxWidth="300" />
@@ -506,9 +497,9 @@
                                            Margin="0,0,12,0"
                                            Visibility="{Binding SelectedWorkspace.PortsDisplay, Converter={StaticResource NullToCollapsed}}" />
                                 <!-- Pane count -->
-                                <TextBlock Text="&#xE737;" FontFamily="Segoe MDL2 Assets" FontSize="10"
-                                           Foreground="{StaticResource ForegroundDimBrush}" VerticalAlignment="Center"
-                                           Margin="0,0,4,0" />
+                                <ui:FontIcon Glyph="&#xE737;" FontSize="10"
+                                             Foreground="{StaticResource ForegroundDimBrush}" VerticalAlignment="Center"
+                                             Margin="0,0,4,0" />
                                 <TextBlock x:Name="PaneCountText" Text="1 pane" FontSize="11"
                                            Foreground="{StaticResource ForegroundDimBrush}" VerticalAlignment="Center"
                                            Margin="0,0,12,0" />
