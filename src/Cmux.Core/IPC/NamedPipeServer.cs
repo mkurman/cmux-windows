@@ -228,24 +228,44 @@ public static class NamedPipeClient
         using var pipe = new NamedPipeClientStream(".", pipeName, PipeDirection.InOut, PipeOptions.Asynchronous);
         using var cts = new CancellationTokenSource(timeoutMs);
 
-        await pipe.ConnectAsync(cts.Token);
-
-        using var reader = new StreamReader(pipe, Utf8NoBom, leaveOpen: true);
-        using var writer = new StreamWriter(pipe, Utf8NoBom, leaveOpen: true) { AutoFlush = true };
-
-        var sb = new StringBuilder(command);
-        if (args != null)
+        // A pending async ConnectAsync/ReadLineAsync on a NamedPipeClientStream does not
+        // reliably observe token cancellation, so the timeout on its own never unblocks a
+        // stuck call -- the CLI would hang forever waiting for a response that never comes.
+        // Disposing the pipe is what actually aborts the in-flight I/O, so on timeout we tear
+        // the pipe down to force the awaited operation to fault.
+        using var timeoutRegistration = cts.Token.Register(static state =>
         {
-            foreach (var kvp in args)
+            try { ((IDisposable)state!).Dispose(); } catch { /* already disposed */ }
+        }, pipe);
+
+        try
+        {
+            await pipe.ConnectAsync(cts.Token);
+
+            using var reader = new StreamReader(pipe, Utf8NoBom, leaveOpen: true);
+            using var writer = new StreamWriter(pipe, Utf8NoBom, leaveOpen: true) { AutoFlush = true };
+
+            var sb = new StringBuilder(command);
+            if (args != null)
             {
-                var value = kvp.Value.Contains(' ') ? $"\"{kvp.Value}\"" : kvp.Value;
-                sb.Append($" {kvp.Key}={value}");
+                foreach (var kvp in args)
+                {
+                    var value = kvp.Value.Contains(' ') ? $"\"{kvp.Value}\"" : kvp.Value;
+                    sb.Append($" {kvp.Key}={value}");
+                }
             }
+
+            await writer.WriteLineAsync(sb.ToString());
+
+            var response = await reader.ReadLineAsync(cts.Token);
+            return response ?? "";
         }
-
-        await writer.WriteLineAsync(sb.ToString());
-
-        var response = await reader.ReadLineAsync(cts.Token);
-        return response ?? "";
+        catch (Exception ex) when (cts.IsCancellationRequested)
+        {
+            // Normalize cancellation / pipe teardown (OperationCanceled, ObjectDisposed,
+            // IOException) into a single timeout error so the CLI's existing TimeoutException
+            // handler reports "Could not connect to cmux. Is it running?" instead of hanging.
+            throw new TimeoutException($"cmux did not respond within {timeoutMs} ms.", ex);
+        }
     }
 }
