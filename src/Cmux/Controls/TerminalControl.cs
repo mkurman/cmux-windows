@@ -443,7 +443,9 @@ public class TerminalControl : FrameworkElement
 
                     double x = c * _cellWidth;
                     var attr = cell.Attribute;
-                    bool isSelected = _selection.IsSelected(visRow, c);
+                    bool isSelected = _selection.IsSelected(visRow, c)
+                        || (cell.Width == 0 && c > 0 && _selection.IsSelected(visRow, c - 1))
+                        || (cell.Width == 2 && c + 1 < _cols && _selection.IsSelected(visRow, c + 1));
                     bool isInverse = attr.Flags.HasFlag(CellFlags.Inverse) != isSelected;
 
                     // Cell colors
@@ -486,7 +488,7 @@ public class TerminalControl : FrameworkElement
                     }
 
                     // Text batching: group consecutive characters with same visual style
-                    bool hasChar = cell.Character != '\0' && cell.Character != ' ';
+                    bool hasChar = cell.Width > 0 && cell.Character != '\0' && cell.Character != ' ';
                     if (hasChar)
                     {
                         var fgColor = cellFg.IsDefault ? ToWpfColor(_theme.Foreground) : ToWpfColor(cellFg);
@@ -609,7 +611,9 @@ public class TerminalControl : FrameworkElement
         double x = startCol * _cellWidth;
         dc.DrawText(text, new Point(x, y));
 
-        double runWidth = _textRunBuffer.Length * _cellWidth;
+        double runWidth = 0;
+        foreach (var ch in _textRunBuffer.ToString())
+            runWidth += TerminalBuffer.GetCharacterCellWidth(ch) * _cellWidth;
 
         if (underline)
         {
@@ -820,6 +824,9 @@ public class TerminalControl : FrameworkElement
             e.Handled = true;
             return;
         }
+
+        if (ctrl && !shift && !alt && e.Key == Key.D)
+            return;
 
         // Forward Ctrl+letter as control bytes (e.g. Ctrl+X => 0x18) for TUI apps like nano.
         if (ctrl && !modifiers.HasFlag(ModifierKeys.Alt) && TryGetCtrlLetterSequence(e.Key, out var ctrlSequence))
@@ -1229,8 +1236,7 @@ public class TerminalControl : FrameworkElement
             if (row != _lastUrlRow)
             {
                 _lastUrlRow = row;
-                var lineText = UrlDetector.GetRowText(_session.Buffer, row);
-                _cachedRowUrls = UrlDetector.FindUrls(lineText);
+                _cachedRowUrls = UrlDetector.FindUrls(_session.Buffer, row);
             }
 
             // Check cached URLs for hit at current column

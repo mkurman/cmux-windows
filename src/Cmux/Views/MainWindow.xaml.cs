@@ -11,6 +11,7 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Media;
 using Cmux.Controls;
 using Cmux.Core.Services;
+using Cmux.Core.Terminal;
 using Cmux.ViewModels;
 using Cmux.Services;
 
@@ -423,6 +424,13 @@ public partial class MainWindow : Window
             }
         }
 
+        if (ctrl && !shift && !alt && e.Key == Key.D)
+        {
+            ViewModel.SelectedWorkspace?.SelectedSurface?.SplitRight();
+            e.Handled = true;
+            return;
+        }
+
         // === Ctrl-only shortcuts (skip when terminal has focus to let terminal handle them) ===
         if (ctrl && !alt && IsTerminalFocusActive())
             return;
@@ -452,10 +460,6 @@ public partial class MainWindow : Window
                     var surface = ViewModel.SelectedWorkspace?.SelectedSurface;
                     if (surface != null)
                         ViewModel.SelectedWorkspace?.CloseSurface(surface);
-                    e.Handled = true;
-                    return;
-                case Key.D: // Split right
-                    ViewModel.SelectedWorkspace?.SelectedSurface?.SplitRight();
                     e.Handled = true;
                     return;
                 // Workspace 1-8
@@ -1320,26 +1324,34 @@ public partial class MainWindow : Window
 
         for (int row = 0; row < buffer.Rows; row++)
         {
-            var lineText = GetRowText(buffer, row);
+            var (lineText, cellColumns) = GetSearchableRowText(buffer, row);
             int idx = 0;
             while ((idx = lineText.IndexOf(query, idx, StringComparison.OrdinalIgnoreCase)) >= 0)
             {
-                matches.Add((row, idx, query.Length));
+                int startCol = cellColumns[idx];
+                int lastCharCol = cellColumns[idx + query.Length - 1];
+                int length = lastCharCol - startCol + TerminalBuffer.GetCharacterCellWidth(lineText[idx + query.Length - 1]);
+                matches.Add((row, startCol, length));
                 idx++;
             }
         }
         return matches;
     }
 
-    private static string GetRowText(Cmux.Core.Terminal.TerminalBuffer buffer, int row)
+    private static (string text, List<int> cellColumns) GetSearchableRowText(Cmux.Core.Terminal.TerminalBuffer buffer, int row)
     {
         var sb = new System.Text.StringBuilder();
+        var cellColumns = new List<int>();
         for (int col = 0; col < buffer.Cols; col++)
         {
             var cell = buffer.CellAt(row, col);
+            if (cell.Width == 0)
+                continue;
+
             sb.Append(cell.Character == '\0' ? ' ' : cell.Character);
+            cellColumns.Add(col);
         }
-        return sb.ToString();
+        return (sb.ToString(), cellColumns);
     }
 
     private void ShowTestNotification()
