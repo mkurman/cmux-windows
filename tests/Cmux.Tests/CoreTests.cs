@@ -154,6 +154,151 @@ public class TerminalBufferTests
     }
 
     [Fact]
+    public void WriteString_WideCharactersOccupyTwoCells()
+    {
+        var buffer = new TerminalBuffer(80, 24);
+
+        buffer.WriteString("A中B");
+
+        buffer.CursorCol.Should().Be(4);
+        buffer.CellAt(0, 0).Character.Should().Be('A');
+        buffer.CellAt(0, 0).Width.Should().Be(1);
+        buffer.CellAt(0, 1).Character.Should().Be('中');
+        buffer.CellAt(0, 1).Width.Should().Be(2);
+        buffer.CellAt(0, 2).Character.Should().Be(' ');
+        buffer.CellAt(0, 2).Width.Should().Be(0);
+        buffer.CellAt(0, 3).Character.Should().Be('B');
+    }
+
+    [Fact]
+    public void ExportPlainText_DoesNotPadWideCharacterContinuationCells()
+    {
+        var buffer = new TerminalBuffer(80, 24);
+        buffer.WriteString("中文ABC");
+
+        buffer.ExportPlainText().Should().Be("中文ABC");
+    }
+
+    [Fact]
+    public void WriteChar_OverWideCharacterBoundary_ClearsOverlappedCells()
+    {
+        var buffer = new TerminalBuffer(10, 1);
+        buffer.WriteString("中文");
+
+        buffer.MoveCursorTo(0, 1);
+        buffer.WriteChar('好');
+
+        AssertWideCellInvariants(buffer);
+        buffer.CellAt(0, 0).Character.Should().Be(' ');
+        buffer.CellAt(0, 1).Character.Should().Be('好');
+        buffer.CellAt(0, 1).Width.Should().Be(2);
+        buffer.CellAt(0, 2).Width.Should().Be(0);
+        buffer.CellAt(0, 3).Character.Should().Be(' ');
+    }
+
+    [Fact]
+    public void EraseChars_FromWideContinuation_ClearsWholeWideCharacter()
+    {
+        var buffer = new TerminalBuffer(10, 1);
+        buffer.WriteString("A中B");
+
+        buffer.MoveCursorTo(0, 2);
+        buffer.EraseChars(1);
+
+        AssertWideCellInvariants(buffer);
+        buffer.ExportPlainText().Should().Be("A  B");
+    }
+
+    [Fact]
+    public void InsertChars_OnWideCharacterLine_PreservesWideCellInvariants()
+    {
+        var buffer = new TerminalBuffer(10, 1);
+        buffer.WriteString("A中B");
+
+        buffer.MoveCursorTo(0, 2);
+        buffer.InsertChars(1);
+
+        AssertWideCellInvariants(buffer);
+    }
+
+    [Fact]
+    public void InsertChars_BeforeAscii_PreservesShiftedCharacter()
+    {
+        var buffer = new TerminalBuffer(10, 1);
+        buffer.WriteString("ABC");
+
+        buffer.MoveCursorTo(0, 1);
+        buffer.InsertChars(1);
+
+        AssertWideCellInvariants(buffer);
+        buffer.ExportPlainText().Should().Be("A BC");
+    }
+
+    [Fact]
+    public void InsertChars_BeforeWideCharacter_PreservesShiftedWideCharacter()
+    {
+        var buffer = new TerminalBuffer(10, 1);
+        buffer.WriteString("A\u4E2DB");
+
+        buffer.MoveCursorTo(0, 1);
+        buffer.InsertChars(1);
+
+        AssertWideCellInvariants(buffer);
+        buffer.ExportPlainText().Should().Be("A \u4E2DB");
+    }
+
+    [Fact]
+    public void DeleteChars_OnWideCharacterLine_PreservesWideCellInvariants()
+    {
+        var buffer = new TerminalBuffer(10, 1);
+        buffer.WriteString("A中B");
+
+        buffer.MoveCursorTo(0, 1);
+        buffer.DeleteChars(1);
+
+        AssertWideCellInvariants(buffer);
+    }
+
+    [Fact]
+    public void DeleteChars_AtWideCharacterStart_RemovesWholeWideCharacter()
+    {
+        var buffer = new TerminalBuffer(10, 1);
+        buffer.WriteString("A\u4E2DB");
+
+        buffer.MoveCursorTo(0, 1);
+        buffer.DeleteChars(1);
+
+        AssertWideCellInvariants(buffer);
+        buffer.ExportPlainText().Should().Be("AB");
+    }
+
+    [Fact]
+    public void WriteChar_InsertModeAtWideContinuation_PreservesWideCellInvariants()
+    {
+        var buffer = new TerminalBuffer(10, 1);
+        buffer.WriteString("A\u4E2DB");
+        buffer.InsertMode = true;
+
+        buffer.MoveCursorTo(0, 2);
+        buffer.WriteChar('X');
+
+        AssertWideCellInvariants(buffer);
+        buffer.CellAt(0, 2).Character.Should().Be('X');
+    }
+
+    [Fact]
+    public void Resize_TruncatingWideCharacter_ClearsIncompleteWideCharacter()
+    {
+        var buffer = new TerminalBuffer(5, 1);
+        buffer.WriteString("AB中");
+
+        buffer.Resize(3, 1);
+
+        AssertWideCellInvariants(buffer);
+        buffer.ExportPlainText().Should().Be("AB");
+    }
+
+    [Fact]
     public void LineFeed_AtBottom_ScrollsUp()
     {
         var buffer = new TerminalBuffer(80, 3);
@@ -218,6 +363,31 @@ public class TerminalBufferTests
 
         buffer.CursorRow.Should().Be(5);
         buffer.CursorCol.Should().Be(10);
+    }
+
+    private static void AssertWideCellInvariants(TerminalBuffer buffer)
+    {
+        for (int row = 0; row < buffer.Rows; row++)
+        {
+            for (int col = 0; col < buffer.Cols; col++)
+            {
+                var cell = buffer.CellAt(row, col);
+                if (cell.Width == 2)
+                {
+                    (col + 1).Should().BeLessThan(buffer.Cols);
+                    buffer.CellAt(row, col + 1).Width.Should().Be(0);
+                }
+                else if (cell.Width == 0)
+                {
+                    col.Should().BeGreaterThan(0);
+                    buffer.CellAt(row, col - 1).Width.Should().Be(2);
+                }
+                else
+                {
+                    cell.Width.Should().Be(1);
+                }
+            }
+        }
     }
 }
 
@@ -473,6 +643,31 @@ public class TerminalSelectionTests
     }
 
     [Fact]
+    public void GetSelectedText_FromWideContinuationCell_IncludesWholeCharacter()
+    {
+        var buffer = new TerminalBuffer(80, 24);
+        buffer.WriteString("A中B");
+
+        var selection = new TerminalSelection();
+        selection.StartSelection(0, 2);
+        selection.ExtendSelection(0, 2);
+
+        selection.GetSelectedText(buffer).Should().Be("中");
+    }
+
+    [Fact]
+    public void SelectWord_OnWideContinuationCell_SelectsWholeCharacter()
+    {
+        var buffer = new TerminalBuffer(80, 24);
+        buffer.WriteString("A中B");
+
+        var selection = new TerminalSelection();
+        selection.SelectWord(buffer, 0, 2);
+
+        selection.GetSelectedText(buffer).Should().Be("A中B");
+    }
+
+    [Fact]
     public void IsSelected_MultiLine_Works()
     {
         var selection = new TerminalSelection();
@@ -617,6 +812,31 @@ public class UrlDetectorTests
         var text = UrlDetector.GetRowText(buffer, 0);
         text.Should().StartWith("Hi");
         text.Should().HaveLength(10);
+    }
+
+    [Fact]
+    public void GetRowText_SkipsWideContinuationCells()
+    {
+        var buffer = new TerminalBuffer(10, 1);
+        buffer.WriteString("中A");
+
+        var text = UrlDetector.GetRowText(buffer, 0);
+
+        text.Should().StartWith("中A");
+        text.Should().HaveLength(9);
+    }
+
+    [Fact]
+    public void FindUrls_BufferRow_MapsColumnsAfterWideCharacters()
+    {
+        var buffer = new TerminalBuffer(40, 1);
+        buffer.WriteString("中 https://example.com");
+
+        var urls = UrlDetector.FindUrls(buffer, 0);
+
+        urls.Should().HaveCount(1);
+        urls[0].url.Should().Be("https://example.com");
+        urls[0].startCol.Should().Be(3);
     }
 }
 

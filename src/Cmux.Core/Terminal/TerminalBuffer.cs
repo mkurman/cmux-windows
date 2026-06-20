@@ -105,13 +105,21 @@ public class TerminalBuffer
     public void SetChar(int row, int col, char ch, TerminalAttribute attr)
     {
         if (row < 0 || row >= Rows || col < 0 || col >= Cols) return;
+        int width = GetCharacterCellWidth(ch);
+        if (width <= 0) return;
+        if (col + width > Cols) width = 1;
+
+        ClearCellRange(row, col, width);
         _cells[row, col] = new TerminalCell
         {
             Character = ch,
             Attribute = attr,
             IsDirty = true,
-            Width = 1,
+            Width = width,
         };
+
+        if (width == 2)
+            _cells[row, col + 1] = CreateContinuationCell(attr);
     }
 
     /// <summary>
@@ -123,6 +131,10 @@ public class TerminalBuffer
         if (!ClampCursorToBounds())
             return;
 
+        int width = GetCharacterCellWidth(c);
+        if (width <= 0)
+            return;
+
         if (_wrapPending && AutoWrapMode)
         {
             CarriageReturn();
@@ -130,31 +142,42 @@ public class TerminalBuffer
             _wrapPending = false;
         }
 
-        if (InsertMode)
+        if (width == 2 && CursorCol == Cols - 1 && AutoWrapMode)
         {
-            // Shift characters right
-            for (int col = Cols - 1; col > CursorCol; col--)
-                _cells[CursorRow, col] = _cells[CursorRow, col - 1];
+            CarriageReturn();
+            LineFeed();
         }
 
         if (CursorRow >= 0 && CursorRow < Rows && CursorCol >= 0 && CursorCol < Cols)
         {
+            if (CursorCol + width > Cols)
+                width = 1;
+
+            if (InsertMode)
+                InsertBlankCells(CursorRow, CursorCol, width);
+
+            ClearCellRange(CursorRow, CursorCol, width);
             _cells[CursorRow, CursorCol] = new TerminalCell
             {
                 Character = c,
                 Attribute = CurrentAttribute,
                 IsDirty = true,
-                Width = 1,
+                Width = width,
             };
+
+            if (width == 2)
+                _cells[CursorRow, CursorCol + 1] = CreateContinuationCell(CurrentAttribute);
+
+            NormalizeWideCellsInRow(CursorRow);
         }
 
-        if (CursorCol + 1 >= Cols)
+        if (CursorCol + width >= Cols)
         {
             _wrapPending = true;
         }
         else
         {
-            CursorCol++;
+            CursorCol += width;
         }
     }
 
@@ -262,8 +285,7 @@ public class TerminalBuffer
         switch (mode)
         {
             case 0: // Cursor to end
-                for (int c = CursorCol; c < Cols; c++)
-                    _cells[CursorRow, c] = TerminalCell.Empty;
+                ClearCellRange(CursorRow, CursorCol, Cols - CursorCol);
                 for (int r = CursorRow + 1; r < Rows; r++)
                     for (int c = 0; c < Cols; c++)
                         _cells[r, c] = TerminalCell.Empty;
@@ -272,8 +294,7 @@ public class TerminalBuffer
                 for (int r = 0; r < CursorRow; r++)
                     for (int c = 0; c < Cols; c++)
                         _cells[r, c] = TerminalCell.Empty;
-                for (int c = 0; c <= CursorCol; c++)
-                    _cells[CursorRow, c] = TerminalCell.Empty;
+                ClearCellRange(CursorRow, 0, CursorCol + 1);
                 break;
             case 2: // All
                 Clear();
@@ -299,12 +320,10 @@ public class TerminalBuffer
         switch (mode)
         {
             case 0:
-                for (int c = CursorCol; c < Cols; c++)
-                    _cells[CursorRow, c] = TerminalCell.Empty;
+                ClearCellRange(CursorRow, CursorCol, Cols - CursorCol);
                 break;
             case 1:
-                for (int c = 0; c <= CursorCol; c++)
-                    _cells[CursorRow, c] = TerminalCell.Empty;
+                ClearCellRange(CursorRow, 0, CursorCol + 1);
                 break;
             case 2:
                 for (int c = 0; c < Cols; c++)
@@ -321,8 +340,7 @@ public class TerminalBuffer
             return;
 
         count = Math.Max(0, count);
-        for (int i = 0; i < count && CursorCol + i < Cols; i++)
-            _cells[CursorRow, CursorCol + i] = TerminalCell.Empty;
+        ClearCellRange(CursorRow, CursorCol, count);
         RaiseContentChanged();
     }
 
@@ -368,13 +386,7 @@ public class TerminalBuffer
         if (!ClampCursorToBounds())
             return;
 
-        count = Math.Max(0, count);
-        for (int n = 0; n < count; n++)
-        {
-            for (int c = Cols - 1; c > CursorCol; c--)
-                _cells[CursorRow, c] = _cells[CursorRow, c - 1];
-            _cells[CursorRow, CursorCol] = TerminalCell.Empty;
-        }
+        InsertBlankCells(CursorRow, CursorCol, count);
         RaiseContentChanged();
     }
 
@@ -383,13 +395,7 @@ public class TerminalBuffer
         if (!ClampCursorToBounds())
             return;
 
-        count = Math.Max(0, count);
-        for (int n = 0; n < count; n++)
-        {
-            for (int c = CursorCol; c < Cols - 1; c++)
-                _cells[CursorRow, c] = _cells[CursorRow, c + 1];
-            _cells[CursorRow, Cols - 1] = TerminalCell.Empty;
-        }
+        DeleteCells(CursorRow, CursorCol, count);
         RaiseContentChanged();
     }
 
@@ -550,6 +556,9 @@ public class TerminalBuffer
         CursorRow = Math.Min(CursorRow, newRows - 1);
         CursorCol = Math.Min(CursorCol, newCols - 1);
 
+        for (int row = 0; row < Rows; row++)
+            NormalizeWideCellsInRow(row);
+
         RaiseContentChanged();
     }
 
@@ -611,18 +620,9 @@ public class TerminalBuffer
         int rowCount = Math.Min(Rows, snapshot.ScreenLines.Count);
         for (int row = 0; row < rowCount; row++)
         {
-            var text = snapshot.ScreenLines[row];
-            int colCount = Math.Min(Cols, text.Length);
-            for (int col = 0; col < colCount; col++)
-            {
-                _cells[row, col] = new TerminalCell
-                {
-                    Character = text[col],
-                    Attribute = TerminalAttribute.Default,
-                    IsDirty = true,
-                    Width = 1,
-                };
-            }
+            var line = TextToLine(snapshot.ScreenLines[row], Cols);
+            for (int col = 0; col < Cols; col++)
+                _cells[row, col] = line[col];
         }
 
         CursorRow = Math.Clamp(snapshot.CursorRow, 0, Rows - 1);
@@ -644,14 +644,17 @@ public class TerminalBuffer
 
     private static string LineToText(TerminalCell[] line, int cols)
     {
-        var chars = new char[cols];
+        var text = new System.Text.StringBuilder(cols);
         for (int i = 0; i < cols; i++)
         {
+            if (i < line.Length && line[i].Width == 0)
+                continue;
+
             var ch = i < line.Length ? line[i].Character : ' ';
-            chars[i] = ch == '\0' ? ' ' : ch;
+            text.Append(ch == '\0' ? ' ' : ch);
         }
 
-        return new string(chars).TrimEnd();
+        return text.ToString().TrimEnd();
     }
 
     private static TerminalCell[] TextToLine(string? text, int cols)
@@ -662,19 +665,176 @@ public class TerminalBuffer
 
         if (string.IsNullOrEmpty(text)) return line;
 
-        int len = Math.Min(cols, text.Length);
-        for (int i = 0; i < len; i++)
+        int col = 0;
+        for (int i = 0; i < text.Length && col < cols; i++)
         {
-            line[i] = new TerminalCell
+            int width = GetCharacterCellWidth(text[i]);
+            if (width <= 0)
+                continue;
+            if (col + width > cols)
+                break;
+
+            line[col] = new TerminalCell
             {
                 Character = text[i],
                 Attribute = TerminalAttribute.Default,
                 IsDirty = true,
-                Width = 1,
+                Width = width,
             };
+
+            if (width == 2)
+                line[col + 1] = CreateContinuationCell(TerminalAttribute.Default);
+
+            col += width;
         }
 
         return line;
+    }
+
+    public static int GetCharacterCellWidth(char c)
+    {
+        if (c == '\0' || char.IsControl(c))
+            return 0;
+
+        return IsWideCharacter(c) ? 2 : 1;
+    }
+
+    private static bool IsWideCharacter(char c)
+    {
+        int code = c;
+        return (code >= 0x1100 && code <= 0x115F)
+            || code is 0x2329 or 0x232A
+            || (code >= 0x2E80 && code <= 0xA4CF)
+            || (code >= 0xAC00 && code <= 0xD7A3)
+            || (code >= 0xF900 && code <= 0xFAFF)
+            || (code >= 0xFE10 && code <= 0xFE19)
+            || (code >= 0xFE30 && code <= 0xFE6F)
+            || (code >= 0xFF00 && code <= 0xFF60)
+            || (code >= 0xFFE0 && code <= 0xFFE6);
+    }
+
+    private static TerminalCell CreateContinuationCell(TerminalAttribute attr) => new()
+    {
+        Character = ' ',
+        Attribute = attr,
+        IsDirty = true,
+        Width = 0,
+    };
+
+    private void InsertBlankCells(int row, int startCol, int count)
+    {
+        if (row < 0 || row >= Rows)
+            return;
+
+        count = Math.Clamp(count, 0, Cols - Math.Clamp(startCol, 0, Cols - 1));
+        if (count == 0)
+            return;
+
+        int start = Math.Clamp(startCol, 0, Cols - 1);
+        ClearWideCharacterCrossingColumn(row, start);
+
+        for (int col = Cols - 1; col >= start + count; col--)
+            _cells[row, col] = _cells[row, col - count];
+        for (int col = start; col < start + count; col++)
+            _cells[row, col] = TerminalCell.Empty;
+
+        NormalizeWideCellsInRow(row);
+    }
+
+    private void DeleteCells(int row, int startCol, int count)
+    {
+        if (row < 0 || row >= Rows)
+            return;
+
+        count = Math.Clamp(count, 0, Cols - Math.Clamp(startCol, 0, Cols - 1));
+        if (count == 0)
+            return;
+
+        var (start, deleteCount) = ExpandRangeToWholeWideCells(row, startCol, count);
+        for (int col = start; col < Cols - deleteCount; col++)
+            _cells[row, col] = _cells[row, col + deleteCount];
+        for (int col = Cols - deleteCount; col < Cols; col++)
+            _cells[row, col] = TerminalCell.Empty;
+
+        NormalizeWideCellsInRow(row);
+    }
+
+    private void ClearWideCharacterCrossingColumn(int row, int col)
+    {
+        if (col <= 0 || col >= Cols)
+            return;
+
+        if (_cells[row, col].Width == 0 && _cells[row, col - 1].Width == 2)
+        {
+            _cells[row, col - 1] = TerminalCell.Empty;
+            _cells[row, col] = TerminalCell.Empty;
+        }
+    }
+
+    private (int start, int count) ExpandRangeToWholeWideCells(int row, int startCol, int count)
+    {
+        int start = Math.Clamp(startCol, 0, Cols - 1);
+        int end = Math.Clamp(startCol + count - 1, 0, Cols - 1);
+
+        if (_cells[row, start].Width == 0 && start > 0 && _cells[row, start - 1].Width == 2)
+            start--;
+
+        if (_cells[row, end].Width == 2 && end + 1 < Cols)
+            end++;
+
+        return (start, end - start + 1);
+    }
+
+    private void ClearCellRange(int row, int startCol, int count)
+    {
+        if (row < 0 || row >= Rows || count <= 0)
+            return;
+
+        int start = Math.Clamp(startCol, 0, Cols - 1);
+        int end = Math.Clamp(startCol + count - 1, 0, Cols - 1);
+
+        if (_cells[row, start].Width == 0 && start > 0)
+            start--;
+
+        if (start > 0 && _cells[row, start - 1].Width == 2)
+            start--;
+
+        if (_cells[row, end].Width == 2 && end + 1 < Cols)
+            end++;
+
+        for (int col = start; col <= end; col++)
+            _cells[row, col] = TerminalCell.Empty;
+    }
+
+    private void NormalizeWideCellsInRow(int row)
+    {
+        if (row < 0 || row >= Rows)
+            return;
+
+        for (int col = 0; col < Cols; col++)
+        {
+            var cell = _cells[row, col];
+            if (cell.Width == 2)
+            {
+                if (col + 1 >= Cols)
+                {
+                    _cells[row, col] = TerminalCell.Empty;
+                    continue;
+                }
+
+                _cells[row, col + 1] = CreateContinuationCell(cell.Attribute);
+                col++;
+            }
+            else if (cell.Width == 0)
+            {
+                if (col == 0 || _cells[row, col - 1].Width != 2)
+                    _cells[row, col] = TerminalCell.Empty;
+            }
+            else if (cell.Width != 1)
+            {
+                _cells[row, col] = TerminalCell.Empty;
+            }
+        }
     }
 
     /// <summary>

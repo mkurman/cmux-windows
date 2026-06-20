@@ -107,22 +107,30 @@ public class TerminalSelection
             int startCol = visRow == s.Row ? s.Col : 0;
             int endCol = visRow == e.Row ? e.Col : buffer.Cols - 1;
 
-            for (int col = startCol; col <= endCol && col < buffer.Cols; col++)
+            TerminalCell GetCell(int c)
             {
-                char ch;
                 if (isScrollback)
                 {
                     var line = buffer.GetScrollbackLine(virtualLine);
-                    ch = (line != null && col < line.Length) ? line[col].Character : '\0';
+                    return (line != null && c >= 0 && c < line.Length) ? line[c] : TerminalCell.Empty;
                 }
-                else if (bufferRow >= 0 && bufferRow < buffer.Rows)
-                {
-                    ch = buffer.CellAt(bufferRow, col).Character;
-                }
-                else
-                {
-                    ch = '\0';
-                }
+                if (bufferRow >= 0 && bufferRow < buffer.Rows && c >= 0 && c < buffer.Cols)
+                    return buffer.CellAt(bufferRow, c);
+                return TerminalCell.Empty;
+            }
+
+            if (GetCell(startCol).Width == 0 && startCol > 0)
+                startCol--;
+            if (GetCell(endCol).Width == 2 && endCol + 1 < buffer.Cols)
+                endCol++;
+
+            for (int col = startCol; col <= endCol && col < buffer.Cols; col++)
+            {
+                var cell = GetCell(col);
+                if (cell.Width == 0)
+                    continue;
+
+                var ch = cell.Character;
                 sb.Append(ch == '\0' ? ' ' : ch);
             }
 
@@ -151,19 +159,23 @@ public class TerminalSelection
         bool isScrollback = virtualLine < scrollbackCount;
         int bufferRow = virtualLine - scrollbackCount;
 
-        char GetChar(int c)
+        TerminalCell GetCell(int c)
         {
             if (isScrollback)
             {
                 var line = buffer.GetScrollbackLine(virtualLine);
-                return (line != null && c < line.Length) ? line[c].Character : '\0';
+                return (line != null && c >= 0 && c < line.Length) ? line[c] : TerminalCell.Empty;
             }
-            if (bufferRow >= 0 && bufferRow < buffer.Rows)
-                return buffer.CellAt(bufferRow, c).Character;
-            return '\0';
+            if (bufferRow >= 0 && bufferRow < buffer.Rows && c >= 0 && c < buffer.Cols)
+                return buffer.CellAt(bufferRow, c);
+            return TerminalCell.Empty;
         }
 
+        int NormalizeToWideStart(int c) => GetCell(c).Width == 0 && c > 0 ? c - 1 : c;
+        char GetChar(int c) => GetCell(NormalizeToWideStart(c)).Character;
         bool IsWordChar(char ch) => ch != '\0' && ch != ' ' && (char.IsLetterOrDigit(ch) || ch == '_' || ch == '-');
+
+        col = NormalizeToWideStart(col);
 
         if (!IsWordChar(GetChar(col)))
         {
