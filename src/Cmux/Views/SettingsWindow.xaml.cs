@@ -66,6 +66,8 @@ public partial class SettingsWindow : Window
 
         FontSizeSlider.Value = Math.Clamp(s.FontSize, 9, 28);
         UpdateFontSizeText();
+        UiScaleSlider.Value = Math.Clamp(s.UiScalePercent, 100, 200);
+        UpdateUiScaleText();
 
         _suppressThemeSync = true;
         ThemeCombo.SelectedItem = s.ThemeName;
@@ -184,6 +186,7 @@ public partial class SettingsWindow : Window
         var s = SettingsService.Current;
         s.FontFamily = FontFamilyCombo.SelectedItem as string ?? FontFamilyCombo.Text;
         s.FontSize = (int)Math.Round(FontSizeSlider.Value);
+        s.UiScalePercent = (int)Math.Round(UiScaleSlider.Value);
         s.ThemeName = TerminalThemePresetCombo.SelectedItem as string
             ?? ThemeCombo.SelectedItem as string
             ?? "Default Dark";
@@ -874,6 +877,12 @@ public partial class SettingsWindow : Window
             FontSizeValueText.Text = $"{(int)Math.Round(FontSizeSlider.Value)} px";
     }
 
+    private void UpdateUiScaleText()
+    {
+        if (UiScaleValueText != null)
+            UiScaleValueText.Text = $"{(int)Math.Round(UiScaleSlider.Value)}%";
+    }
+
     private void OpacitySlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
     {
         UpdateOpacityText();
@@ -882,6 +891,11 @@ public partial class SettingsWindow : Window
     private void FontSizeSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
     {
         UpdateFontSizeText();
+    }
+
+    private void UiScaleSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        UpdateUiScaleText();
     }
 
     private static string? NormalizeHexColor(string? text)

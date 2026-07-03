@@ -180,6 +180,10 @@
                                 <MenuItem Header="Command _Palette" Click="CommandPalette_Click" InputGestureText="Ctrl+Shift+P" />
                                 <MenuItem Header="_Snippets" Click="Snippets_Click" />
                                 <Separator />
+                                <MenuItem Header="UI Scale _Up" Click="MenuUiScaleUp_Click" InputGestureText="Ctrl+=" />
+                                <MenuItem Header="UI Scale _Down" Click="MenuUiScaleDown_Click" InputGestureText="Ctrl+-" />
+                                <MenuItem Header="_Reset UI Scale" Click="MenuUiScaleReset_Click" InputGestureText="Ctrl+0" />
+                                <Separator />
                                 <MenuItem Header="Toggle Agent _Chat" Click="MenuToggleAgentChat_Click" InputGestureText="Ctrl+Shift+A" />
                                 <MenuItem Header="Toggle _Sidebar" Command="{Binding ToggleSidebarCommand}" InputGestureText="Ctrl+B" />
                             </MenuItem>
