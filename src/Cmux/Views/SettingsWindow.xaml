@@ -367,6 +367,27 @@
                             </StackPanel>
                         </Grid>
 
+                        <Grid Margin="0,0,0,10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="160" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="UI Scale" Style="{StaticResource SectionLabel}" />
+                            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                <Slider x:Name="UiScaleSlider" Minimum="100" Maximum="200"
+                                        Width="220" VerticalAlignment="Center"
+                                        TickFrequency="10" IsSnapToTickEnabled="True"
+                                        ValueChanged="UiScaleSlider_ValueChanged" />
+                                <TextBlock x:Name="UiScaleValueText" Foreground="{StaticResource ForegroundDimBrush}"
+                                           VerticalAlignment="Center" Margin="10,0,0,0" FontSize="12" />
+                            </StackPanel>
+                        </Grid>
+
+                        <TextBlock Margin="160,0,0,12"
+                                   Foreground="{StaticResource ForegroundDimBrush}"
+                                   FontSize="12"
+                                   Text="Scales the full app UI for 4K/high-DPI displays. Shortcuts: Ctrl+=, Ctrl+-, Ctrl+0." />
+
                         <!-- Theme -->
                         <Grid Margin="0,0,0,10">
                             <Grid.ColumnDefinitions>

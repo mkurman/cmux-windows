@@ -10,6 +10,7 @@ public class CmuxSettings
 
     public string FontFamily { get; set; } = "Cascadia Code";
     public int FontSize { get; set; } = 14;
+    public int UiScalePercent { get; set; } = 100;
     public string ThemeName { get; set; } = "Default Dark";
     public bool UseCustomTerminalColors { get; set; } = false;
     public string CustomTerminalBackground { get; set; } = "";

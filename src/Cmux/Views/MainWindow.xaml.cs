@@ -424,6 +424,28 @@ public partial class MainWindow : Window
         }
 
         // === Ctrl-only shortcuts (skip when terminal has focus to let terminal handle them) ===
+        if (ctrl && !shift && !alt)
+        {
+            switch (e.Key)
+            {
+                case Key.OemPlus:
+                case Key.Add:
+                    IncreaseUiScale();
+                    e.Handled = true;
+                    return;
+                case Key.OemMinus:
+                case Key.Subtract:
+                    DecreaseUiScale();
+                    e.Handled = true;
+                    return;
+                case Key.D0:
+                case Key.NumPad0:
+                    ResetUiScale();
+                    e.Handled = true;
+                    return;
+            }
+        }
+
         if (ctrl && !alt && IsTerminalFocusActive())
             return;
 
@@ -497,6 +519,18 @@ public partial class MainWindow : Window
 
     private void MinimizeButton_Click(object sender, RoutedEventArgs e) =>
         WindowState = WindowState.Minimized;
+
+    private void IncreaseUiScale() => WindowAppearance.IncreaseUiScale();
+
+    private void DecreaseUiScale() => WindowAppearance.DecreaseUiScale();
+
+    private void ResetUiScale() => WindowAppearance.ResetUiScale();
+
+    private void MenuUiScaleUp_Click(object sender, RoutedEventArgs e) => IncreaseUiScale();
+
+    private void MenuUiScaleDown_Click(object sender, RoutedEventArgs e) => DecreaseUiScale();
+
+    private void MenuUiScaleReset_Click(object sender, RoutedEventArgs e) => ResetUiScale();
 
     private void MaximizeButton_Click(object sender, RoutedEventArgs e) =>
         WindowState = WindowState == WindowState.Maximized
