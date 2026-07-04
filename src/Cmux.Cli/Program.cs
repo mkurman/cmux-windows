@@ -1,5 +1,7 @@
+using System.Text;
 using System.Text.Json;
 using Cmux.Core.IPC;
+using Cmux.Core.Terminal;
 
 namespace Cmux.Cli;
 
@@ -15,6 +17,9 @@ namespace Cmux.Cli;
 ///   cmux surface create
 ///   cmux split right
 ///   cmux split down
+///   cmux pane list
+///   cmux send --text "git status" --enter
+///   cmux send-key ctrl-c
 ///   cmux status
 /// </summary>
 public static class Program
@@ -37,6 +42,9 @@ public static class Program
                 "workspace" => await HandleWorkspace(args[1..]),
                 "surface" => await HandleSurface(args[1..]),
                 "split" => await HandleSplit(args[1..]),
+                "pane" => await HandlePane(args[1..]),
+                "send" => await HandleSend(args[1..]),
+                "send-key" or "sendkey" => await HandleSendKey(args[1..]),
                 "status" => await HandleStatus(),
                 "help" or "--help" or "-h" => PrintHelp(),
                 "version" or "--version" or "-v" => PrintVersion(),
@@ -138,6 +146,226 @@ public static class Program
         return await SendAndPrint("STATUS");
     }
 
+    private static async Task<int> HandlePane(string[] args)
+    {
+        if (args.Length == 0)
+        {
+            Console.Error.WriteLine("Usage: cmux pane <list>");
+            return 1;
+        }
+
+        var subcommand = args[0].ToLowerInvariant();
+
+        if (subcommand is not ("list" or "ls"))
+            return Error($"Unknown pane command: {subcommand}");
+
+        var cmdArgs = new Dictionary<string, string>();
+        for (int i = 1; i < args.Length; i++)
+        {
+            switch (args[i].ToLowerInvariant())
+            {
+                case "--workspace":
+                    if (!TryTakeIndexValue(args, ref i, "--workspace", out var wsIndex)) return 1;
+                    cmdArgs["workspaceIndex"] = wsIndex;
+                    break;
+                case "--surface":
+                    if (!TryTakeIndexValue(args, ref i, "--surface", out var sfIndex)) return 1;
+                    cmdArgs["surfaceIndex"] = sfIndex;
+                    break;
+                default:
+                    return Error($"Unknown option for pane list: {args[i]}");
+            }
+        }
+
+        return await SendAndPrint("PANE.LIST", cmdArgs);
+    }
+
+    private static async Task<int> HandleSend(string[] args)
+    {
+        string? text = null;
+        bool enter = false;
+        bool paste = false;
+        var cmdArgs = new Dictionary<string, string>();
+
+        for (int i = 0; i < args.Length; i++)
+        {
+            switch (args[i].ToLowerInvariant())
+            {
+                case "--text":
+                    if (!TryTakeValue(args, ref i, "--text", out var textValue)) return 1;
+                    text = textValue;
+                    break;
+                case "--enter":
+                    enter = true;
+                    break;
+                case "--paste":
+                    paste = true;
+                    break;
+                default:
+                    if (!TryParseTargetOption(args, ref i, cmdArgs, out var handled)) return 1;
+                    if (!handled) return Error($"Unknown option for send: {args[i]}");
+                    break;
+            }
+        }
+
+        // Fall back to stdin when --text is absent (e.g. `type prompt.txt | cmux send --paste`).
+        if (text == null && Console.IsInputRedirected)
+        {
+            using var stdin = new StreamReader(Console.OpenStandardInput(), Encoding.UTF8);
+            text = await stdin.ReadToEndAsync();
+
+            // Strip one trailing newline so submission stays explicit via --enter.
+            if (text.EndsWith("\r\n")) text = text[..^2];
+            else if (text.EndsWith('\n') || text.EndsWith('\r')) text = text[..^1];
+        }
+
+        if (string.IsNullOrEmpty(text) && !enter)
+            return Error("Nothing to send. Provide --text, pipe a payload via stdin, or pass --enter.");
+
+        cmdArgs["data"] = PaneInputEncoder.EncodeBase64Payload(text ?? "");
+        if (enter) cmdArgs["enter"] = "true";
+        if (paste) cmdArgs["paste"] = "true";
+
+        return await SendInputAndReport("PANE.SEND", cmdArgs);
+    }
+
+    private static async Task<int> HandleSendKey(string[] args)
+    {
+        string? key = null;
+        var cmdArgs = new Dictionary<string, string>();
+
+        for (int i = 0; i < args.Length; i++)
+        {
+            if (!args[i].StartsWith('-'))
+            {
+                if (key != null)
+                    return Error($"Unexpected argument: {args[i]} (only one key per invocation)");
+                key = args[i];
+                continue;
+            }
+
+            if (!TryParseTargetOption(args, ref i, cmdArgs, out var handled)) return 1;
+            if (!handled) return Error($"Unknown option for send-key: {args[i]}");
+        }
+
+        if (string.IsNullOrWhiteSpace(key))
+            return Error($"Usage: cmux send-key <key> [target options]. Supported keys: {PaneInputEncoder.SupportedKeysDescription}");
+
+        if (!PaneInputEncoder.TryResolveKey(key, out _))
+            return Error($"Unknown key: {key}. Supported: {PaneInputEncoder.SupportedKeysDescription}");
+
+        cmdArgs["key"] = key;
+        return await SendInputAndReport("PANE.SENDKEY", cmdArgs);
+    }
+
+    /// <summary>
+    /// Parses the target options shared by send and send-key
+    /// (--workspace/--surface/--pane/--all/--all-in-workspace).
+    /// Returns false on a malformed value; sets handled=false for unknown options.
+    /// </summary>
+    private static bool TryParseTargetOption(string[] args, ref int i, Dictionary<string, string> cmdArgs, out bool handled)
+    {
+        handled = true;
+
+        switch (args[i].ToLowerInvariant())
+        {
+            case "--workspace":
+                if (!TryTakeIndexValue(args, ref i, "--workspace", out var wsIndex)) return false;
+                cmdArgs["workspaceIndex"] = wsIndex;
+                return true;
+            case "--surface":
+                if (!TryTakeIndexValue(args, ref i, "--surface", out var sfIndex)) return false;
+                cmdArgs["surfaceIndex"] = sfIndex;
+                return true;
+            case "--pane":
+                if (!TryTakeIndexValue(args, ref i, "--pane", out var paneIndex)) return false;
+                cmdArgs["paneIndex"] = paneIndex;
+                return true;
+            case "--all":
+                cmdArgs["all"] = "true";
+                return true;
+            case "--all-in-workspace":
+                cmdArgs["allInWorkspace"] = "true";
+                return true;
+            default:
+                handled = false;
+                return true;
+        }
+    }
+
+    private static bool TryTakeValue(string[] args, ref int i, string option, out string value)
+    {
+        if (i + 1 < args.Length)
+        {
+            value = args[++i];
+            return true;
+        }
+
+        value = "";
+        Console.Error.WriteLine($"Error: {option} requires a value.");
+        return false;
+    }
+
+    private static bool TryTakeIndexValue(string[] args, ref int i, string option, out string value)
+    {
+        if (!TryTakeValue(args, ref i, option, out value))
+            return false;
+
+        if (!int.TryParse(value, out _))
+        {
+            Console.Error.WriteLine($"Error: {option} requires an integer index, got: {value}");
+            return false;
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Sends an input-injection command and reports the outcome: errors and
+    /// per-pane broadcast failures go to stderr with a non-zero exit code.
+    /// </summary>
+    private static async Task<int> SendInputAndReport(string command, Dictionary<string, string> cmdArgs)
+    {
+        var response = await NamedPipeClient.SendCommand(command, cmdArgs);
+
+        try
+        {
+            using var doc = JsonDocument.Parse(response);
+            var root = doc.RootElement;
+
+            if (root.TryGetProperty("error", out var error))
+            {
+                Console.Error.WriteLine($"Error: {error.GetString()}");
+                return 1;
+            }
+
+            if (root.TryGetProperty("failed", out var failed)
+                && failed.ValueKind == JsonValueKind.Array
+                && failed.GetArrayLength() > 0)
+            {
+                var delivered = root.TryGetProperty("delivered", out var d) ? d.GetInt32() : 0;
+                Console.WriteLine($"Delivered to {delivered} pane(s); {failed.GetArrayLength()} failed:");
+                foreach (var f in failed.EnumerateArray())
+                {
+                    var workspace = f.TryGetProperty("workspace", out var w) ? w.GetString() : "?";
+                    var surface = f.TryGetProperty("surface", out var s) ? s.GetString() : "?";
+                    var reason = f.TryGetProperty("error", out var e) ? e.GetString() : "unknown error";
+                    Console.Error.WriteLine($"  workspace \"{workspace}\", surface \"{surface}\": {reason}");
+                }
+                return 1;
+            }
+
+            var pretty = JsonSerializer.Serialize(doc, new JsonSerializerOptions { WriteIndented = true });
+            Console.WriteLine(pretty);
+            return 0;
+        }
+        catch (JsonException)
+        {
+            Console.WriteLine(response);
+            return 0;
+        }
+    }
+
     private static async Task<int> SendAndPrint(string command, Dictionary<string, string>? args = null)
     {
         var response = await NamedPipeClient.SendCommand(command, args);
@@ -234,6 +462,27 @@ public static class Program
               split                 Split the focused pane
                 right               Split vertically (left/right)
                 down                Split horizontally (top/bottom)
+
+              pane                  Inspect panes
+                list                List panes in a surface
+                  --workspace <n>   Workspace index (default: active)
+                  --surface <n>     Surface index (default: active)
+
+              send                  Type text into a terminal pane
+                --text <text>       Text payload (reads stdin when omitted)
+                --enter             Press Enter after the payload
+                --paste             Bracketed paste (multiline text lands as one block)
+                --workspace <n>     Target workspace index (default: active)
+                --surface <n>       Target surface index (default: active)
+                --pane <n>          Target pane index (default: focused/active pane)
+                --all               Broadcast to every pane in every workspace
+                --all-in-workspace  Broadcast to every pane in the target workspace
+
+              send-key <key>        Press a key in a terminal pane
+                                    Keys: enter, tab, escape, backspace, space,
+                                    up/down/left/right, home, end, insert, delete,
+                                    pageup, pagedown, f1-f12, ctrl-a..ctrl-z
+                                    (same target options as send)
 
               status                Show cmux status
 
