@@ -228,9 +228,10 @@ cmux send-key ctrl-c --all-in-workspace
 
 Targeting: `--workspace`/`--surface`/`--pane` take the 1-based indices shown by
 `cmux pane list`; omitted flags default to the active workspace/surface and its
-focused pane. `--paste` wraps the payload in bracketed-paste markers so
-multiline text lands in TUI apps as one block instead of submitting
-line-by-line; it only submits once you send Enter.
+focused pane. `--paste` behaves like pasting into the pane: when the target
+app has bracketed paste enabled (TUIs like Claude Code do), multiline text
+lands as one block instead of submitting line-by-line, and only submits once
+you send Enter.
 
 > **Security note:** the named pipe has no authentication — `cmux send` lets
 > any local process inject input (i.e. run commands) in your terminals. Be

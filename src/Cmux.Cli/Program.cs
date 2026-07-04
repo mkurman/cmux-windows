@@ -471,7 +471,8 @@ public static class Program
               send                  Type text into a terminal pane
                 --text <text>       Text payload (reads stdin when omitted)
                 --enter             Press Enter after the payload
-                --paste             Bracketed paste (multiline text lands as one block)
+                --paste             Paste instead of typing: multiline text lands as one
+                                    block in apps with bracketed paste (TUIs like Claude Code)
                 --workspace <n>     Target workspace index (default: active)
                 --surface <n>       Target surface index (default: active)
                 --pane <n>          Target pane index (default: focused/active pane)

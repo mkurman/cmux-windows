@@ -692,13 +692,9 @@ public partial class MainViewModel : ObservableObject
 
         text = PaneInputEncoder.NormalizeNewlines(text);
 
-        var payload = paste && text.Length > 0 ? PaneInputEncoder.WrapBracketedPaste(text) : text;
-        if (enter)
-            payload += PaneInputEncoder.Enter;
-
         var commandForHistory = enter && !paste && !string.IsNullOrWhiteSpace(text) ? text : null;
 
-        return DeliverToTargets(args, payload, commandForHistory);
+        return DeliverToTargets(args, text, enter, paste, commandForHistory);
     }
 
     private string HandlePaneSendKey(Dictionary<string, string> args)
@@ -713,10 +709,10 @@ public partial class MainViewModel : ObservableObject
                 error = $"Unknown key: {keyName}. Supported: {PaneInputEncoder.SupportedKeysDescription}",
             });
 
-        return DeliverToTargets(args, sequence, commandForHistory: null);
+        return DeliverToTargets(args, sequence, enter: false, paste: false, commandForHistory: null);
     }
 
-    private string DeliverToTargets(Dictionary<string, string> args, string payload, string? commandForHistory)
+    private string DeliverToTargets(Dictionary<string, string> args, string text, bool enter, bool paste, string? commandForHistory)
     {
         bool all = IsFlagSet(args, "all");
         bool allInWorkspace = IsFlagSet(args, "allInWorkspace");
@@ -749,7 +745,7 @@ public partial class MainViewModel : ObservableObject
 
                     foreach (var paneId in paneIds)
                     {
-                        if (TryWriteToPane(surface, paneId, payload, commandForHistory, out var paneError))
+                        if (TryWriteToPane(surface, paneId, text, enter, paste, commandForHistory, out _, out var paneError))
                         {
                             delivered++;
                         }
@@ -785,7 +781,7 @@ public partial class MainViewModel : ObservableObject
         if (!TryResolvePaneId(surface2, args, out var targetPaneId, out var paneIndex, out var paneName, out error))
             return JsonSerializer.Serialize(new { error });
 
-        if (!TryWriteToPane(surface2, targetPaneId, payload, commandForHistory, out error))
+        if (!TryWriteToPane(surface2, targetPaneId, text, enter, paste, commandForHistory, out var bytes, out error))
             return JsonSerializer.Serialize(new { error });
 
         return JsonSerializer.Serialize(new
@@ -798,12 +794,21 @@ public partial class MainViewModel : ObservableObject
             paneId = targetPaneId,
             paneIndex,
             paneName,
-            bytes = Encoding.UTF8.GetByteCount(payload),
+            bytes,
         });
     }
 
-    private static bool TryWriteToPane(SurfaceViewModel surface, string paneId, string payload, string? commandForHistory, out string error)
+    private static bool TryWriteToPane(
+        SurfaceViewModel surface,
+        string paneId,
+        string text,
+        bool enter,
+        bool paste,
+        string? commandForHistory,
+        out int bytes,
+        out string error)
     {
+        bytes = 0;
         error = "";
 
         var session = surface.GetSession(paneId);
@@ -819,7 +824,17 @@ public partial class MainViewModel : ObservableObject
             return false;
         }
 
+        // Match TerminalControl.PasteText: bracketed-paste markers only when the
+        // target application has enabled bracketed-paste mode, plain text otherwise.
+        var payload = paste && text.Length > 0 && session.Buffer.BracketedPasteMode
+            ? PaneInputEncoder.WrapBracketedPaste(text)
+            : text;
+
+        if (enter)
+            payload += PaneInputEncoder.Enter;
+
         session.Write(payload);
+        bytes = Encoding.UTF8.GetByteCount(payload);
 
         if (commandForHistory != null)
             surface.RegisterCommandSubmission(paneId, commandForHistory);
