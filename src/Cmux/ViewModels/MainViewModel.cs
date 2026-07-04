@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Text;
 using System.Text.Json;
 using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -6,6 +7,7 @@ using CommunityToolkit.Mvvm.Input;
 using Cmux.Core.IPC;
 using Cmux.Core.Models;
 using Cmux.Core.Services;
+using Cmux.Core.Terminal;
 
 namespace Cmux.ViewModels;
 
@@ -424,6 +426,8 @@ public partial class MainViewModel : ObservableObject
                 "PANE.LIST" => HandlePaneList(args),
                 "PANE.FOCUS" => HandlePaneFocus(args),
                 "PANE.WRITE" => HandlePaneWrite(args),
+                "PANE.SEND" => HandlePaneSend(args),
+                "PANE.SENDKEY" => HandlePaneSendKey(args),
                 "PANE.READ" => HandlePaneRead(args),
                 "STATUS" => HandleStatus(),
                 _ => JsonSerializer.Serialize(new { error = $"Unknown command: {command}" }),
@@ -665,6 +669,183 @@ public partial class MainViewModel : ObservableObject
             submitKey,
             bytes = text.Length,
         });
+    }
+
+    private string HandlePaneSend(Dictionary<string, string> args)
+    {
+        string text;
+        if (args.TryGetValue("data", out var encoded))
+        {
+            if (!PaneInputEncoder.TryDecodeBase64Payload(encoded, out text))
+                return JsonSerializer.Serialize(new { error = "Invalid base64 payload in 'data'" });
+        }
+        else
+        {
+            text = args.GetValueOrDefault("text", "");
+        }
+
+        bool enter = IsFlagSet(args, "enter");
+        bool paste = IsFlagSet(args, "paste");
+
+        if (text.Length == 0 && !enter)
+            return JsonSerializer.Serialize(new { error = "Empty payload: provide text and/or enter" });
+
+        text = PaneInputEncoder.NormalizeNewlines(text);
+
+        var commandForHistory = enter && !paste && !string.IsNullOrWhiteSpace(text) ? text : null;
+
+        return DeliverToTargets(args, text, enter, paste, commandForHistory);
+    }
+
+    private string HandlePaneSendKey(Dictionary<string, string> args)
+    {
+        var keyName = args.GetValueOrDefault("key", args.GetValueOrDefault("_arg0", ""));
+        if (string.IsNullOrWhiteSpace(keyName))
+            return JsonSerializer.Serialize(new { error = "Missing required argument: key" });
+
+        if (!PaneInputEncoder.TryResolveKey(keyName, out var sequence))
+            return JsonSerializer.Serialize(new
+            {
+                error = $"Unknown key: {keyName}. Supported: {PaneInputEncoder.SupportedKeysDescription}",
+            });
+
+        return DeliverToTargets(args, sequence, enter: false, paste: false, commandForHistory: null);
+    }
+
+    private string DeliverToTargets(Dictionary<string, string> args, string text, bool enter, bool paste, string? commandForHistory)
+    {
+        bool all = IsFlagSet(args, "all");
+        bool allInWorkspace = IsFlagSet(args, "allInWorkspace");
+
+        if (all || allInWorkspace)
+        {
+            List<WorkspaceViewModel> targets;
+            if (all)
+            {
+                targets = Workspaces.ToList();
+            }
+            else
+            {
+                if (!TryResolveWorkspace(args, out var broadcastWorkspace, out var broadcastError))
+                    return JsonSerializer.Serialize(new { error = broadcastError });
+                targets = [broadcastWorkspace];
+            }
+
+            int delivered = 0;
+            var failed = new List<object>();
+
+            foreach (var ws in targets)
+            {
+                foreach (var surface in ws.Surfaces)
+                {
+                    var paneIds = surface.RootNode.GetLeaves()
+                        .Select(l => l.PaneId)
+                        .Where(id => !string.IsNullOrWhiteSpace(id))
+                        .Cast<string>();
+
+                    foreach (var paneId in paneIds)
+                    {
+                        if (TryWriteToPane(surface, paneId, text, enter, paste, commandForHistory, out _, out var paneError))
+                        {
+                            delivered++;
+                        }
+                        else
+                        {
+                            failed.Add(new
+                            {
+                                workspace = ws.Name,
+                                surface = surface.Name,
+                                paneId,
+                                error = paneError,
+                            });
+                        }
+                    }
+                }
+            }
+
+            return JsonSerializer.Serialize(new
+            {
+                ok = failed.Count == 0,
+                broadcast = all ? "all" : "workspace",
+                delivered,
+                failed,
+            });
+        }
+
+        if (!TryResolveWorkspace(args, out var workspace, out var error))
+            return JsonSerializer.Serialize(new { error });
+
+        if (!TryResolveSurface(workspace, args, out var surface2, out error))
+            return JsonSerializer.Serialize(new { error });
+
+        if (!TryResolvePaneId(surface2, args, out var targetPaneId, out var paneIndex, out var paneName, out error))
+            return JsonSerializer.Serialize(new { error });
+
+        if (!TryWriteToPane(surface2, targetPaneId, text, enter, paste, commandForHistory, out var bytes, out error))
+            return JsonSerializer.Serialize(new { error });
+
+        return JsonSerializer.Serialize(new
+        {
+            ok = true,
+            workspaceId = workspace.Workspace.Id,
+            workspaceName = workspace.Name,
+            surfaceId = surface2.Surface.Id,
+            surfaceName = surface2.Name,
+            paneId = targetPaneId,
+            paneIndex,
+            paneName,
+            bytes,
+        });
+    }
+
+    private static bool TryWriteToPane(
+        SurfaceViewModel surface,
+        string paneId,
+        string text,
+        bool enter,
+        bool paste,
+        string? commandForHistory,
+        out int bytes,
+        out string error)
+    {
+        bytes = 0;
+        error = "";
+
+        var session = surface.GetSession(paneId);
+        if (session == null)
+        {
+            error = $"Pane session not found: {paneId}";
+            return false;
+        }
+
+        if (!session.IsRunning && session.DaemonWrite == null)
+        {
+            error = $"Shell process has exited in pane: {paneId}";
+            return false;
+        }
+
+        // Match TerminalControl.PasteText: bracketed-paste markers only when the
+        // target application has enabled bracketed-paste mode, plain text otherwise.
+        var payload = paste && text.Length > 0 && session.Buffer.BracketedPasteMode
+            ? PaneInputEncoder.WrapBracketedPaste(text)
+            : text;
+
+        if (enter)
+            payload += PaneInputEncoder.Enter;
+
+        session.Write(payload);
+        bytes = Encoding.UTF8.GetByteCount(payload);
+
+        if (commandForHistory != null)
+            surface.RegisterCommandSubmission(paneId, commandForHistory);
+
+        return true;
+    }
+
+    private static bool IsFlagSet(Dictionary<string, string> args, string name)
+    {
+        return args.TryGetValue(name, out var raw)
+            && (bool.TryParse(raw, out var parsed) ? parsed : raw == "1");
     }
 
     private string HandlePaneRead(Dictionary<string, string> args)
