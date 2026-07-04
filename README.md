@@ -16,7 +16,7 @@ A dark, keyboard-first terminal multiplexer for Windows, inspired by tmux/cmux w
 | You want searchable output history like Termius vault | Anyone reviewing terminal sessions | **Session Vault browser** | Open vault, filter captures, preview transcript, copy/open file |
 | You need dark theme consistency and personalization | Users who care about UX/readability | **Dark UI + terminal theme customization** | Settings (`Ctrl+,`) for colors/font/cursor + workspace accents |
 | You want quick actions without mouse hunting | Keyboard-first power users | **Command palette + shortcuts** | `Ctrl+Shift+P` command palette, menu mirrors key flows |
-| You need automation from scripts/tools | Integrators/agent hooks | **Named pipe CLI API** (`cmux`) | `cmux notify`, `cmux workspace`, `cmux split`, `cmux status` |
+| You need automation from scripts/tools | Integrators/agent hooks | **Named pipe CLI API** (`cmux`) | `cmux notify`, `cmux workspace`, `cmux split`, `cmux send`, `cmux send-key`, `cmux status` |
 
 ---
 
@@ -190,10 +190,51 @@ cmux workspace select --index 0
 cmux surface create
 cmux split right
 cmux split down
+cmux pane list
+
+# Type into a pane (goes to the focused pane unless targeted)
+cmux send --text "git status" --enter
+cmux send --text "explain this repo" --workspace 1 --surface 1 --pane 2
+type prompt.txt | cmux send --paste     # multiline stdin as one paste block
+
+# Press individual keys (drive TUIs like Claude Code)
+cmux send-key enter
+cmux send-key up --workspace 1 --surface 2
+cmux send-key ctrl-c --all              # broadcast to every pane
 
 # Inspect status
 cmux status
 ```
+
+### Orchestrating agents with `send`
+
+`cmux send` / `cmux send-key` inject input into a pane's terminal exactly as if
+it were typed, without stealing focus or raising the window — so a main pane
+(or a script) can steer agent panes running in other workspaces:
+
+```powershell
+# Kick off an agent in pane 2, then answer its prompt later
+cmux send --text "claude" --enter --pane 2
+cmux send --text "run the tests and fix any failures" --pane 2
+cmux send-key enter --pane 2
+
+# Paste a long multiline prompt into an agent as a single block, then submit
+type prompt.txt | cmux send --paste --workspace 2
+cmux send-key enter --workspace 2
+
+# Interrupt everything in the current workspace
+cmux send-key ctrl-c --all-in-workspace
+```
+
+Targeting: `--workspace`/`--surface`/`--pane` take the 1-based indices shown by
+`cmux pane list`; omitted flags default to the active workspace/surface and its
+focused pane. `--paste` wraps the payload in bracketed-paste markers so
+multiline text lands in TUI apps as one block instead of submitting
+line-by-line; it only submits once you send Enter.
+
+> **Security note:** the named pipe has no authentication — `cmux send` lets
+> any local process inject input (i.e. run commands) in your terminals. Be
+> deliberate about which scripts and agents you allow to call it.
 
 ---
 
