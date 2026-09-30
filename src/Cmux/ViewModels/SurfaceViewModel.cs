@@ -401,7 +401,7 @@ public partial class SurfaceViewModel : ObservableObject, IDisposable
             {
                 DaemonLog($"[DaemonSession:{paneId}] Calling CreateSessionAsync ({initCols}x{initRows})...");
                 var result = await daemon.CreateSessionAsync(
-                    paneId, initCols, initRows, effectiveCwd);
+                    paneId, initCols, initRows, effectiveCwd, shell);
 
                 if (result == null)
                 {
